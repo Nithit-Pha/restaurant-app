@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as settingsService from './settings.service';
+import { audit } from '../../utils/auditLog';
 
 export async function getSettingsHandler(_req: Request, res: Response, next: NextFunction) {
   try {
@@ -10,7 +11,9 @@ export async function getSettingsHandler(_req: Request, res: Response, next: Nex
 export async function setTaxHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const { value } = req.body;
+    const prev = await settingsService.getSetting('TAX_RATE');
     await settingsService.setSetting('TAX_RATE', value);
+    audit({ actorId: req.user!.userId, action: 'UPDATE', entityType: 'SETTING', entityId: 'TAX_RATE', metadata: { from: prev, to: value } });
     res.json({ TAX_RATE: value });
   } catch (err) { next(err); }
 }
@@ -21,6 +24,7 @@ export async function setDeliveryFeeHandler(req: Request, res: Response, next: N
     if (baseFee !== undefined) await settingsService.setSetting('DELIVERY_BASE_FEE', baseFee);
     if (feePerKm !== undefined) await settingsService.setSetting('DELIVERY_FEE_PER_KM', feePerKm);
     if (freeKm !== undefined) await settingsService.setSetting('DELIVERY_FREE_KM', freeKm);
+    audit({ actorId: req.user!.userId, action: 'UPDATE', entityType: 'SETTING', entityId: 'DELIVERY_FEE', metadata: { baseFee, feePerKm, freeKm } });
     res.json(await settingsService.getSettings());
   } catch (err) { next(err); }
 }

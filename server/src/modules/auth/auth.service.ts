@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import { prisma } from '../../config/db';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt';
+import { audit } from '../../utils/auditLog';
 
 export async function register(name: string, email: string, password: string) {
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -29,6 +30,7 @@ export async function login(email: string, password: string) {
 
   const payload = { userId: user.id, role: user.role };
   const { password: _, ...safeUser } = user;
+  audit({ actorId: user.id, action: 'LOGIN', entityType: 'USER', entityId: user.id });
   return {
     user: safeUser,
     accessToken: signAccessToken(payload),

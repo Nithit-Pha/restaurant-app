@@ -27,17 +27,18 @@ enum OrderStatus {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  name      String
-  email     String    @unique
-  password  String
-  role      Role      @default(CUSTOMER)
-  phone     String?
-  address   String?
-  orders    Order[]
-  expenses  Expense[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String     @id @default(uuid())
+  name       String
+  email      String     @unique
+  password   String
+  role       Role       @default(CUSTOMER)
+  phone      String?
+  address    String?
+  orders     Order[]
+  expenses   Expense[]
+  auditLogs  AuditLog[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 }
 
 model MenuItem {
@@ -121,4 +122,20 @@ model Expense {
 
   @@index([date])
   @@index([category])
+}
+
+// Append-only audit trail of all privileged mutations
+model AuditLog {
+  id         String   @id @default(uuid())
+  actor      User     @relation(fields: [actorId], references: [id])
+  actorId    String
+  action     String   // CREATE | UPDATE | DELETE | STATUS_CHANGE | LOGIN
+  entityType String   // USER | MENU_ITEM | ORDER | EXPENSE | SETTING
+  entityId   String?
+  metadata   Json?    // small before/after snapshot
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType])
+  @@index([createdAt])
 }

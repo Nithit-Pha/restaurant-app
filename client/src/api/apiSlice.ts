@@ -13,7 +13,7 @@ export const apiSlice = createApi({
       return headers;
     },
   }),
-  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance'],
+  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog'],
   endpoints: (builder) => ({
     // Auth
     login: builder.mutation<AuthResponse, LoginInput>({
@@ -117,6 +117,25 @@ export const apiSlice = createApi({
       query: ({ id, role }) => ({ url: `/admin/staff/${id}/role`, method: 'PATCH', body: { role } }),
       invalidatesTags: ['Staff'],
     }),
+    deleteStaff: builder.mutation<void, string>({
+      query: (id) => ({ url: `/admin/staff/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Staff'],
+    }),
+
+    // Audit log
+    getAuditLog: builder.query<AuditLogResponse, AuditLogParams>({
+      query: ({ actorId, entityType, startDate, endDate, limit, offset } = {}) => {
+        const p = new URLSearchParams();
+        if (actorId) p.set('actorId', actorId);
+        if (entityType) p.set('entityType', entityType);
+        if (startDate) p.set('startDate', startDate);
+        if (endDate) p.set('endDate', endDate);
+        if (limit) p.set('limit', String(limit));
+        if (offset) p.set('offset', String(offset));
+        return `/admin/audit-log?${p}`;
+      },
+      providesTags: ['AuditLog' as any],
+    }),
   }),
 });
 
@@ -130,6 +149,8 @@ export const {
   useGetStaffQuery,
   useCreateStaffMutation,
   useUpdateStaffRoleMutation,
+  useDeleteStaffMutation,
+  useGetAuditLogQuery,
   useGetMenuItemsQuery,
   useGetMenuItemQuery,
   useGetCategoriesQuery,
@@ -169,6 +190,31 @@ export interface StaffUser {
   email: string;
   role: 'STAFF' | 'SUPER_ADMIN';
   createdAt: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  actorId: string;
+  actor: { id: string; name: string; email: string; role: string };
+  action: string;
+  entityType: string;
+  entityId?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AuditLogResponse {
+  total: number;
+  logs: AuditLogEntry[];
+}
+
+export interface AuditLogParams {
+  actorId?: string;
+  entityType?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface MenuItem {

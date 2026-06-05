@@ -39,6 +39,7 @@ export default function Navbar() {
               {hasMin(role, 'SUPER_ADMIN') && (
                 <>
                   <Link to="/admin/finance" className="text-sm text-brand-600 font-medium hover:text-brand-700">Finance</Link>
+                  <Link to="/admin/audit-log" className="text-sm text-brand-600 font-medium hover:text-brand-700">Audit Log</Link>
                   <Link to="/admin/settings" className="text-sm text-brand-600 font-medium hover:text-brand-700">Settings</Link>
                 </>
               )}

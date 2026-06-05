@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as ordersService from './orders.service';
 import { hasMinRole } from '../../middleware/requireRole';
+import { audit } from '../../utils/auditLog';
 
 function stripProfit<T extends object>(order: T, isSuperAdmin: boolean): T {
   if (isSuperAdmin) return order;
@@ -51,7 +52,9 @@ export async function adminOrdersHandler(req: Request, res: Response, next: Next
 
 export async function updateStatusHandler(req: Request, res: Response, next: NextFunction) {
   try {
+    const prev = await ordersService.getOrderById(req.params.id);
     const order = await ordersService.updateOrderStatus(req.params.id, req.body.status);
+    audit({ actorId: req.user!.userId, action: 'STATUS_CHANGE', entityType: 'ORDER', entityId: order.id, metadata: { from: prev?.status, to: req.body.status } });
     res.json(order);
   } catch (err) { next(err); }
 }

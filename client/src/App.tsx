@@ -10,6 +10,7 @@ import AdminMenuPage from './features/admin/AdminMenuPage';
 import AdminOrdersPage from './features/admin/AdminOrdersPage';
 import SettingsPage from './features/admin/SettingsPage';
 import FinancialDashboard from './features/admin/finance/FinancialDashboard';
+import AuditLogPage from './features/admin/AuditLogPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import RoleRoute from './routes/RoleRoute';
 
@@ -41,6 +42,7 @@ export default function App() {
         <Route element={<RoleRoute minRole="SUPER_ADMIN" />}>
           <Route path="/admin/settings" element={<SettingsPage />} />
           <Route path="/admin/finance" element={<FinancialDashboard />} />
+          <Route path="/admin/audit-log" element={<AuditLogPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/menu" replace />} />

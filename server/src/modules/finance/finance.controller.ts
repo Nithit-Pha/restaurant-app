@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import * as service from './finance.service';
+import { audit } from '../../utils/auditLog';
 import {
   createExpenseSchema,
   updateExpenseSchema,
@@ -61,7 +62,8 @@ export const createExpense = handle(async (req, res) => {
       .status(400)
       .json({ error: 'Validation failed', details: parsed.error.flatten() });
   }
-  const created = await service.createExpense(parsed.data, req.user?.id);
+  const created = await service.createExpense(parsed.data, req.user?.userId);
+  audit({ actorId: req.user!.userId, action: 'CREATE', entityType: 'EXPENSE', entityId: created.id, metadata: { amount: created.amount, category: created.category } });
   res.status(201).json(created);
 });
 
@@ -75,6 +77,7 @@ export const updateExpense = handle(async (req, res) => {
   }
   try {
     const updated = await service.updateExpense(req.params.id, parsed.data);
+    audit({ actorId: req.user!.userId, action: 'UPDATE', entityType: 'EXPENSE', entityId: updated.id, metadata: { amount: updated.amount, category: updated.category } });
     res.json(updated);
   } catch (err) {
     if (
@@ -91,6 +94,7 @@ export const updateExpense = handle(async (req, res) => {
 export const deleteExpense = handle(async (req, res) => {
   try {
     await service.deleteExpense(req.params.id);
+    audit({ actorId: req.user!.userId, action: 'DELETE', entityType: 'EXPENSE', entityId: req.params.id });
     res.status(204).send();
   } catch (err) {
     if (

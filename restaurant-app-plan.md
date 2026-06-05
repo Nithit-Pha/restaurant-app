@@ -270,6 +270,22 @@ model Expense {
   @@index([date])
   @@index([category])
 }
+
+// ---- AuditLog (append-only record of privileged actions) ----
+model AuditLog {
+  id         String   @id @default(uuid())
+  actor      User     @relation(fields: [actorId], references: [id])
+  actorId    String
+  action     String                       // CREATE | UPDATE | DELETE | STATUS_CHANGE | LOGIN ...
+  entityType String                       // USER | MENU_ITEM | ORDER | EXPENSE | SETTING
+  entityId   String?
+  metadata   Json?                        // small before/after snapshot
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType])
+  @@index([createdAt])
+}
 ```
 
 > **Order financial snapshot:** the `Order` model already stores `subtotal` (= total selling price / food revenue), `totalCost` (= total cost price / COGS), and `profit` (`subtotal − totalCost`), all locked at checkout. The finance dashboard reads these snapshots so historical reports never shift when menu prices change.
@@ -282,19 +298,59 @@ model Expense {
 
 ### 5.0 Roles & Permissions (RBAC)
 
-Three roles, hierarchical — each higher role inherits everything below it.
+Three roles, hierarchical — each higher role inherits everything the role below it can do.
 
-| Role | Can do | Cannot do |
-|---|---|---|
-| **Customer** | Browse menu, build cart, place orders, pay, view & track own orders | Touch the menu, pricing, fees, or other users' orders |
-| **Staff / Admin** | Everything a Customer can, **plus** add/edit/delete menu items, change item prices, toggle availability, update order/delivery status | Change tax rate, edit delivery-fee config, view profit margins |
-| **Super Admin** | Everything Staff can, **plus** set the tax rate, edit delivery-fee rules, view cost/profit-margin reports, manage staff accounts | — (full control) |
+```
+CUSTOMER  <  STAFF  <  SUPER_ADMIN
+(diner)      (manager)  (owner / accountant)
+```
 
-**Enforcement.** A single `requireRole(...roles)` middleware checks `req.user.role` after JWT verification. Routes declare the minimum roles allowed, e.g. `router.post('/menu', auth, requireRole('STAFF','SUPER_ADMIN'), ...)`. Because the hierarchy is `CUSTOMER < STAFF < SUPER_ADMIN`, the guard accepts any listed role or higher.
+#### Customer — The Diner
+- **Browse the menu:** view dishes, filter by category (Appetizers, Mains, Drinks), and check prices.
+- **Manage shopping cart:** add items, customize options, and see a live cost breakdown (Subtotal + Tax).
+- **Checkout & choose fulfillment:** select "Pickup" or "Online Delivery," enter a physical delivery address, and view the calculated delivery fee.
+- **Track orders:** view the live status of their own orders (e.g. "Preparing," "Out for Delivery").
+- *Cannot:* touch the menu, pricing, fees, financials, or any other customer's orders.
+
+#### Staff — The Restaurant Manager / Staff
+*(Everything a Customer can, plus:)*
+- **Manage daily orders:** view, accept, or reject incoming orders, and update the live delivery-status tracker.
+- **Daily menu operations:** mark items "Out of Stock" or "Available" based on kitchen supplies.
+- **Basic menu CRUD:** add new dishes, edit descriptions, adjust selling prices, and assign items to categories.
+- **View active deliveries:** see delivery addresses and customer contact info for outgoing orders.
+- *Cannot:* change the tax rate, edit delivery-fee rules, view cost/profit (COGS, margins), manage accounts, or read the audit log.
+
+#### Super Admin — The Restaurant Owner / Accountant
+*(Everything Staff can, plus:)*
+- **Track expenses:** log and manage business outflows (Rent, Utilities, Labor, Marketing, Bulk Ingredients).
+- **Monitor revenue & COGS:** access financial reports — Gross Revenue, Cost of Goods Sold (ingredient cost), and Net Profit.
+- **Set financial controls:** edit the tax-rate percentage and adjust flat/per-km delivery-fee rates.
+- **Manage system access:** create or delete Staff and Super Admin accounts.
+- **Deep financial analytics:** filter by custom date ranges to see profit-and-loss charts and visual expense breakdowns.
+- **View the audit log:** see who created/changed accounts, menu items, orders, expenses, and settings — and when.
+
+#### Capability matrix
+| Capability | Customer | Staff | Super Admin |
+|---|:---:|:---:|:---:|
+| Browse menu, cart, checkout, track own orders | ✅ | ✅ | ✅ |
+| Accept/reject orders, update delivery status | — | ✅ | ✅ |
+| Toggle item availability (in/out of stock) | — | ✅ | ✅ |
+| Menu CRUD (add/edit/price/categorize) | — | ✅ | ✅ |
+| See delivery address + customer contact | — | ✅ | ✅ |
+| Log & manage expenses | — | — | ✅ |
+| View revenue / COGS / net-profit reports | — | — | ✅ |
+| Edit tax rate & delivery-fee rules | — | — | ✅ |
+| Create/delete Staff & Admin accounts | — | — | ✅ |
+| P&L charts & date-range analytics | — | — | ✅ |
+| View audit log (who did what) | — | — | ✅ |
+
+**Enforcement.** A single `requireRole(...roles)` middleware checks `req.user.role` after JWT verification. Routes declare the minimum roles allowed, e.g. `router.post('/menu', authenticate, requireRole('STAFF','SUPER_ADMIN'), ...)`. Because the hierarchy is `CUSTOMER < STAFF < SUPER_ADMIN`, the guard accepts any listed role or higher.
 
 **Sensitive-data gating.** Cost price, profit, and `totalCost` fields are stripped from API responses unless `req.user.role === 'SUPER_ADMIN'`. Tax-rate and delivery-fee **write** endpoints are `SUPER_ADMIN`-only; everyone reads the resulting totals, but only Super Admin configures the inputs.
 
-**Frontend.** `AdminRoute` becomes `RoleRoute(minRole)`. Menu management UI shows for Staff+; the Settings panel (tax/fees) and profit dashboard render only for Super Admin. UI gating is convenience only — the server is the real authority.
+**Audit log.** Every privileged mutation (account create/delete, menu CRUD, order accept/reject & status change, expense and settings edits) writes an `AuditLog` row capturing `actorId`, `action`, `entityType`, `entityId`, a small `metadata` snapshot, and `createdAt`. Only Super Admin can read it via `GET /api/admin/audit-log` (filterable by actor, entity, and date range). This is append-only — rows are never edited or deleted.
+
+**Frontend.** `AdminRoute` becomes `RoleRoute(minRole)`. The order-management and menu UIs show for Staff+; the Settings panel (tax/fees), financial dashboard, account management, and audit-log viewer render only for Super Admin. UI gating is convenience only — the server is the real authority.
 
 ### 5.1 Menu Management (Staff / Admin CRUD)
 - Admins authenticate (role `ADMIN`) and reach `/admin/menu`.
@@ -375,6 +431,8 @@ function priceCart(lines, taxRate, deliveryFee) {
 | PUT | `/api/settings/delivery-fee` | Super Admin | edit delivery-fee rules (base, per-km) |
 | GET | `/api/admin/reports/profit` | Super Admin | profit by date range / item |
 | POST | `/api/admin/staff` | Super Admin | create/manage Staff & Super Admin accounts |
+| DELETE | `/api/admin/staff/:id` | Super Admin | delete a Staff/Admin account |
+| GET | `/api/admin/audit-log` | Super Admin | who did what (filter `?actorId=&entityType=&startDate=&endDate=`) |
 
 ### Finance (Super Admin) — see §9 for full code
 | Method | Endpoint | Auth | Purpose |
