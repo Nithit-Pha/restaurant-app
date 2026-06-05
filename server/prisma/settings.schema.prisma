@@ -1,0 +1,24 @@
+// =====================================================================
+// SETTINGS — already implemented in prisma/schema.prisma as a key/value
+// store. This file is a REFERENCE ONLY; do not migrate it (it would
+// duplicate the existing `model Setting`).
+//
+// Active model (in schema.prisma):
+//
+//   model Setting {
+//     key       String   @id  // "TAX_RATE", "DELIVERY_BASE_FEE",
+//                             // "DELIVERY_FEE_PER_KM", "DELIVERY_FREE_KM"
+//     value     String
+//     updatedAt DateTime @updatedAt
+//   }
+//
+// Why key/value: new tunables (service charge, min order, etc.) can be
+// added without a migration. Defaults live in env (config/env.ts) and are
+// seeded via settings.service.seedDefaultSettings(). Reads go through
+// settings.service.getSettings(); pricing/checkout call getSetting(key).
+//
+// Access (settings.routes.ts):
+//   GET  /api/settings              Staff+        read all settings
+//   PUT  /api/settings/tax          Super Admin   { value: 0.07 }
+//   PUT  /api/settings/delivery-fee Super Admin   { baseFee?, feePerKm?, freeKm? }
+// =====================================================================

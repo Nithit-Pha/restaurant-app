@@ -1,0 +1,26 @@
+import { Request, Response, NextFunction } from 'express';
+import * as settingsService from './settings.service';
+
+export async function getSettingsHandler(_req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await settingsService.getSettings());
+  } catch (err) { next(err); }
+}
+
+export async function setTaxHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { value } = req.body;
+    await settingsService.setSetting('TAX_RATE', value);
+    res.json({ TAX_RATE: value });
+  } catch (err) { next(err); }
+}
+
+export async function setDeliveryFeeHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { baseFee, feePerKm, freeKm } = req.body;
+    if (baseFee !== undefined) await settingsService.setSetting('DELIVERY_BASE_FEE', baseFee);
+    if (feePerKm !== undefined) await settingsService.setSetting('DELIVERY_FEE_PER_KM', feePerKm);
+    if (freeKm !== undefined) await settingsService.setSetting('DELIVERY_FREE_KM', freeKm);
+    res.json(await settingsService.getSettings());
+  } catch (err) { next(err); }
+}

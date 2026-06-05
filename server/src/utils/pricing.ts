@@ -1,0 +1,64 @@
+import { env } from '../config/env';
+import { getSetting } from '../modules/settings/settings.service';
+
+interface CartLine {
+  unitPrice: number;
+  unitCost: number;
+  quantity: number;
+}
+
+interface PricingResult {
+  subtotal: number;
+  totalCost: number;
+  taxRate: number;
+  taxAmount: number;
+  deliveryFee: number;
+  total: number;
+  profit: number;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Haversine distance in km between two lat/lng pairs */
+export function haversineKm(
+  lat1: number, lng1: number,
+  lat2: number, lng2: number
+): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Compute delivery fee given distance in km (uses DB settings, falls back to env) */
+export async function calcDeliveryFeeAsync(distanceKm: number): Promise<number> {
+  const baseFee = await getSetting('DELIVERY_BASE_FEE');
+  const feePerKm = await getSetting('DELIVERY_FEE_PER_KM');
+  const freeKm = await getSetting('DELIVERY_FREE_KM');
+  const extra = Math.max(0, distanceKm - freeKm);
+  return round2(baseFee + extra * feePerKm);
+}
+
+/** Sync version used for client-side display estimation */
+export function calcDeliveryFee(distanceKm: number): number {
+  const extra = Math.max(0, distanceKm - env.deliveryFreeKm);
+  return round2(env.deliveryBaseFee + extra * env.deliveryFeePerKm);
+}
+
+/** Price a cart server-side */
+export function priceCart(lines: CartLine[], deliveryFee = 0, taxRate = env.taxRate): PricingResult {
+  const subtotal  = round2(lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0));
+  const totalCost = round2(lines.reduce((s, l) => s + l.unitCost  * l.quantity, 0));
+  const taxAmount = round2(subtotal * taxRate);
+  const total     = round2(subtotal + taxAmount + deliveryFee);
+  const profit    = round2(subtotal - totalCost);
+
+  return { subtotal, totalCost, taxRate, taxAmount, deliveryFee, total, profit };
+}

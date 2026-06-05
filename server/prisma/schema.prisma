@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  STAFF
+  SUPER_ADMIN
+}
+
+enum OrderType {
+  PICKUP
+  DELIVERY
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      Role      @default(CUSTOMER)
+  phone     String?
+  address   String?
+  orders    Order[]
+  expenses  Expense[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model MenuItem {
+  id           String      @id @default(uuid())
+  name         String
+  description  String?
+  category     String
+  costPrice    Decimal     @db.Decimal(10, 2)
+  sellingPrice Decimal     @db.Decimal(10, 2)
+  imageUrl     String?
+  isAvailable  Boolean     @default(true)
+  orderItems   OrderItem[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([category])
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  user            User        @relation(fields: [userId], references: [id])
+  userId          String
+  items           OrderItem[]
+  type            OrderType
+  status          OrderStatus @default(PENDING)
+  deliveryAddress String?
+  deliveryLat     Float?
+  deliveryLng     Float?
+  subtotal        Decimal     @db.Decimal(10, 2)
+  taxRate         Decimal     @db.Decimal(5, 4)
+  taxAmount       Decimal     @db.Decimal(10, 2)
+  deliveryFee     Decimal     @db.Decimal(10, 2) @default(0)
+  total           Decimal     @db.Decimal(10, 2)
+  totalCost       Decimal     @db.Decimal(10, 2)
+  profit          Decimal     @db.Decimal(10, 2)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id           String   @id @default(uuid())
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId      String
+  menuItem     MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItemId   String
+  nameSnapshot String
+  unitPrice    Decimal  @db.Decimal(10, 2)
+  unitCost     Decimal  @db.Decimal(10, 2)
+  quantity     Int
+}
+
+// Key-value store for Super Admin configurable settings
+model Setting {
+  key       String   @id  // e.g. "TAX_RATE", "DELIVERY_BASE_FEE", "DELIVERY_FEE_PER_KM", "DELIVERY_FREE_KM"
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+enum ExpenseCategory {
+  RENT
+  LABOR
+  UTILITIES
+  FOOD_SUPPLY
+  MARKETING
+  MISCELLANEOUS
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  amount      Decimal         @db.Decimal(10, 2)
+  category    ExpenseCategory
+  date        DateTime        @default(now())
+  description String?
+  createdBy   User?           @relation(fields: [createdById], references: [id])
+  createdById String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([date])
+  @@index([category])
+}

@@ -1,0 +1,56 @@
+// =====================================================================
+// FINANCE FEATURE — schema additions
+// Merge these into your main prisma/schema.prisma, then run:
+//   npx prisma migrate dev --name add_finance
+// =====================================================================
+
+// ---- Expense categories -------------------------------------------------
+enum ExpenseCategory {
+  RENT
+  LABOR
+  UTILITIES
+  FOOD_SUPPLY
+  MARKETING
+  MISCELLANEOUS
+}
+
+// ---- Expense model ------------------------------------------------------
+model Expense {
+  id          String          @id @default(uuid())
+  amount      Decimal         @db.Decimal(10, 2) // always > 0 (enforced in app layer)
+  category    ExpenseCategory
+  date        DateTime        @default(now())
+  description String?
+  // who logged it — useful for audit
+  createdBy   User?           @relation(fields: [createdById], references: [id])
+  createdById String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([date])
+  @@index([category])
+}
+
+// =====================================================================
+// REQUIRED EDITS to existing models (shown for reference):
+//
+// model MenuItem {
+//   ...
+//   costPrice    Decimal @db.Decimal(10,2)  // cost of ingredients  <-- already present
+//   sellingPrice Decimal @db.Decimal(10,2)  // menu price           <-- already present
+//   ...
+// }
+//
+// model Order {
+//   ...
+//   subtotal   Decimal @db.Decimal(10,2)  // == total SELLING price (food revenue)
+//   totalCost  Decimal @db.Decimal(10,2)  // == total COST price snapshot (COGS)
+//   profit     Decimal @db.Decimal(10,2)  // subtotal - totalCost (gross food profit)
+//   ...                                    // these snapshot at checkout
+// }
+//
+// model User {
+//   ...
+//   expenses Expense[]   // back-relation for Expense.createdBy
+// }
+// =====================================================================
