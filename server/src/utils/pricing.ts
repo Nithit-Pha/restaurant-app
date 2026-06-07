@@ -8,12 +8,12 @@ interface CartLine {
 }
 
 interface PricingResult {
-  subtotal: number;
+  subtotal: number;    // net of tax (ex-tax)
   totalCost: number;
   taxRate: number;
-  taxAmount: number;
+  taxAmount: number;   // tax portion already inside the menu prices
   deliveryFee: number;
-  total: number;
+  total: number;       // what the customer pays (prices are tax-inclusive)
   profit: number;
 }
 
@@ -52,13 +52,19 @@ export function calcDeliveryFee(distanceKm: number): number {
   return round2(env.deliveryBaseFee + extra * env.deliveryFeePerKm);
 }
 
-/** Price a cart server-side */
+/**
+ * Price a cart server-side.
+ * Menu prices are TAX-INCLUSIVE — the sum of selling prices is what the
+ * customer pays. We still break out the tax portion that sits inside that
+ * price: e.g. 10 + 10 = 20 with 7% tax -> subtotal 18.60 + tax 1.40 = 20.00.
+ */
 export function priceCart(lines: CartLine[], deliveryFee = 0, taxRate = env.taxRate): PricingResult {
-  const subtotal  = round2(lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0));
-  const totalCost = round2(lines.reduce((s, l) => s + l.unitCost  * l.quantity, 0));
-  const taxAmount = round2(subtotal * taxRate);
-  const total     = round2(subtotal + taxAmount + deliveryFee);
-  const profit    = round2(subtotal - totalCost);
+  const gross      = round2(lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0)); // tax-inclusive
+  const totalCost  = round2(lines.reduce((s, l) => s + l.unitCost  * l.quantity, 0));
+  const taxAmount  = round2(gross * taxRate);   // tax already contained in the price
+  const subtotal   = round2(gross - taxAmount); // net of tax
+  const total      = round2(gross + deliveryFee);
+  const profit     = round2(subtotal - totalCost); // profit on net (ex-tax) revenue
 
   return { subtotal, totalCost, taxRate, taxAmount, deliveryFee, total, profit };
 }

@@ -62,21 +62,27 @@ const cartSlice = createSlice({
 export const { addItem, removeItem, updateQuantity, clearCart, openCart, closeCart, toggleCart } = cartSlice.actions;
 export default cartSlice.reducer;
 
-// Selectors
+// Selectors — menu prices are TAX-INCLUSIVE.
+// Example: 10 + 10 = 20 with 7% tax -> subtotal 18.60 + tax 1.40 = total 20.00.
 const TAX_RATE = 0.07;
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const selectCartItems = (state: RootState) => state.cart.items;
 export const selectCartIsOpen = (state: RootState) => state.cart.isOpen;
 export const selectCartCount = createSelector(selectCartItems, (items) =>
   items.reduce((s, i) => s + i.quantity, 0)
 );
-export const selectSubtotal = createSelector(selectCartItems, (items) =>
-  Math.round(items.reduce((s, i) => s + i.sellingPrice * i.quantity, 0) * 100) / 100
+
+// Gross = the tax-inclusive sum the customer actually pays.
+export const selectGross = createSelector(selectCartItems, (items) =>
+  round2(items.reduce((s, i) => s + i.sellingPrice * i.quantity, 0))
 );
-export const selectTaxAmount = createSelector(selectSubtotal, (sub) =>
-  Math.round(sub * TAX_RATE * 100) / 100
+// Tax portion contained inside the price (gross * rate).
+export const selectTaxAmount = createSelector(selectGross, (gross) => round2(gross * TAX_RATE));
+// Subtotal shown to the customer is net of tax (gross - tax).
+export const selectSubtotal = createSelector(
+  selectGross, selectTaxAmount,
+  (gross, tax) => round2(gross - tax)
 );
-export const selectTotal = createSelector(
-  selectSubtotal, selectTaxAmount,
-  (sub, tax) => Math.round((sub + tax) * 100) / 100
-);
+// Cart total equals the gross (tax already included); delivery is added at checkout.
+export const selectTotal = selectGross;

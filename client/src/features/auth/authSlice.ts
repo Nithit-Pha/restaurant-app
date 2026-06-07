@@ -7,11 +7,21 @@ interface AuthState {
   refreshToken: string | null;
 }
 
+// SSR-safe: localStorage doesn't exist on the server, so the store starts
+// empty there and is hydrated from localStorage on the client in Providers.
 const initialState: AuthState = {
   user: null,
-  accessToken: localStorage.getItem('accessToken'),
-  refreshToken: localStorage.getItem('refreshToken'),
+  accessToken: null,
+  refreshToken: null,
 };
+
+function persist(accessToken: string | null, refreshToken: string | null) {
+  if (typeof window === 'undefined') return;
+  if (accessToken) localStorage.setItem('accessToken', accessToken);
+  else localStorage.removeItem('accessToken');
+  if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+  else localStorage.removeItem('refreshToken');
+}
 
 const authSlice = createSlice({
   name: 'auth',
@@ -21,18 +31,26 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.accessToken = action.payload.accessToken;
       state.refreshToken = action.payload.refreshToken;
-      localStorage.setItem('accessToken', action.payload.accessToken);
-      localStorage.setItem('refreshToken', action.payload.refreshToken);
+      persist(action.payload.accessToken, action.payload.refreshToken);
+    },
+    // Refreshed tokens (no user payload) — used by the re-auth flow.
+    setTokens(state, action: PayloadAction<{ accessToken: string; refreshToken: string }>) {
+      state.accessToken = action.payload.accessToken;
+      state.refreshToken = action.payload.refreshToken;
+      persist(action.payload.accessToken, action.payload.refreshToken);
+    },
+    hydrateFromStorage(state, action: PayloadAction<{ accessToken: string | null; refreshToken: string | null }>) {
+      state.accessToken = action.payload.accessToken;
+      state.refreshToken = action.payload.refreshToken;
     },
     logout(state) {
       state.user = null;
       state.accessToken = null;
       state.refreshToken = null;
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      persist(null, null);
     },
   },
 });
 
-export const { setCredentials, logout } = authSlice.actions;
+export const { setCredentials, setTokens, hydrateFromStorage, logout } = authSlice.actions;
 export default authSlice.reducer;

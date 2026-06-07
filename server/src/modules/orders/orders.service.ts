@@ -43,6 +43,10 @@ export async function quoteOrder(input: CheckoutInput) {
       input.deliveryLat && input.deliveryLng
         ? haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, input.deliveryLat, input.deliveryLng)
         : 5;
+    const maxKm = await getSetting('DELIVERY_MAX_KM');
+    if (maxKm > 0 && distKm > maxKm) {
+      throw Object.assign(new Error(`Sorry, this address is outside our delivery area (max ${maxKm} km).`), { statusCode: 400 });
+    }
     deliveryFee = await calcDeliveryFeeAsync(distKm);
   }
 
@@ -76,6 +80,10 @@ export async function placeOrder(userId: string, input: CheckoutInput) {
       input.deliveryLat && input.deliveryLng
         ? haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, input.deliveryLat, input.deliveryLng)
         : 5;
+    const maxKm = await getSetting('DELIVERY_MAX_KM');
+    if (maxKm > 0 && distKm > maxKm) {
+      throw Object.assign(new Error(`Sorry, this address is outside our delivery area (max ${maxKm} km).`), { statusCode: 400 });
+    }
     deliveryFee = await calcDeliveryFeeAsync(distKm);
   }
 

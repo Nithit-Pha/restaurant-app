@@ -1,5 +1,4 @@
-// RTK Query slice for the finance feature.
-// Inject into your root apiSlice (createApi with baseQuery that attaches the JWT).
+// RTK Query slice for the finance feature, injected into the root apiSlice.
 import { apiSlice } from '../../../api/apiSlice';
 
 export interface DashboardKpis {
@@ -80,5 +79,3 @@ export const {
   useUpdateExpenseMutation,
   useDeleteExpenseMutation,
 } = financeApi;
-
-// NOTE: add 'Finance' to your apiSlice tagTypes array.

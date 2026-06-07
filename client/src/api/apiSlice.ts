@@ -1,19 +1,86 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import {
+  createApi,
+  fetchBaseQuery,
+  type BaseQueryFn,
+  type FetchArgs,
+  type FetchBaseQueryError,
+} from '@reduxjs/toolkit/query/react';
 import type { RootState } from '../app/store';
+import { logout, setTokens } from '../features/auth/authSlice';
+
+// After a content change, refresh the cached public storefront immediately.
+async function revalidatePublic() {
+  try {
+    await fetch('/revalidate', { method: 'POST' });
+  } catch {
+    /* best-effort; ignore network errors */
+  }
+}
+
+// Helper: revalidate the public pages once a mutation succeeds.
+const revalidateOnSuccess = async (
+  _arg: unknown,
+  { queryFulfilled }: { queryFulfilled: Promise<unknown> },
+) => {
+  try {
+    await queryFulfilled;
+    await revalidatePublic();
+  } catch {
+    /* mutation failed; nothing to revalidate */
+  }
+};
+
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: '/api',
+  prepareHeaders: (headers, { getState }) => {
+    const token = (getState() as RootState).auth.accessToken;
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    return headers;
+  },
+});
+
+// On a 401, try to refresh the access token once. If the refresh token is
+// still valid, store the new tokens and retry the request transparently.
+// If refresh fails, log out (clears the stale token) so the app returns to a
+// clean public state automatically — no manual logout needed.
+const baseQueryWithReauth: BaseQueryFn<
+  string | FetchArgs,
+  unknown,
+  FetchBaseQueryError
+> = async (args, api, extraOptions) => {
+  let result = await rawBaseQuery(args, api, extraOptions);
+
+  if (result.error && result.error.status === 401) {
+    const refreshToken = (api.getState() as RootState).auth.refreshToken;
+    if (refreshToken) {
+      const refreshResult = await rawBaseQuery(
+        { url: '/auth/refresh', method: 'POST', body: { refreshToken } },
+        api,
+        extraOptions,
+      );
+      const data = refreshResult.data as
+        | { accessToken: string; refreshToken: string }
+        | undefined;
+      if (data?.accessToken) {
+        api.dispatch(setTokens(data));
+        result = await rawBaseQuery(args, api, extraOptions); // retry original
+      } else {
+        api.dispatch(logout());
+      }
+    } else {
+      api.dispatch(logout());
+    }
+  }
+
+  return result;
+};
 
 export const apiSlice = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({
-    baseUrl: '/api',
-    prepareHeaders: (headers, { getState }) => {
-      const token = (getState() as RootState).auth.accessToken;
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
-  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog'],
+  baseQuery: baseQueryWithReauth,
+  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant'],
   endpoints: (builder) => ({
     // Auth
     login: builder.mutation<AuthResponse, LoginInput>({
@@ -47,10 +114,12 @@ export const apiSlice = createApi({
     createMenuItem: builder.mutation<MenuItem, FormData>({
       query: (body) => ({ url: '/menu', method: 'POST', body }),
       invalidatesTags: ['MenuItem'],
+      onQueryStarted: revalidateOnSuccess,
     }),
     updateMenuItem: builder.mutation<MenuItem, { id: string; data: FormData | Partial<MenuItem> }>({
       query: ({ id, data }) => ({ url: `/menu/${id}`, method: 'PUT', body: data }),
       invalidatesTags: ['MenuItem'],
+      onQueryStarted: revalidateOnSuccess,
     }),
     toggleAvailability: builder.mutation<MenuItem, { id: string; isAvailable: boolean }>({
       query: ({ id, isAvailable }) => ({
@@ -59,10 +128,12 @@ export const apiSlice = createApi({
         body: { isAvailable },
       }),
       invalidatesTags: ['MenuItem'],
+      onQueryStarted: revalidateOnSuccess,
     }),
     deleteMenuItem: builder.mutation<void, string>({
       query: (id) => ({ url: `/menu/${id}`, method: 'DELETE' }),
       invalidatesTags: ['MenuItem'],
+      onQueryStarted: revalidateOnSuccess,
     }),
 
     // Orders
@@ -99,9 +170,20 @@ export const apiSlice = createApi({
       query: (body) => ({ url: '/settings/tax', method: 'PUT', body }),
       invalidatesTags: ['Settings'],
     }),
-    setDeliveryFee: builder.mutation<void, { baseFee?: number; feePerKm?: number; freeKm?: number }>({
+    setDeliveryFee: builder.mutation<void, { baseFee?: number; feePerKm?: number; freeKm?: number; maxKm?: number }>({
       query: (body) => ({ url: '/settings/delivery-fee', method: 'PUT', body }),
       invalidatesTags: ['Settings'],
+    }),
+
+    // Restaurant profile (public read, Super Admin write)
+    getRestaurant: builder.query<RestaurantProfile, void>({
+      query: () => '/settings/restaurant',
+      providesTags: ['Restaurant'],
+    }),
+    setRestaurant: builder.mutation<RestaurantProfile, RestaurantProfile>({
+      query: (body) => ({ url: '/settings/restaurant', method: 'PUT', body }),
+      invalidatesTags: ['Restaurant'],
+      onQueryStarted: revalidateOnSuccess,
     }),
 
     // Staff management (Super Admin only)
@@ -146,6 +228,8 @@ export const {
   useGetSettingsQuery,
   useSetTaxRateMutation,
   useSetDeliveryFeeMutation,
+  useGetRestaurantQuery,
+  useSetRestaurantMutation,
   useGetStaffQuery,
   useCreateStaffMutation,
   useUpdateStaffRoleMutation,
@@ -182,6 +266,26 @@ export interface AppSettings {
   DELIVERY_BASE_FEE: number;
   DELIVERY_FEE_PER_KM: number;
   DELIVERY_FREE_KM: number;
+  DELIVERY_MAX_KM: number;
+}
+
+export interface RestaurantProfile {
+  name: string;
+  legalName: string;
+  description: string;
+  telephone: string;
+  priceRange: string;
+  servesCuisine: string[];
+  address: {
+    streetAddress: string;
+    addressLocality: string;
+    addressRegion: string;
+    postalCode: string;
+    addressCountry: string;
+  };
+  geo: { latitude: number; longitude: number };
+  openingHours: { dayOfWeek: string[]; opens: string; closes: string }[];
+  sameAs: string[];
 }
 
 export interface StaffUser {

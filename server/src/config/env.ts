@@ -22,6 +22,7 @@ export const env = {
   deliveryBaseFee: parseFloat(process.env.DELIVERY_BASE_FEE ?? '3.99'),
   deliveryFeePerKm: parseFloat(process.env.DELIVERY_FEE_PER_KM ?? '1.00'),
   deliveryFreeKm: parseFloat(process.env.DELIVERY_FREE_KM ?? '3'),
+  deliveryMaxKm: parseFloat(process.env.DELIVERY_MAX_KM ?? '0'), // 0 = no limit
 
   storageProvider: (process.env.STORAGE_PROVIDER ?? 'local') as 'local' | 's3' | 'cloudinary',
   uploadDir: process.env.UPLOAD_DIR ?? './uploads',

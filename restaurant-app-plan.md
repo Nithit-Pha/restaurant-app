@@ -428,7 +428,9 @@ function priceCart(lines, taxRate, deliveryFee) {
 |---|---|---|---|
 | GET | `/api/settings` | Staff+ | read current tax rate & delivery-fee config |
 | PUT | `/api/settings/tax` | Super Admin | set tax rate |
-| PUT | `/api/settings/delivery-fee` | Super Admin | edit delivery-fee rules (base, per-km) |
+| PUT | `/api/settings/delivery-fee` | Super Admin | edit delivery-fee rules (base, per-km, free zone, **max distance**) |
+| GET | `/api/settings/restaurant` | public | read restaurant profile (name, hours, address…) |
+| PUT | `/api/settings/restaurant` | Super Admin | edit restaurant profile |
 | GET | `/api/admin/reports/profit` | Super Admin | profit by date range / item |
 | POST | `/api/admin/staff` | Super Admin | create/manage Staff & Super Admin accounts |
 | DELETE | `/api/admin/staff/:id` | Super Admin | delete a Staff/Admin account |
@@ -566,3 +568,82 @@ Tax rate and delivery-fee config are stored in a key/value `Setting` table (not 
 - The dashboard exposes cost/profit data, so every finance route is **Super-Admin-only** — consistent with the §5.0 RBAC matrix.
 - Cancelled orders are excluded from revenue and COGS.
 - `endDate` is treated as inclusive (extended to end-of-day) so boundary days aren't dropped.
+
+---
+
+## 10. SEO & Discoverability (search engines + AI search)
+
+> ✅ **Status: Implemented (2026-06-07).** The storefront was migrated to Next.js 14 (App Router) as a **full replacement** — the entire client (`client/`) is now a single unified Next.js app: public pages (`/`, `/menu`) are server-rendered with `generateMetadata` + JSON-LD + ISR, while cart/checkout/auth/orders/admin remain client components behind `useRequireAuth`/`useRequireRole` guards. `app/robots.ts`, `app/sitemap.ts`, and a dynamic `app/llms.txt` route ship with the AI-crawler allowlist from §10.5. The old Vite SPA is preserved at `client-old/` for reference. Verified with a clean `npm install` + `next build` (compiles, type-checks, and statically generates all 17 routes).
+
+Goal: get the restaurant found by Google/Bing **and** by AI search (ChatGPT, Perplexity, Gemini, Claude). Two problems to solve — being **crawlable** and being **understood**.
+
+### 10.1 Current state (audited)
+The `client/` is a **plain Vite + React SPA, fully client-side rendered**. As shipped:
+- `index.html` is an empty shell (`<div id="root"></div>` + script) — no menu, price, address, or hours in the raw HTML. Non-JS crawlers and most AI bots see a blank page.
+- Generic `<title>` ("Restaurant App"), no meta description, no Open Graph/Twitter tags.
+- No `robots.txt`, no `sitemap.xml`, no structured data.
+
+This is the single biggest blocker: public content isn't in the HTML.
+
+### 10.2 Rendering fix (highest priority)
+Serve the **public** pages (home, menu, about, contact) as server-rendered or pre-rendered HTML. The admin/dashboard area can stay a client-side SPA — it needs no SEO. Two paths:
+
+| Option | Effort | When to choose |
+|---|---|---|
+| **Migrate storefront to Next.js (SSG/SSR)** | Higher | Best long-term. Restaurant content is mostly static → ideal for static generation. Keep the Express API as-is; Next replaces only the public shell. |
+| **Stay on Vite + prerender** | Lower | Use `vike`/`vite-plugin-ssr` or a snapshot service (Prerender.io) to serve static HTML to bots. Good enough if not migrating now. |
+
+**Recommendation:** Next.js (SSG) for the public storefront if SEO is a real priority; otherwise prerender as an interim step.
+
+### 10.3 On-page quick wins (do regardless of rendering)
+- Per-page `<title>` + meta description; one clear `<h1>`; clean URLs (`/menu`, `/menu/appetizers`).
+- Open Graph + Twitter Card tags (nice link previews when shared).
+- `public/robots.txt` that allows crawling and points to the sitemap.
+- `public/sitemap.xml` listing public pages; submit it in **Google Search Console** + **Bing Webmaster Tools**.
+- HTTPS, fast load, mobile-friendly (already true with Tailwind).
+
+### 10.4 Structured data — the restaurant differentiator
+Add **schema.org JSON-LD** so Google shows rich results (menu, hours, ratings) and AI engines can extract facts cleanly. Use `Restaurant` with nested `Menu`/`MenuItem`, plus `address`, `openingHours`, `telephone`, `priceRange`, `servesCuisine`, and `aggregateRating`. Generate the `Menu` JSON-LD dynamically from the same `MenuItem` data the API serves.
+
+### 10.5 AI search specifics
+- Good SSR + JSON-LD already covers most AI discoverability (they read raw HTML + structured data).
+- In `robots.txt`, allow the AI crawlers you want to be cited by: `GPTBot` (ChatGPT), `OAI-SearchBot`, `PerplexityBot`, `Google-Extended` (Gemini), `ClaudeBot`.
+- Optional `public/llms.txt` summarizing name, location, hours, cuisine, signature dishes — plain factual prose LLMs quote well.
+
+### 10.6 Off-site (matters most for restaurants)
+- Create + verify **Google Business Profile** and **Bing Places** — drives "restaurants near me."
+- Keep **NAP** (name, address, phone) identical across the site, Google, Yelp, TripAdvisor, social.
+- Earn mentions on local directories/press/food blogs — strongly boosts both ranking and AI citations.
+
+### 10.7 Suggested deliverables
+A `public/robots.txt`, a `public/sitemap.xml` (or a generator), meta + `Restaurant`/`Menu` JSON-LD in `index.html` (or a `<Head>`/`react-helmet` setup), and — if pursuing 10.2 — a Next.js storefront migration as its own milestone.
+
+---
+
+## 11. Built Enhancements (post-MVP, implemented)
+
+The storefront was migrated to **Next.js (App Router)** with SSR/ISR so public pages render real HTML for crawlers. The following were implemented on top of the core plan.
+
+### 11.1 Editable restaurant profile (Super Admin)
+Restaurant **name, opening hours, address, phone, description, cuisine, price range, geo, and social links** are stored in the key/value `Setting` table under `RESTAURANT_PROFILE` (JSON), editable by Super Admin and read publicly.
+- Backend: `getRestaurantProfile` / `setRestaurantProfile` in `settings.service`; `GET /api/settings/restaurant` (public — the SSR storefront needs it) and `PUT /api/settings/restaurant` (Super Admin, Zod-validated, audit-logged).
+- Frontend: server-side `getRestaurant()` feeds the live profile into the home page, menu page, `<title>`/meta, `Restaurant` + `Menu` JSON-LD, and `llms.txt`. Edited in **Admin → Settings → Restaurant Profile** (add/remove opening-hours rows, etc.).
+- Defaults live in `lib/site.ts` (`DEFAULT_RESTAURANT`) and are used until a profile is saved.
+
+### 11.2 Delivery distance limit
+New Super-Admin setting `DELIVERY_MAX_KM` (default seed `15`; `0` = no limit), stored alongside the other delivery-fee tunables.
+- The checkout flow (`quoteOrder` + `placeOrder`) computes haversine distance from the restaurant origin and **rejects delivery orders beyond the limit** with `400 "…outside our delivery area (max N km)."`
+- Edited in **Admin → Settings → Delivery Fee Rules** ("Max delivery distance (km, 0 = no limit)").
+- Caveat: orders without delivery coordinates fall back to an assumed 5 km, so keep the limit >= 5 unless exact coordinates are captured at checkout.
+
+### 11.3 Session handling (token refresh)
+Access tokens are short-lived (`JWT_ACCESS_EXPIRES_IN`, raised to `1h`); refresh tokens last 7 days. The RTK Query base query now wraps requests with **auto-refresh on 401**: it calls `POST /api/auth/refresh`, stores the new tokens (`setTokens`), and retries transparently. If refresh fails it **auto-logs-out** (clears the stale token) so the public site loads without a manual logout. Fixes the "must log out before I can see the site" symptom caused by an expired-but-persisted token.
+
+### 11.4 On-demand cache revalidation
+Because public pages cache menu/profile data (ISR + Next Data Cache), admin edits previously lagged up to 5 min / 1 hr. A `POST /revalidate` route (outside `/api/*`, which is proxied to Express) calls `revalidatePath('/','/menu','/llms.txt')`. It fires automatically after menu create/edit/delete/availability changes and restaurant-profile saves (RTK Query `onQueryStarted`), so edits appear on the storefront immediately.
+
+### 11.5 Test coverage (Vitest, server)
+Pure, DB-free logic is unit-tested: `pricing.test.ts` (12), `finance.calc.test.ts` (13), and `orders.service.test.ts` (8 — checkout snapshotting, pickup/delivery fee, unavailable-item rejection, and the delivery distance limit), via mocked Prisma/settings. Run with `npm test` in `/server`.
+
+### 11.6 Operational note
+Development was on an `F:` drive prone to truncating files during writes/`npm install` (antivirus/sync interference). If builds fail with "unterminated"/parse errors after edits, or packages show a corrupted `package.json`, do a clean reinstall — or move the project to `C:` to eliminate it.
