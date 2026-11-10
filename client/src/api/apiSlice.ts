@@ -130,7 +130,8 @@ export const apiSlice = createApi({
       invalidatesTags: ['MenuItem'],
       onQueryStarted: revalidateOnSuccess,
     }),
-    deleteMenuItem: builder.mutation<void, string>({
+    // hidden: true = the item has past orders, so it was hidden, not deleted.
+    deleteMenuItem: builder.mutation<{ hidden: boolean }, string>({
       query: (id) => ({ url: `/menu/${id}`, method: 'DELETE' }),
       invalidatesTags: ['MenuItem'],
       onQueryStarted: revalidateOnSuccess,

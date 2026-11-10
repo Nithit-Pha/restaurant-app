@@ -3,23 +3,30 @@ import * as ordersService from './orders.service';
 import { hasMinRole } from '../../middleware/requireRole';
 import { audit } from '../../utils/auditLog';
 
+// Cost and profit data is for Super Admins only. Removes order-level
+// profit/totalCost and per-line unitCost for everyone else.
 function stripProfit<T extends object>(order: T, isSuperAdmin: boolean): T {
   if (isSuperAdmin) return order;
   const { profit: _, totalCost: __, ...rest } = order as any;
+  if (Array.isArray(rest.items)) {
+    rest.items = rest.items.map(({ unitCost: _c, ...item }: any) => item);
+  }
   return rest as T;
 }
 
 export async function quoteHandler(req: Request, res: Response, next: NextFunction) {
   try {
+    const isSuperAdmin = hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN');
     const result = await ordersService.quoteOrder(req.body);
-    res.json(result);
+    res.json(stripProfit(result, isSuperAdmin));
   } catch (err) { next(err); }
 }
 
 export async function placeOrderHandler(req: Request, res: Response, next: NextFunction) {
   try {
+    const isSuperAdmin = hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN');
     const order = await ordersService.placeOrder(req.user!.userId, req.body);
-    res.status(201).json(order);
+    res.status(201).json(stripProfit(order, isSuperAdmin));
   } catch (err) { next(err); }
 }
 
@@ -55,7 +62,7 @@ export async function updateStatusHandler(req: Request, res: Response, next: Nex
     const prev = await ordersService.getOrderById(req.params.id);
     const order = await ordersService.updateOrderStatus(req.params.id, req.body.status);
     audit({ actorId: req.user!.userId, action: 'STATUS_CHANGE', entityType: 'ORDER', entityId: order.id, metadata: { from: prev?.status, to: req.body.status } });
-    res.json(order);
+    res.json(stripProfit(order, hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN')));
   } catch (err) { next(err); }
 }
 

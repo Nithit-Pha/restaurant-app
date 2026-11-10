@@ -8,11 +8,28 @@ import { useRequireRole } from '../../../src/routes/useAuthGuard';
 
 export default function AdminMenuPage() {
   const { ready } = useRequireRole('STAFF');
-  const { data: items = [], isLoading } = useGetMenuItemsQuery({ available: undefined as any }, { skip: !ready });
+  // available: false = include hidden items, so they can be switched back on.
+  const { data: items = [], isLoading } = useGetMenuItemsQuery({ available: false }, { skip: !ready });
   const [deleteItem] = useDeleteMenuItemMutation();
   const [toggleAvail] = useToggleAvailabilityMutation();
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [creating, setCreating] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  // Cost price is only sent to Super Admins; staff don't get the cost columns.
+  const showCost = items.some((i) => i.costPrice !== undefined && i.costPrice !== null);
+
+  const handleDelete = async (item: MenuItem) => {
+    if (!window.confirm(`Delete "${item.name}"?`)) return;
+    try {
+      const res = await deleteItem(item.id).unwrap();
+      setNotice(res?.hidden
+        ? `"${item.name}" has past orders, so it was hidden instead of deleted.`
+        : `"${item.name}" was deleted.`);
+    } catch {
+      setNotice(`Could not delete "${item.name}". Please try again.`);
+    }
+  };
 
   if (!ready) return null;
   if (isLoading) return <div className="p-8 text-center text-gray-400">Loading…</div>;
@@ -29,6 +46,10 @@ export default function AdminMenuPage() {
         </button>
       </div>
 
+      {notice && (
+        <p className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded px-3 py-2">{notice}</p>
+      )}
+
       {(creating || editing) && (
         <div className="mb-6">
           <MenuItemForm
@@ -44,23 +65,26 @@ export default function AdminMenuPage() {
             <tr>
               <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Name</th>
               <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Category</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Cost</th>
+              {showCost && <th className="px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Cost</th>}
               <th className="px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Price</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Margin</th>
+              {showCost && <th className="px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Margin</th>}
               <th className="px-4 py-3 text-center font-medium text-gray-700 dark:text-gray-300">Available</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y dark:divide-gray-700">
             {items.map((item) => {
-              const margin = ((item.sellingPrice - item.costPrice) / item.sellingPrice * 100).toFixed(1);
+              // The API sends Decimal prices as strings ("9.99"); convert before maths.
+              const price = Number(item.sellingPrice);
+              const cost = Number(item.costPrice);
+              const margin = price > 0 ? (((price - cost) / price) * 100).toFixed(1) : '—';
               return (
                 <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{item.name}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{item.category}</td>
-                  <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{formatCurrency(item.costPrice)}</td>
-                  <td className="px-4 py-3 text-right font-semibold dark:text-white">{formatCurrency(item.sellingPrice)}</td>
-                  <td className="px-4 py-3 text-right text-green-600">{margin}%</td>
+                  {showCost && <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{formatCurrency(cost)}</td>}
+                  <td className="px-4 py-3 text-right font-semibold dark:text-white">{formatCurrency(price)}</td>
+                  {showCost && <td className={`px-4 py-3 text-right ${cost > price ? 'text-red-600' : 'text-green-600'}`}>{margin}%</td>}
                   <td className="px-4 py-3 text-center">
                     <button
                       onClick={() => toggleAvail({ id: item.id, isAvailable: !item.isAvailable })}
@@ -71,7 +95,7 @@ export default function AdminMenuPage() {
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
                     <button onClick={() => setEditing(item)} className="text-brand-600 hover:underline text-xs">Edit</button>
-                    <button onClick={() => deleteItem(item.id)} className="text-red-500 hover:underline text-xs">Delete</button>
+                    <button onClick={() => handleDelete(item)} className="text-red-500 hover:underline text-xs">Delete</button>
                   </td>
                 </tr>
               );

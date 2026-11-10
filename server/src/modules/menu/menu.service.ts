@@ -56,7 +56,10 @@ export async function toggleAvailability(id: string, isAvailable: boolean) {
 export async function deleteMenuItem(id: string) {
   const refs = await prisma.orderItem.count({ where: { menuItemId: id } });
   if (refs > 0) {
-    return prisma.menuItem.update({ where: { id }, data: { isAvailable: false } });
+    // Past orders reference this item, so keep it for history and hide it.
+    await prisma.menuItem.update({ where: { id }, data: { isAvailable: false } });
+    return { hidden: true };
   }
-  return prisma.menuItem.delete({ where: { id } });
+  await prisma.menuItem.delete({ where: { id } });
+  return { hidden: false };
 }

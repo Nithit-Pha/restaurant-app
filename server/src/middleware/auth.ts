@@ -31,3 +31,20 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
     res.status(401).json({ message: 'Invalid or expired token' });
   }
 }
+
+/**
+ * For public routes that show more to logged-in staff/admins (e.g. the menu).
+ * Sets req.user when a valid token is sent; otherwise continues as anonymous.
+ * Never rejects the request.
+ */
+export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      req.user = jwt.verify(authHeader.slice(7), env.jwt.accessSecret) as JwtPayload;
+    } catch {
+      /* invalid/expired token: treat as anonymous */
+    }
+  }
+  next();
+}

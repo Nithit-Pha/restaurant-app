@@ -19,12 +19,15 @@ const ROLE_RANK: Record<string, number> = {
 export function useRequireAuth() {
   const router = useRouter();
   const token = useAppSelector((s) => s.auth.accessToken);
+  const hydrated = useAppSelector((s) => s.auth.hydrated);
 
   useEffect(() => {
-    if (!token) router.replace('/login');
-  }, [token, router]);
+    // Wait until tokens are loaded from localStorage, or a page refresh
+    // would wrongly bounce a logged-in user to /login.
+    if (hydrated && !token) router.replace('/login');
+  }, [hydrated, token, router]);
 
-  return { ready: !!token };
+  return { ready: hydrated && !!token };
 }
 
 /**
@@ -35,19 +38,22 @@ export function useRequireAuth() {
 export function useRequireRole(minRole: 'CUSTOMER' | 'STAFF' | 'SUPER_ADMIN') {
   const router = useRouter();
   const token = useAppSelector((s) => s.auth.accessToken);
-  const { data: user, isLoading } = useGetMeQuery(undefined, { skip: !token });
+  const hydrated = useAppSelector((s) => s.auth.hydrated);
+  const { data: user, isLoading, isFetching } = useGetMeQuery(undefined, { skip: !token });
 
   const userRank = ROLE_RANK[user?.role ?? ''] ?? -1;
   const minRank = ROLE_RANK[minRole] ?? 999;
-  const authorized = !!token && !isLoading && userRank >= minRank;
+  const checking = !hydrated || isLoading || (isFetching && !user);
+  const authorized = hydrated && !!token && !checking && userRank >= minRank;
 
   useEffect(() => {
+    if (!hydrated) return; // tokens not loaded from localStorage yet
     if (!token) {
       router.replace('/login');
-    } else if (!isLoading && userRank < minRank) {
+    } else if (!checking && userRank < minRank) {
       router.replace('/');
     }
-  }, [token, isLoading, userRank, minRank, router]);
+  }, [hydrated, token, checking, userRank, minRank, router]);
 
-  return { ready: authorized, isLoading: isLoading || !token };
+  return { ready: authorized, isLoading: checking || !token };
 }

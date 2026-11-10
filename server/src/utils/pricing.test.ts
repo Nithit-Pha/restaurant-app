@@ -15,31 +15,31 @@ describe('priceCart (tax-inclusive)', () => {
     expect(r.total).toBe(28.5);
   });
 
-  it('extracts the tax from the price: 24 @ 7% -> 22.32 + 1.68', () => {
+  it('extracts the tax from the price: 24 @ 7% -> 22.43 + 1.57', () => {
     const r = priceCart([burger], 5, 0.07); // gross 24, delivery 5
-    expect(r.taxAmount).toBe(1.68); // 24 * 0.07
-    expect(r.subtotal).toBe(22.32); // 24 - 1.68 (net of tax)
+    expect(r.taxAmount).toBe(1.57); // 24 * 0.07 / 1.07 = 1.5701
+    expect(r.subtotal).toBe(22.43); // 24 - 1.57 (net of tax)
     expect(r.deliveryFee).toBe(5);
     expect(r.total).toBe(29); // 24 (tax already inside) + 5 delivery
   });
 
-  it('matches the worked example: 10 + 10 = 20 @ 7% -> 18.60 + 1.40', () => {
+  it('matches the worked example: 10 + 10 = 20 @ 7% -> 18.69 + 1.31', () => {
     const r = priceCart([{ unitPrice: 10, unitCost: 3, quantity: 2 }], 0, 0.07);
     expect(r.total).toBe(20); // customer pays the gross price
-    expect(r.taxAmount).toBe(1.4); // 20 * 0.07
-    expect(r.subtotal).toBe(18.6); // 20 - 1.40
+    expect(r.taxAmount).toBe(1.31); // 20 * 0.07 / 1.07 = 1.3084
+    expect(r.subtotal).toBe(18.69); // 20 - 1.31; 18.69 * 1.07 = 20.00
   });
 
   it('rounds the extracted tax to 2 decimals', () => {
     const r = priceCart([soda], 0, 0.07); // gross 8.97
-    expect(r.taxAmount).toBe(0.63); // 8.97 * 0.07 = 0.6279 -> 0.63
-    expect(r.subtotal).toBe(8.34); // 8.97 - 0.63
+    expect(r.taxAmount).toBe(0.59); // 8.97 * 0.07 / 1.07 = 0.5868 -> 0.59
+    expect(r.subtotal).toBe(8.38); // 8.97 - 0.59
     expect(r.total).toBe(8.97);
   });
 
   it('profit is net-of-tax revenue minus cost; delivery never counts as profit', () => {
-    const r = priceCart([burger], 10, 0.07); // gross 24, net 22.32, cost 9
-    expect(r.profit).toBe(13.32); // 22.32 - 9
+    const r = priceCart([burger], 10, 0.07); // gross 24, net 22.43, cost 9
+    expect(r.profit).toBe(13.43); // 22.43 - 9
   });
 
   it('handles an empty cart', () => {

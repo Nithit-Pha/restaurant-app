@@ -12,8 +12,11 @@ function stripCost<T extends { costPrice?: unknown }>(item: T, isSuperAdmin: boo
 export async function listItems(req: Request, res: Response, next: NextFunction) {
   try {
     const { category, available } = req.query;
-    const availableOnly = available !== 'false';
+    const isStaff = hasMinRole(req.user?.role ?? '', 'STAFF');
     const isSuperAdmin = hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN');
+    // Only staff+ may include hidden (unavailable) items; the public always
+    // gets available items only.
+    const availableOnly = !isStaff || available !== 'false';
     const items = await menuService.getMenuItems(category as string | undefined, availableOnly);
     res.json(items.map((i) => stripCost(i, isSuperAdmin)));
   } catch (err) { next(err); }
@@ -21,9 +24,11 @@ export async function listItems(req: Request, res: Response, next: NextFunction)
 
 export async function getItem(req: Request, res: Response, next: NextFunction) {
   try {
+    const isStaff = hasMinRole(req.user?.role ?? '', 'STAFF');
     const isSuperAdmin = hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN');
     const item = await menuService.getMenuItem(req.params.id);
-    if (!item) { res.status(404).json({ message: 'Item not found' }); return; }
+    // Hidden items are invisible to the public, same as in the list.
+    if (!item || (!item.isAvailable && !isStaff)) { res.status(404).json({ message: 'Item not found' }); return; }
     res.json(stripCost(item, isSuperAdmin));
   } catch (err) { next(err); }
 }
@@ -63,8 +68,9 @@ export async function patchAvailability(req: Request, res: Response, next: NextF
 
 export async function deleteItem(req: Request, res: Response, next: NextFunction) {
   try {
-    await menuService.deleteMenuItem(req.params.id);
-    audit({ actorId: req.user!.userId, action: 'DELETE', entityType: 'MENU_ITEM', entityId: req.params.id });
-    res.status(204).send();
+    const result = await menuService.deleteMenuItem(req.params.id);
+    audit({ actorId: req.user!.userId, action: 'DELETE', entityType: 'MENU_ITEM', entityId: req.params.id, metadata: { hidden: result.hidden } });
+    // hidden: true -> item has past orders, so it was hidden instead of deleted.
+    res.json(result);
   } catch (err) { next(err); }
 }

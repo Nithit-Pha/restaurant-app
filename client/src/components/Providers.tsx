@@ -14,9 +14,8 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
     // into Redux after mount so SSR output never depends on it.
     const accessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
-    if (accessToken || refreshToken) {
-      dispatch(hydrateFromStorage({ accessToken, refreshToken }));
-    }
+    // Always dispatch (even with no tokens) so guards know hydration is done.
+    dispatch(hydrateFromStorage({ accessToken, refreshToken }));
   }, [dispatch]);
 
   return <>{children}</>;

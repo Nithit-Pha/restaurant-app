@@ -63,7 +63,8 @@ export const { addItem, removeItem, updateQuantity, clearCart, openCart, closeCa
 export default cartSlice.reducer;
 
 // Selectors — menu prices are TAX-INCLUSIVE.
-// Example: 10 + 10 = 20 with 7% tax -> subtotal 18.60 + tax 1.40 = total 20.00.
+// Example: 10 + 10 = 20 with 7% tax -> subtotal 18.69 + tax 1.31 = total 20.00.
+// (Display estimate only; checkout shows the server's quote.)
 const TAX_RATE = 0.07;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -77,8 +78,8 @@ export const selectCartCount = createSelector(selectCartItems, (items) =>
 export const selectGross = createSelector(selectCartItems, (items) =>
   round2(items.reduce((s, i) => s + i.sellingPrice * i.quantity, 0))
 );
-// Tax portion contained inside the price (gross * rate).
-export const selectTaxAmount = createSelector(selectGross, (gross) => round2(gross * TAX_RATE));
+// Tax portion contained inside the price: gross × rate / (1 + rate).
+export const selectTaxAmount = createSelector(selectGross, (gross) => round2((gross * TAX_RATE) / (1 + TAX_RATE)));
 // Subtotal shown to the customer is net of tax (gross - tax).
 export const selectSubtotal = createSelector(
   selectGross, selectTaxAmount,

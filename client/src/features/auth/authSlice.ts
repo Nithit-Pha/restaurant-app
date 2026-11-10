@@ -5,6 +5,9 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
+  // False until tokens have been read from localStorage on the client.
+  // Route guards must wait for this before deciding to redirect.
+  hydrated: boolean;
 }
 
 // SSR-safe: localStorage doesn't exist on the server, so the store starts
@@ -13,6 +16,7 @@ const initialState: AuthState = {
   user: null,
   accessToken: null,
   refreshToken: null,
+  hydrated: false,
 };
 
 function persist(accessToken: string | null, refreshToken: string | null) {
@@ -42,6 +46,7 @@ const authSlice = createSlice({
     hydrateFromStorage(state, action: PayloadAction<{ accessToken: string | null; refreshToken: string | null }>) {
       state.accessToken = action.payload.accessToken;
       state.refreshToken = action.payload.refreshToken;
+      state.hydrated = true;
     },
     logout(state) {
       state.user = null;

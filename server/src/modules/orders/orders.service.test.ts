@@ -14,8 +14,11 @@ const { prismaMock, txOrderCreate } = vi.hoisted(() => {
 
 vi.mock('../../config/db', () => ({ prisma: prismaMock }));
 // Key-aware: tax rate 0.07, and DELIVERY_MAX_KM = 0 (no limit) by default.
+// Restaurant location used as the delivery origin (Springfield, IL).
+const RESTAURANT_GEO = { latitude: 39.7817, longitude: -89.6501 };
 vi.mock('../settings/settings.service', () => ({
   getSetting: vi.fn(async (key: string) => (key === 'DELIVERY_MAX_KM' ? 0 : 0.07)),
+  getRestaurantProfile: vi.fn(async () => ({ geo: { latitude: 39.7817, longitude: -89.6501 } })),
 }));
 
 // Keep real priceCart + haversineKm; stub only the async delivery-fee lookup.
@@ -51,12 +54,13 @@ describe('quoteOrder', () => {
       type: 'PICKUP',
       items: [{ menuItemId: 'burger', quantity: 2 }, { menuItemId: 'fries', quantity: 1 }],
     });
-    expect(q.subtotal).toBe(26.5);
+    // gross 28.50 (tax-inclusive): tax = 28.5 * 0.07 / 1.07 = 1.86
+    expect(q.subtotal).toBe(26.64);
     expect(q.totalCost).toBe(10.2);
-    expect(q.taxAmount).toBe(2.0);
+    expect(q.taxAmount).toBe(1.86);
     expect(q.deliveryFee).toBe(0);
     expect(q.total).toBe(28.5);
-    expect(q.profit).toBe(16.3);
+    expect(q.profit).toBe(16.44);
     expect(calcDeliveryFeeAsync).not.toHaveBeenCalled();
   });
 
@@ -95,6 +99,28 @@ describe('quoteOrder', () => {
     expect(calcDeliveryFeeAsync).not.toHaveBeenCalled();
   });
 
+  it('measures distance from the restaurant profile location', async () => {
+    // ~1 km north of the restaurant, with a 10 km limit -> allowed
+    (getSetting as any).mockImplementation(async (k: string) => (k === 'DELIVERY_MAX_KM' ? 10 : 0.07));
+    await quoteOrder({
+      type: 'DELIVERY',
+      deliveryLat: RESTAURANT_GEO.latitude + 0.009,
+      deliveryLng: RESTAURANT_GEO.longitude,
+      items: [{ menuItemId: 'burger', quantity: 1 }],
+    });
+    const distArg = (calcDeliveryFeeAsync as any).mock.calls[0][0];
+    expect(distArg).toBeGreaterThan(0.9);
+    expect(distArg).toBeLessThan(1.1);
+  });
+
+  it('requires a location when a max delivery distance is set', async () => {
+    (getSetting as any).mockImplementation(async (k: string) => (k === 'DELIVERY_MAX_KM' ? 10 : 0.07));
+    await expect(
+      quoteOrder({ type: 'DELIVERY', deliveryAddress: 'somewhere', items: [{ menuItemId: 'burger', quantity: 1 }] }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(calcDeliveryFeeAsync).not.toHaveBeenCalled();
+  });
+
   it('throws 400 when an item is unavailable', async () => {
     prismaMock.menuItem.findMany.mockResolvedValueOnce([]); // requested item not returned
     await expect(
@@ -124,10 +150,11 @@ describe('placeOrder', () => {
     expect(prismaMock.$transaction).toHaveBeenCalledOnce();
     const data = txOrderCreate.mock.calls[0][0].data;
     expect(data.userId).toBe('user-1');
-    expect(data.subtotal).toBe(22.32);
-    expect(data.taxAmount).toBe(1.68);
+    // gross 24.00: tax = 24 * 0.07 / 1.07 = 1.57
+    expect(data.subtotal).toBe(22.43);
+    expect(data.taxAmount).toBe(1.57);
     expect(data.total).toBe(24);
-    expect(data.profit).toBe(13.32);
+    expect(data.profit).toBe(13.43);
 
     const line = data.items.create[0];
     expect(line).toMatchObject({

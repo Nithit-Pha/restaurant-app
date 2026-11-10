@@ -1,11 +1,10 @@
 import { prisma } from '../../config/db';
 import { priceCart, calcDeliveryFeeAsync, haversineKm } from '../../utils/pricing';
-import { getSetting } from '../settings/settings.service';
-import { env } from '../../config/env';
+import { getSetting, getRestaurantProfile } from '../settings/settings.service';
 
-// Restaurant coordinates (mock origin for delivery distance)
-const RESTAURANT_LAT = 13.7563;
-const RESTAURANT_LNG = 100.5018;
+// Distance assumed when the customer shares no location and no max delivery
+// distance is configured.
+const DEFAULT_DELIVERY_KM = 5;
 
 interface CartItemInput {
   menuItemId: string;
@@ -20,14 +19,16 @@ interface CheckoutInput {
   deliveryLng?: number;
 }
 
-export async function quoteOrder(input: CheckoutInput) {
-  const menuItems = await prisma.menuItem.findMany({
-    where: { id: { in: input.items.map((i) => i.menuItemId) }, isAvailable: true },
-  });
+const badRequest = (message: string) => Object.assign(new Error(message), { statusCode: 400 });
 
-  const lines = input.items.map((item) => {
+/** Look up the cart's menu items and snapshot their current price and cost. */
+async function buildLines(items: CartItemInput[]) {
+  const menuItems = await prisma.menuItem.findMany({
+    where: { id: { in: items.map((i) => i.menuItemId) }, isAvailable: true },
+  });
+  return items.map((item) => {
     const mi = menuItems.find((m) => m.id === item.menuItemId);
-    if (!mi) throw Object.assign(new Error(`Item ${item.menuItemId} not available`), { statusCode: 400 });
+    if (!mi) throw badRequest('One or more items are unavailable');
     return {
       menuItemId: mi.id,
       nameSnapshot: mi.name,
@@ -36,59 +37,48 @@ export async function quoteOrder(input: CheckoutInput) {
       quantity: item.quantity,
     };
   });
+}
 
-  let deliveryFee = 0;
-  if (input.type === 'DELIVERY') {
-    const distKm =
-      input.deliveryLat && input.deliveryLng
-        ? haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, input.deliveryLat, input.deliveryLng)
-        : 5;
-    const maxKm = await getSetting('DELIVERY_MAX_KM');
-    if (maxKm > 0 && distKm > maxKm) {
-      throw Object.assign(new Error(`Sorry, this address is outside our delivery area (max ${maxKm} km).`), { statusCode: 400 });
+/**
+ * Delivery fee. Distance is measured from the restaurant's own location
+ * (Settings -> Restaurant profile -> latitude/longitude). When a max delivery
+ * distance is set, the customer's location is required to enforce it.
+ */
+async function calcDelivery(input: CheckoutInput): Promise<number> {
+  if (input.type !== 'DELIVERY') return 0;
+  const maxKm = await getSetting('DELIVERY_MAX_KM');
+  const hasCoords = input.deliveryLat != null && input.deliveryLng != null;
+
+  if (!hasCoords) {
+    if (maxKm > 0) {
+      throw badRequest('Please share your location so we can check your address is within our delivery area.');
     }
-    deliveryFee = await calcDeliveryFeeAsync(distKm);
+    return calcDeliveryFeeAsync(DEFAULT_DELIVERY_KM);
   }
 
+  const { geo } = await getRestaurantProfile();
+  const distKm = haversineKm(geo.latitude, geo.longitude, input.deliveryLat!, input.deliveryLng!);
+  if (maxKm > 0 && distKm > maxKm) {
+    throw badRequest(`Sorry, this address is outside our delivery area (max ${maxKm} km).`);
+  }
+  return calcDeliveryFeeAsync(distKm);
+}
+
+/** One pricing path for both the checkout quote and the placed order. */
+async function priceOrder(input: CheckoutInput) {
+  const lines = await buildLines(input.items);
+  const deliveryFee = await calcDelivery(input);
   const taxRate = await getSetting('TAX_RATE');
-  return priceCart(lines, deliveryFee, taxRate);
+  return { lines, pricing: priceCart(lines, deliveryFee, taxRate) };
+}
+
+export async function quoteOrder(input: CheckoutInput) {
+  const { pricing } = await priceOrder(input);
+  return pricing;
 }
 
 export async function placeOrder(userId: string, input: CheckoutInput) {
-  const menuItems = await prisma.menuItem.findMany({
-    where: { id: { in: input.items.map((i) => i.menuItemId) }, isAvailable: true },
-  });
-
-  if (menuItems.length !== input.items.length) {
-    throw Object.assign(new Error('One or more items are unavailable'), { statusCode: 400 });
-  }
-
-  const lines = input.items.map((item) => {
-    const mi = menuItems.find((m) => m.id === item.menuItemId)!;
-    return {
-      menuItemId: mi.id,
-      nameSnapshot: mi.name,
-      unitPrice: Number(mi.sellingPrice),
-      unitCost: Number(mi.costPrice),
-      quantity: item.quantity,
-    };
-  });
-
-  let deliveryFee = 0;
-  if (input.type === 'DELIVERY') {
-    const distKm =
-      input.deliveryLat && input.deliveryLng
-        ? haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, input.deliveryLat, input.deliveryLng)
-        : 5;
-    const maxKm = await getSetting('DELIVERY_MAX_KM');
-    if (maxKm > 0 && distKm > maxKm) {
-      throw Object.assign(new Error(`Sorry, this address is outside our delivery area (max ${maxKm} km).`), { statusCode: 400 });
-    }
-    deliveryFee = await calcDeliveryFeeAsync(distKm);
-  }
-
-  const taxRate = await getSetting('TAX_RATE');
-  const pricing = priceCart(lines, deliveryFee, taxRate);
+  const { lines, pricing } = await priceOrder(input);
 
   return prisma.$transaction(async (tx) => {
     return tx.order.create({

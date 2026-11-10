@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, optionalAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/requireRole';
 import { upload } from '../../middleware/upload';
 import { validate } from '../../middleware/validate';
@@ -18,8 +18,10 @@ const menuItemSchema = z.object({
 });
 
 router.get('/categories', ctrl.listCategories);
-router.get('/', ctrl.listItems);
-router.get('/:id', ctrl.getItem);
+// optionalAuth: anyone can read the menu; staff/admins sent a token see more
+// (hidden items, and cost price for Super Admins).
+router.get('/', optionalAuth, ctrl.listItems);
+router.get('/:id', optionalAuth, ctrl.getItem);
 
 router.post('/', authenticate, requireRole('STAFF', 'SUPER_ADMIN'), upload.single('image'), validate(menuItemSchema), ctrl.createItem);
 router.put('/:id', authenticate, requireRole('STAFF', 'SUPER_ADMIN'), upload.single('image'), ctrl.updateItem);

@@ -30,7 +30,16 @@ if (env.nodeEnv !== 'test') {
 }
 
 // Static uploads
-app.use('/uploads', express.static(path.resolve(env.uploadDir)));
+// nosniff: the browser must trust the Content-Type and never guess that a
+// file is a web page. Only image files are served from here.
+app.use('/uploads', express.static(path.resolve(env.uploadDir), {
+  setHeaders: (res, filePath) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (!/\.(jpe?g|png|gif|webp)$/i.test(filePath)) {
+      res.setHeader('Content-Disposition', 'attachment');
+    }
+  },
+}));
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
