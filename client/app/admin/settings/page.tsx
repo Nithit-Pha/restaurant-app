@@ -5,12 +5,13 @@ import {
   useGetSettingsQuery,
   useSetTaxRateMutation,
   useSetDeliveryFeeMutation,
+  useSetOrderingMutation,
   useGetRestaurantQuery,
   useSetRestaurantMutation,
   useGetStaffQuery,
   useCreateStaffMutation,
   useUpdateStaffRoleMutation,
-  useDeleteStaffMutation,
+  useSetStaffActiveMutation,
   type RestaurantProfile,
 } from '../../../src/api/apiSlice';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
@@ -41,7 +42,8 @@ export default function SettingsPage() {
   const { data: staff = [] } = useGetStaffQuery(undefined, { skip: !ready });
   const [createStaff] = useCreateStaffMutation();
   const [updateRole] = useUpdateStaffRoleMutation();
-  const [deleteStaff] = useDeleteStaffMutation();
+  const [setStaffActive] = useSetStaffActiveMutation();
+  const [setOrdering] = useSetOrderingMutation();
 
   const [taxPct, setTaxPct] = useState('');
   const [baseFee, setBaseFee] = useState('');
@@ -322,6 +324,28 @@ export default function SettingsPage() {
         </button>
       </section>
 
+      {/* Online ordering */}
+      <section className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-5">
+        <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">Online Ordering</h2>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-1 accent-brand-500"
+            checked={(settings?.ORDERING_HOURS_ENFORCED ?? 1) !== 0}
+            onChange={async (e) => {
+              await setOrdering({ hoursEnforced: e.target.checked });
+              setMsg(e.target.checked ? 'Orders are now accepted only during opening hours' : 'Orders are now accepted at any time');
+            }}
+          />
+          <span className="text-sm text-gray-700 dark:text-gray-300">
+            Only accept orders during opening hours
+            <span className="block text-xs text-gray-500 dark:text-gray-400">
+              Uses the opening hours in the Restaurant Profile above. Turn off for testing outside opening hours.
+            </span>
+          </span>
+        </label>
+      </section>
+
       {/* Staff Management */}
       <section className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-5">
         <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-4">Staff Accounts</h2>
@@ -405,12 +429,13 @@ export default function SettingsPage() {
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Name</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Email</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Role</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Status</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y dark:divide-gray-700">
             {staff.map((s) => (
-              <tr key={s.id}>
+              <tr key={s.id} className={s.isActive ? '' : 'opacity-60'}>
                 <td className="px-3 py-2 text-gray-900 dark:text-gray-200">{s.name}</td>
                 <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{s.email}</td>
                 <td className="px-3 py-2">
@@ -423,13 +448,38 @@ export default function SettingsPage() {
                     <option value="SUPER_ADMIN">Super Admin</option>
                   </select>
                 </td>
+                <td className="px-3 py-2 text-xs">
+                  {s.isActive
+                    ? <span className="text-green-700 dark:text-green-400">Active</span>
+                    : <span className="text-gray-500 dark:text-gray-400">Deactivated</span>}
+                </td>
                 <td className="px-3 py-2 text-right">
-                  <button
-                    onClick={() => { if (confirm(`Delete ${s.name}?`)) deleteStaff(s.id); }}
-                    className="text-xs text-red-500 hover:underline"
-                  >
-                    Delete
-                  </button>
+                  {s.isActive ? (
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Deactivate ${s.name}? They are signed out at once and cannot sign in again. Their past orders and history stay.`)) return;
+                        try {
+                          await setStaffActive({ id: s.id, isActive: false }).unwrap();
+                          setMsg(`${s.name} was deactivated`);
+                        } catch (err) {
+                          setFormError((err as { data?: { message?: string } })?.data?.message ?? 'Could not deactivate the account');
+                        }
+                      }}
+                      className="text-xs text-red-500 hover:underline"
+                    >
+                      Deactivate
+                    </button>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        await setStaffActive({ id: s.id, isActive: true });
+                        setMsg(`${s.name} was reactivated`);
+                      }}
+                      className="text-xs text-brand-600 hover:underline"
+                    >
+                      Reactivate
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

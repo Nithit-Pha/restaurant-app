@@ -3,6 +3,7 @@ import { getCategories, getMenuItems, getRestaurant } from '../../src/lib/api/se
 import { SITE_URL } from '../../src/lib/site';
 import MenuItemCard from '../../src/features/menu/MenuItemCard';
 import CategoryTabs from '../../src/features/menu/CategoryTabs';
+import ClosedBanner from '../../src/features/orders/ClosedBanner';
 
 export const revalidate = 300; // ISR: re-fetch the menu at most every 5 minutes
 
@@ -65,6 +66,7 @@ export default async function MenuPage({ searchParams }: PageProps) {
       <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">
         {category ? `${category}` : 'Our Menu'}
       </h1>
+      <ClosedBanner className="mb-6" />
       <CategoryTabs categories={categories} active={category} />
       {items.length === 0 ? (
         <p className="text-gray-500 dark:text-gray-400 mt-8 text-center">No items in this category.</p>

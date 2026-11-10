@@ -82,9 +82,13 @@ export default function AdminMenuPage() {
                 <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{item.name}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{item.category}</td>
-                  {showCost && <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{formatCurrency(cost)}</td>}
+                  {showCost && (
+                    <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">
+                      {cost > 0 ? formatCurrency(cost) : <span className="text-amber-600 text-xs font-medium" title="Added by staff; enter the cost to get correct profit figures">cost missing</span>}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-right font-semibold dark:text-white">{formatCurrency(price)}</td>
-                  {showCost && <td className={`px-4 py-3 text-right ${cost > price ? 'text-red-600' : 'text-green-600'}`}>{margin}%</td>}
+                  {showCost && <td className={`px-4 py-3 text-right ${cost > price ? 'text-red-600' : 'text-green-600'}`}>{cost > 0 ? `${margin}%` : '—'}</td>}
                   <td className="px-4 py-3 text-center">
                     <button
                       onClick={() => toggleAvail({ id: item.id, isAvailable: !item.isAvailable })}

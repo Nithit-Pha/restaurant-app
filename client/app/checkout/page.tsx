@@ -1,13 +1,34 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '../../src/app/hooks';
 import { selectCartItems, clearCart } from '../../src/features/cart/cartSlice';
-import { usePlaceOrderMutation, useQuoteOrderMutation, type PricingResult } from '../../src/api/apiSlice';
+import {
+  useGetMeQuery,
+  useGetOpenStatusQuery,
+  usePlaceOrderMutation,
+  useQuoteOrderMutation,
+  type PricingResult,
+} from '../../src/api/apiSlice';
+import ClosedBanner from '../../src/features/orders/ClosedBanner';
 import DeliveryForm from '../../src/features/checkout/DeliveryForm';
 import { formatCurrency } from '../../src/lib/format';
 import { useRequireAuth } from '../../src/routes/useAuthGuard';
+
+/** A random UUID; crypto.randomUUID only exists on https/localhost. */
+function newUuid(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+// Same rule as the server: digits, spaces, dashes, optional leading +.
+const PHONE_RE = /^\+?[0-9][0-9 -]{7,18}$/;
 
 /** Pull the server's `{ message }` out of an RTK Query error, if there is one. */
 function errorMessage(err: unknown, fallback: string): string {
@@ -27,6 +48,18 @@ export default function CheckoutPage() {
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
   const [placeOrder, { isLoading, error }] = usePlaceOrderMutation();
+  const { data: me } = useGetMeQuery(undefined, { skip: !ready });
+  const { data: openStatus } = useGetOpenStatusQuery(undefined, { pollingInterval: 60_000 });
+  const isClosed = openStatus ? !openStatus.isOpen : false;
+
+  // Phone so the restaurant (or rider) can reach the customer. Prefilled from
+  // the profile; whatever is used here is saved back to it.
+  const [phone, setPhone] = useState('');
+  const phoneTouched = useRef(false);
+  useEffect(() => {
+    if (me?.phone && !phoneTouched.current) setPhone(me.phone);
+  }, [me?.phone]);
+  const phoneValid = PHONE_RE.test(phone.trim());
 
   // Prices always come from the server (POST /orders/quote) — the same
   // calculation used when the order is placed, so the total shown here is
@@ -66,6 +99,13 @@ export default function CheckoutPage() {
     );
   };
 
+  // One idempotency key per checkout attempt. A double click or a retry after a
+  // network error sends the same key, so the server never creates two orders.
+  // Any change to what is being ordered starts a new attempt.
+  const attemptKey = `${cartKey}|${orderType}|${locationKey}|${deliveryAddress.trim()}|${phone.trim()}`;
+  const [idempotencyKey, setIdempotencyKey] = useState(newUuid);
+  useEffect(() => { setIdempotencyKey(newUuid()); }, [attemptKey]);
+
   useEffect(() => {
     if (!ready || cartLines.length === 0) return;
     let cancelled = false; // ignore answers to an older cart/order type
@@ -96,11 +136,14 @@ export default function CheckoutPage() {
   }
 
   const handleSubmit = async () => {
+    if (isLoading) return; // ignore a second click while the first is in flight
     try {
       const order = await placeOrder({
         items: cartLines,
         type: orderType,
         deliveryAddress: orderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
+        customerPhone: phone.trim(),
+        idempotencyKey,
         ...location,
       }).unwrap();
       dispatch(clearCart());
@@ -109,11 +152,13 @@ export default function CheckoutPage() {
   };
 
   const canSubmit =
-    !!quote && !quoting && !isLoading && (orderType === 'PICKUP' || !!deliveryAddress.trim());
+    !!quote && !quoting && !isLoading && !isClosed && phoneValid &&
+    (orderType === 'PICKUP' || !!deliveryAddress.trim());
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Checkout</h1>
+      <ClosedBanner className="mb-4" />
 
       {/* Order type */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 mb-4">
@@ -132,6 +177,26 @@ export default function CheckoutPage() {
             </label>
           ))}
         </div>
+      </div>
+
+      {/* Contact phone */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 mb-4">
+        <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Phone number
+        </label>
+        <input
+          id="phone"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          value={phone}
+          onChange={(e) => { phoneTouched.current = true; setPhone(e.target.value); }}
+          placeholder="08x xxx xxxx"
+          className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+        <p className={`text-xs mt-1 ${phone && !phoneValid ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}>
+          {phone && !phoneValid ? 'Please enter a valid phone number.' : 'So the restaurant can reach you about this order.'}
+        </p>
       </div>
 
       {/* Delivery address */}
@@ -188,7 +253,9 @@ export default function CheckoutPage() {
         disabled={!canSubmit}
         className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 rounded-lg disabled:opacity-50"
       >
-        {isLoading
+        {isClosed
+          ? 'Ordering is closed right now'
+          : isLoading
           ? 'Placing order…'
           : quote && !quoting
             ? `Place order · ${formatCurrency(quote.total)}`

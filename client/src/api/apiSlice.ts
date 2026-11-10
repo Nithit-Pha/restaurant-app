@@ -80,7 +80,7 @@ const baseQueryWithReauth: BaseQueryFn<
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant'],
+  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus'],
   endpoints: (builder) => ({
     // Auth
     login: builder.mutation<AuthResponse, LoginInput>({
@@ -141,7 +141,7 @@ export const apiSlice = createApi({
     quoteOrder: builder.mutation<PricingResult, CheckoutInput>({
       query: (body) => ({ url: '/orders/quote', method: 'POST', body }),
     }),
-    placeOrder: builder.mutation<Order, CheckoutInput>({
+    placeOrder: builder.mutation<Order, PlaceOrderInput>({
       query: (body) => ({ url: '/orders', method: 'POST', body }),
       invalidatesTags: ['Order'],
     }),
@@ -153,12 +153,22 @@ export const apiSlice = createApi({
       query: (id) => `/orders/${id}`,
       providesTags: (_r, _e, id) => [{ type: 'Order', id }],
     }),
-    getAdminOrders: builder.query<Order[], { status?: string }>({
-      query: ({ status } = {}) => `/orders/admin/all${status ? `?status=${status}` : ''}`,
+    // date = business day 'YYYY-MM-DD' (filtered on the server); omit for all days
+    getAdminOrders: builder.query<Order[], { status?: string; date?: string }>({
+      query: ({ status, date } = {}) => {
+        const p = new URLSearchParams();
+        if (status) p.set('status', status);
+        if (date) p.set('date', date);
+        return `/orders/admin/all?${p}`;
+      },
       providesTags: ['Order'],
     }),
-    updateOrderStatus: builder.mutation<Order, { id: string; status: string }>({
-      query: ({ id, status }) => ({ url: `/orders/${id}/status`, method: 'PATCH', body: { status } }),
+    updateOrderStatus: builder.mutation<Order, StatusChangeInput>({
+      query: ({ id, ...body }) => ({ url: `/orders/${id}/status`, method: 'PATCH', body }),
+      invalidatesTags: ['Order'],
+    }),
+    cancelMyOrder: builder.mutation<Order, { id: string; note?: string }>({
+      query: ({ id, note }) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: { note } }),
       invalidatesTags: ['Order'],
     }),
 
@@ -175,6 +185,15 @@ export const apiSlice = createApi({
       query: (body) => ({ url: '/settings/delivery-fee', method: 'PUT', body }),
       invalidatesTags: ['Settings'],
     }),
+    setOrdering: builder.mutation<AppSettings, { hoursEnforced: boolean }>({
+      query: (body) => ({ url: '/settings/ordering', method: 'PUT', body }),
+      invalidatesTags: ['Settings', 'OpenStatus'],
+    }),
+    // Public: is online ordering open right now?
+    getOpenStatus: builder.query<OpenStatus, void>({
+      query: () => '/settings/open-status',
+      providesTags: ['OpenStatus'],
+    }),
 
     // Restaurant profile (public read, Super Admin write)
     getRestaurant: builder.query<RestaurantProfile, void>({
@@ -183,7 +202,7 @@ export const apiSlice = createApi({
     }),
     setRestaurant: builder.mutation<RestaurantProfile, RestaurantProfile>({
       query: (body) => ({ url: '/settings/restaurant', method: 'PUT', body }),
-      invalidatesTags: ['Restaurant'],
+      invalidatesTags: ['Restaurant', 'OpenStatus'],
       onQueryStarted: revalidateOnSuccess,
     }),
 
@@ -200,8 +219,9 @@ export const apiSlice = createApi({
       query: ({ id, role }) => ({ url: `/admin/staff/${id}/role`, method: 'PATCH', body: { role } }),
       invalidatesTags: ['Staff'],
     }),
-    deleteStaff: builder.mutation<void, string>({
-      query: (id) => ({ url: `/admin/staff/${id}`, method: 'DELETE' }),
+    // Accounts are deactivated, never deleted (history keeps its author).
+    setStaffActive: builder.mutation<StaffUser, { id: string; isActive: boolean }>({
+      query: ({ id, isActive }) => ({ url: `/admin/staff/${id}/active`, method: 'PATCH', body: { isActive } }),
       invalidatesTags: ['Staff'],
     }),
 
@@ -229,12 +249,14 @@ export const {
   useGetSettingsQuery,
   useSetTaxRateMutation,
   useSetDeliveryFeeMutation,
+  useSetOrderingMutation,
+  useGetOpenStatusQuery,
   useGetRestaurantQuery,
   useSetRestaurantMutation,
   useGetStaffQuery,
   useCreateStaffMutation,
   useUpdateStaffRoleMutation,
-  useDeleteStaffMutation,
+  useSetStaffActiveMutation,
   useGetAuditLogQuery,
   useGetMenuItemsQuery,
   useGetMenuItemQuery,
@@ -249,6 +271,7 @@ export const {
   useGetOrderQuery,
   useGetAdminOrdersQuery,
   useUpdateOrderStatusMutation,
+  useCancelMyOrderMutation,
 } = apiSlice;
 
 // --- Types ---
@@ -268,6 +291,14 @@ export interface AppSettings {
   DELIVERY_FEE_PER_KM: number;
   DELIVERY_FREE_KM: number;
   DELIVERY_MAX_KM: number;
+  ORDERING_HOURS_ENFORCED: number; // 1 = only accept orders during opening hours
+}
+
+export interface OpenStatus {
+  isOpen: boolean;
+  enforced: boolean;
+  nextOpening: { dayOfWeek: string; time: string; inDays: number } | null;
+  timeZone: string;
 }
 
 export interface RestaurantProfile {
@@ -294,6 +325,7 @@ export interface StaffUser {
   name: string;
   email: string;
   role: 'STAFF' | 'SUPER_ADMIN';
+  isActive: boolean;
   createdAt: string;
 }
 
@@ -343,13 +375,38 @@ export interface OrderItem {
   quantity: number;
 }
 
+export type OrderStatus = 'PENDING' | 'PREPARING' | 'READY' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED';
+export type CancelReason = 'SOLD_OUT' | 'CLOSING_SOON' | 'TOO_BUSY' | 'OUT_OF_AREA' | 'CUSTOMER_REQUEST' | 'OTHER';
+
+export interface OrderStatusHistoryEntry {
+  fromStatus: OrderStatus | null;
+  toStatus: OrderStatus;
+  note?: string | null;
+  createdAt: string;
+  actor?: { name: string; role: string } | null;
+}
+
 export interface Order {
   id: string;
   userId: string;
   items: OrderItem[];
   type: 'PICKUP' | 'DELIVERY';
-  status: 'PENDING' | 'PREPARING' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED';
+  status: OrderStatus;
+  orderNumber?: number | null;
+  businessDate?: string | null;
+  customerPhone?: string | null;
+  acceptedAt?: string | null;
+  estimatedReadyAt?: string | null;
+  readyAt?: string | null;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: CancelReason | null;
+  cancelNote?: string | null;
+  statusHistory?: OrderStatusHistoryEntry[];
+  user?: { id: string; name: string; email: string; phone?: string | null };
   deliveryAddress?: string;
+  deliveryLat?: number | null;
+  deliveryLng?: number | null;
   subtotal: number;
   taxRate: number;
   taxAmount: number;
@@ -375,6 +432,19 @@ export interface CheckoutInput {
   deliveryAddress?: string;
   deliveryLat?: number;
   deliveryLng?: number;
+}
+
+export interface PlaceOrderInput extends CheckoutInput {
+  customerPhone: string;
+  idempotencyKey: string; // one UUID per checkout attempt
+}
+
+export interface StatusChangeInput {
+  id: string;
+  status: Exclude<OrderStatus, 'PENDING'>;
+  prepMinutes?: number;
+  cancelReason?: CancelReason;
+  cancelNote?: string;
 }
 
 interface AuthResponse {
