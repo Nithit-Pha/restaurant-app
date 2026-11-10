@@ -2,7 +2,7 @@
 // Kept separate from finance.service.ts so it can be unit-tested in isolation.
 
 export interface KpiInput {
-  totalRevenue: number; // Σ Order.subtotal (selling price), non-cancelled
+  totalRevenue: number; // Σ Order.subtotal (net of tax), completed (DELIVERED) orders
   totalCOGS: number; // Σ Order.totalCost (cost price snapshot)
   totalOperatingExpenses: number; // Σ Expense.amount
   orderCount: number;

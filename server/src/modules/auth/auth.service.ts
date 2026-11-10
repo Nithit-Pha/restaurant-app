@@ -13,7 +13,7 @@ export async function register(name: string, email: string, password: string) {
     select: { id: true, name: true, email: true, role: true, createdAt: true },
   });
 
-  const payload = { userId: user.id, role: user.role };
+  const payload = { userId: user.id, role: user.role, tv: 0 };
   return {
     user,
     accessToken: signAccessToken(payload),
@@ -27,9 +27,12 @@ export async function login(email: string, password: string) {
 
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 });
+  if (!user.isActive) {
+    throw Object.assign(new Error('This account has been deactivated. Please contact the restaurant owner.'), { statusCode: 403 });
+  }
 
-  const payload = { userId: user.id, role: user.role };
-  const { password: _, ...safeUser } = user;
+  const payload = { userId: user.id, role: user.role, tv: user.tokenVersion };
+  const { password: _, tokenVersion: __, ...safeUser } = user;
   audit({ actorId: user.id, action: 'LOGIN', entityType: 'USER', entityId: user.id });
   return {
     user: safeUser,
@@ -39,11 +42,19 @@ export async function login(email: string, password: string) {
 }
 
 export async function refresh(token: string) {
-  const payload = verifyRefreshToken(token);
+  let payload;
+  try {
+    payload = verifyRefreshToken(token);
+  } catch {
+    throw Object.assign(new Error('Invalid or expired refresh token'), { statusCode: 401 });
+  }
   const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-  if (!user) throw Object.assign(new Error('User not found'), { statusCode: 401 });
+  // Deactivated accounts and revoked tokens (old tokenVersion) cannot refresh.
+  if (!user || !user.isActive || (payload.tv ?? 0) !== user.tokenVersion) {
+    throw Object.assign(new Error('Session expired. Please sign in again.'), { statusCode: 401 });
+  }
 
-  const newPayload = { userId: user.id, role: user.role };
+  const newPayload = { userId: user.id, role: user.role, tv: user.tokenVersion };
   return {
     accessToken: signAccessToken(newPayload),
     refreshToken: signRefreshToken(newPayload),

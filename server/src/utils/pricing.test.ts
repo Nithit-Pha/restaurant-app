@@ -1,4 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// pricing.ts imports the settings service (and through it the database
+// client); these tests only cover the pure math, so keep the DB out.
+vi.mock('../modules/settings/settings.service', () => ({ getSetting: vi.fn() }));
+
 import { priceCart, calcDeliveryFee, haversineKm } from './pricing';
 
 // Menu prices are TAX-INCLUSIVE (the price is what the customer pays).

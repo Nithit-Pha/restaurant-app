@@ -10,6 +10,9 @@ const router = Router();
 // Staff+ can read numeric settings (they need to know the tax rate etc.)
 router.get('/', authenticate, requireRole('STAFF', 'SUPER_ADMIN'), ctrl.getSettingsHandler);
 
+// Public: is online ordering open right now? (storefront + checkout banner)
+router.get('/open-status', ctrl.getOpenStatusHandler);
+
 // Restaurant profile: public read (storefront/SEO need it), Super Admin write.
 router.get('/restaurant', ctrl.getRestaurantHandler);
 
@@ -59,6 +62,11 @@ router.put('/delivery-fee', authenticate, requireRole('SUPER_ADMIN'),
     maxKm: z.number().min(0).optional(),
   })),
   ctrl.setDeliveryFeeHandler
+);
+
+router.put('/ordering', authenticate, requireRole('SUPER_ADMIN'),
+  validate(z.object({ hoursEnforced: z.boolean() })),
+  ctrl.setOrderingHandler
 );
 
 export default router;

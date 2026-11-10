@@ -1,11 +1,11 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../../config/db';
 import type {
   CreateExpenseInput,
   UpdateExpenseInput,
 } from './finance.validation';
 import { computeKpis, mergeTransactions, resolveRange } from './finance.calc';
 
-const prisma = new PrismaClient();
 
 // Helpers ---------------------------------------------------------------
 const D = (v: Prisma.Decimal | number | string) => new Prisma.Decimal(v);
@@ -17,9 +17,10 @@ const num = (v: Prisma.Decimal) => Number(v.toFixed(2));
 export async function getDashboard(startDate?: Date, endDate?: Date) {
   const { start, end } = resolveRange(startDate, endDate);
 
-  // Only completed/non-cancelled orders count as revenue.
+  // Revenue = completed orders only (same definition as the profit report).
+  // Pending or in-progress orders may still be cancelled.
   const revenueStatuses: Prisma.OrderWhereInput = {
-    status: { not: 'CANCELLED' },
+    status: 'DELIVERED',
     createdAt: { gte: start, lte: end },
   };
 
@@ -73,7 +74,7 @@ export async function getTransactionHistory(
 
   const [orders, expenses] = await Promise.all([
     prisma.order.findMany({
-      where: { status: { not: 'CANCELLED' }, createdAt: { gte: start, lte: end } },
+      where: { status: 'DELIVERED', createdAt: { gte: start, lte: end } },
       select: {
         id: true,
         createdAt: true,

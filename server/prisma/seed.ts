@@ -3,9 +3,16 @@ import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+// Sample data with well-known passwords: for local development only.
+// Refuses to run in production unless ALLOW_SEED=1 is set on purpose.
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SEED !== '1') {
+  console.error('Refusing to seed: NODE_ENV=production. Set ALLOW_SEED=1 if you really mean it.');
+  process.exit(1);
+}
+
 async function main() {
-  // Seed Super Admin
-  const superAdminPassword = await bcrypt.hash('superadmin123', 12);
+  // Seed Super Admin (passwords can be overridden from the environment)
+  const superAdminPassword = await bcrypt.hash(process.env.SEED_SUPERADMIN_PASSWORD || 'superadmin123', 12);
   const superAdmin = await prisma.user.upsert({
     where: { email: 'superadmin@restaurant.com' },
     update: {},
@@ -19,7 +26,7 @@ async function main() {
   console.log('Super Admin created:', superAdmin.email);
 
   // Seed Staff
-  const staffPassword = await bcrypt.hash('staff123', 12);
+  const staffPassword = await bcrypt.hash(process.env.SEED_STAFF_PASSWORD || 'staff123', 12);
   const staff = await prisma.user.upsert({
     where: { email: 'staff@restaurant.com' },
     update: {},
@@ -58,16 +65,11 @@ async function main() {
     { name: 'Chocolate Lava Cake', description: 'Warm chocolate cake with a molten center, served with vanilla ice cream', category: 'Desserts', costPrice: 1.5, sellingPrice: 6.99 },
   ];
 
+  // Name is not unique in the schema, so look it up first: running the seed
+  // twice must not duplicate the menu.
   for (const item of menuItems) {
-    await prisma.menuItem.upsert({
-      where: { id: item.name }, // won't match by name — just create if not exists
-      update: {},
-      create: item,
-    }).catch(async () => {
-      // upsert by name not possible; skip if already exists
-      const exists = await prisma.menuItem.findFirst({ where: { name: item.name } });
-      if (!exists) await prisma.menuItem.create({ data: item });
-    });
+    const exists = await prisma.menuItem.findFirst({ where: { name: item.name } });
+    if (!exists) await prisma.menuItem.create({ data: item });
   }
   console.log(`Seeded ${menuItems.length} menu items`);
 }

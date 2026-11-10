@@ -1,6 +1,10 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/db';
+import { env } from '../../config/env';
 import { priceCart, calcDeliveryFeeAsync, haversineKm } from '../../utils/pricing';
-import { getSetting, getRestaurantProfile } from '../settings/settings.service';
+import { businessDate, zonedDayRange } from '../../utils/businessTime';
+import { getSetting, getRestaurantProfile, getOpenStatus } from '../settings/settings.service';
+import { planTransition, type CancelReason, type OrderStatus, type OrderType } from './orderStateMachine';
 
 // Distance assumed when the customer shares no location and no max delivery
 // distance is configured.
@@ -19,7 +23,29 @@ interface CheckoutInput {
   deliveryLng?: number;
 }
 
+interface PlaceOrderInput extends CheckoutInput {
+  customerPhone?: string;
+  idempotencyKey?: string;
+}
+
 const badRequest = (message: string) => Object.assign(new Error(message), { statusCode: 400 });
+const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
+
+/** "We open again tomorrow at 11:00." style text for a closed restaurant. */
+function closedMessage(next: { dayOfWeek: string; time: string; inDays: number } | null): string {
+  if (!next) return "Sorry, we're closed and not taking orders right now.";
+  const when = next.inDays === 0 ? 'today' : next.inDays === 1 ? 'tomorrow' : next.dayOfWeek;
+  return `Sorry, we're closed right now. We open again ${when} at ${next.time}.`;
+}
+
+/** Next number for the business day, atomically (safe under concurrent checkouts). */
+async function nextOrderNumber(tx: Prisma.TransactionClient, day: string): Promise<number> {
+  const rows = await tx.$queryRaw<{ value: number }[]>`
+    INSERT INTO "DailyCounter" ("date", "value") VALUES (${day}, 1)
+    ON CONFLICT ("date") DO UPDATE SET "value" = "DailyCounter"."value" + 1
+    RETURNING "value"`;
+  return Number(rows[0].value);
+}
 
 /** Look up the cart's menu items and snapshot their current price and cost. */
 async function buildLines(items: CartItemInput[]) {
@@ -77,37 +103,78 @@ export async function quoteOrder(input: CheckoutInput) {
   return pricing;
 }
 
-export async function placeOrder(userId: string, input: CheckoutInput) {
-  const { lines, pricing } = await priceOrder(input);
+/**
+ * Place an order. Returns `created: false` when the idempotency key was
+ * already used by this customer (a retry), with the original order.
+ */
+export async function placeOrder(userId: string, input: PlaceOrderInput) {
+  if (input.idempotencyKey) {
+    const existing = await findByIdempotencyKey(input.idempotencyKey, userId);
+    if (existing) return { order: existing, created: false };
+  }
 
-  return prisma.$transaction(async (tx) => {
-    return tx.order.create({
-      data: {
-        userId,
-        type: input.type,
-        deliveryAddress: input.deliveryAddress,
-        deliveryLat: input.deliveryLat,
-        deliveryLng: input.deliveryLng,
-        subtotal: pricing.subtotal,
-        taxRate: pricing.taxRate,
-        taxAmount: pricing.taxAmount,
-        deliveryFee: pricing.deliveryFee,
-        total: pricing.total,
-        totalCost: pricing.totalCost,
-        profit: pricing.profit,
-        items: {
-          create: lines.map((l) => ({
-            menuItemId: l.menuItemId,
-            nameSnapshot: l.nameSnapshot,
-            unitPrice: l.unitPrice,
-            unitCost: l.unitCost,
-            quantity: l.quantity,
-          })),
+  const open = await getOpenStatus();
+  if (!open.isOpen) throw httpError(409, closedMessage(open.nextOpening));
+
+  const { lines, pricing } = await priceOrder(input);
+  const now = new Date();
+  const day = businessDate(now, env.businessTimeZone);
+
+  try {
+    const order = await prisma.$transaction(async (tx) => {
+      const orderNumber = await nextOrderNumber(tx, day);
+      if (input.customerPhone) {
+        await tx.user.update({ where: { id: userId }, data: { phone: input.customerPhone } });
+      }
+      return tx.order.create({
+        data: {
+          userId,
+          type: input.type,
+          orderNumber,
+          businessDate: day,
+          idempotencyKey: input.idempotencyKey,
+          customerPhone: input.customerPhone,
+          deliveryAddress: input.deliveryAddress,
+          deliveryLat: input.deliveryLat,
+          deliveryLng: input.deliveryLng,
+          subtotal: pricing.subtotal,
+          taxRate: pricing.taxRate,
+          taxAmount: pricing.taxAmount,
+          deliveryFee: pricing.deliveryFee,
+          total: pricing.total,
+          totalCost: pricing.totalCost,
+          profit: pricing.profit,
+          items: {
+            create: lines.map((l) => ({
+              menuItemId: l.menuItemId,
+              nameSnapshot: l.nameSnapshot,
+              unitPrice: l.unitPrice,
+              unitCost: l.unitCost,
+              quantity: l.quantity,
+            })),
+          },
+          statusHistory: { create: { toStatus: 'PENDING', actorId: userId } },
         },
-      },
-      include: { items: true },
+        include: { items: true },
+      });
     });
-  });
+    return { order, created: true };
+  } catch (err) {
+    // Two identical requests raced past the first check: return the winner.
+    if (input.idempotencyKey && (err as { code?: string }).code === 'P2002') {
+      const existing = await findByIdempotencyKey(input.idempotencyKey, userId);
+      if (existing) return { order: existing, created: false };
+    }
+    throw err;
+  }
+}
+
+async function findByIdempotencyKey(key: string, userId: string) {
+  const existing = await prisma.order.findUnique({ where: { idempotencyKey: key }, include: { items: true } });
+  if (existing && existing.userId !== userId) {
+    throw httpError(409, 'This checkout key belongs to another order. Please reload the page and try again.');
+  }
+  return existing;
 }
 
 export async function getUserOrders(userId: string) {
@@ -118,23 +185,92 @@ export async function getUserOrders(userId: string) {
   });
 }
 
-export async function getOrderById(id: string, userId?: string) {
+const historyInclude = {
+  orderBy: { createdAt: 'asc' as const },
+  select: { fromStatus: true, toStatus: true, note: true, createdAt: true, actor: { select: { name: true, role: true } } },
+};
+
+/** One order. `userId` limits it to that customer's own orders. */
+export async function getOrderById(id: string, userId?: string, withHistory = false) {
   return prisma.order.findFirst({
     where: { id, ...(userId ? { userId } : {}) },
-    include: { items: true },
+    include: { items: true, ...(withHistory ? { statusHistory: historyInclude } : {}) },
   });
 }
 
-export async function getAllOrders(status?: string) {
+export interface AdminOrderFilter {
+  status?: string;
+  date?: string; // 'YYYY-MM-DD' business day
+  limit?: number;
+}
+
+/** Staff order list: filtered on the server, newest first, capped. */
+export async function getAllOrders({ status, date, limit = 200 }: AdminOrderFilter = {}) {
+  const range = date ? zonedDayRange(date, env.businessTimeZone) : null;
   return prisma.order.findMany({
-    where: status ? { status: status as any } : undefined,
-    include: { user: { select: { id: true, name: true, email: true } }, items: true },
+    where: {
+      ...(status ? { status: status as OrderStatus } : {}),
+      ...(range ? { createdAt: { gte: range.start, lte: range.end } } : {}),
+    },
+    include: {
+      user: { select: { id: true, name: true, email: true, phone: true } },
+      items: true,
+      statusHistory: historyInclude,
+    },
     orderBy: { createdAt: 'desc' },
+    take: Math.min(Math.max(limit, 1), 500),
   });
 }
 
-export async function updateOrderStatus(id: string, status: string) {
-  return prisma.order.update({ where: { id }, data: { status: status as any } });
+export interface StatusChange {
+  to: OrderStatus;
+  actorId: string;
+  prepMinutes?: number;
+  cancelReason?: CancelReason;
+  cancelNote?: string;
+}
+
+/**
+ * Move an order to its next status through the state machine. The update only
+ * applies if the status is still what we read, so two people clicking at the
+ * same time cannot both move it.
+ */
+export async function changeOrderStatus(id: string, change: StatusChange) {
+  const order = await prisma.order.findUnique({ where: { id }, select: { status: true, type: true } });
+  if (!order) throw httpError(404, 'Order not found');
+
+  const data = planTransition(
+    { status: order.status as OrderStatus, type: order.type as OrderType },
+    { ...change },
+  );
+
+  return prisma.$transaction(async (tx) => {
+    const res = await tx.order.updateMany({ where: { id, status: order.status }, data });
+    if (res.count === 0) {
+      throw httpError(409, 'This order was just updated by someone else. Refresh and try again.');
+    }
+    await tx.orderStatusHistory.create({
+      data: {
+        orderId: id,
+        fromStatus: order.status,
+        toStatus: change.to,
+        actorId: change.actorId,
+        note: change.cancelNote?.trim() || null,
+      },
+    });
+    const updated = await tx.order.findUnique({ where: { id }, include: { items: true } });
+    return { from: order.status as OrderStatus, order: updated! };
+  });
+}
+
+/** A customer cancels their own order; only possible while it is still PENDING. */
+export async function cancelByCustomer(id: string, userId: string, note?: string) {
+  const order = await prisma.order.findFirst({ where: { id, userId }, select: { status: true } });
+  if (!order) throw httpError(404, 'Order not found');
+  if (order.status !== 'PENDING') {
+    throw httpError(409, 'The restaurant has already started on this order. Please call us to cancel.');
+  }
+  return changeOrderStatus(id, { to: 'CANCELLED', actorId: userId, cancelReason: 'CUSTOMER_REQUEST', cancelNote: note });
 }
 
 export async function getProfitReport(from?: Date, to?: Date) {

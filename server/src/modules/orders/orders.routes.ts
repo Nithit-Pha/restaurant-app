@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/requireRole';
 import { validate } from '../../middleware/validate';
 import * as ctrl from './orders.controller';
+import { CANCEL_REASONS } from './orderStateMachine';
 
 const router = Router();
 
@@ -22,20 +23,36 @@ const checkoutSchema = z.object({
 
 // Placing a delivery order needs an address for the driver. (The quote route
 // keeps the plain schema so checkout can show a price before it's typed.)
-const placeOrderSchema = checkoutSchema.refine(
+// Phone so staff/riders can reach the customer: digits, spaces, dashes, optional +.
+const phoneSchema = z
+  .string({ required_error: 'Phone number is required' })
+  .trim()
+  .regex(/^\+?[0-9][0-9 -]{7,18}$/, 'Please enter a valid phone number');
+
+const placeOrderSchema = checkoutSchema.extend({
+  customerPhone: phoneSchema,
+  // One UUID per checkout attempt; a retry with the same key returns the same order.
+  idempotencyKey: z.string().uuid().optional(),
+}).refine(
   (d) => d.type !== 'DELIVERY' || !!d.deliveryAddress,
   { message: 'Delivery address is required for delivery orders', path: ['deliveryAddress'] },
 );
 
 const statusSchema = z.object({
-  status: z.enum(['PENDING', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED']),
+  status: z.enum(['PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED']),
+  prepMinutes: z.number().int().min(1).max(240).optional(),
+  cancelReason: z.enum(CANCEL_REASONS as [string, ...string[]]).optional(),
+  cancelNote: z.string().trim().max(300).optional(),
 });
+
+const customerCancelSchema = z.object({ note: z.string().trim().max(300).optional() });
 
 // User routes
 router.post('/quote', authenticate, validate(checkoutSchema), ctrl.quoteHandler);
 router.post('/', authenticate, validate(placeOrderSchema), ctrl.placeOrderHandler);
 router.get('/', authenticate, ctrl.myOrdersHandler);
 router.get('/:id', authenticate, ctrl.getOrderHandler);
+router.post('/:id/cancel', authenticate, validate(customerCancelSchema), ctrl.cancelMyOrderHandler);
 
 // Staff+ routes
 router.get('/admin/all', authenticate, requireRole('STAFF', 'SUPER_ADMIN'), ctrl.adminOrdersHandler);

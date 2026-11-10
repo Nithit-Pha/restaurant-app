@@ -21,8 +21,8 @@ router.get('/', authenticate, requireRole('SUPER_ADMIN'), async (_req, res, next
   try {
     const staff = await prisma.user.findMany({
       where: { role: { in: ['STAFF', 'SUPER_ADMIN'] } },
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
+      select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true },
+      orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
     });
     res.json(staff);
   } catch (err) { next(err); }
@@ -61,16 +61,41 @@ router.patch('/:id/role', authenticate, requireRole('SUPER_ADMIN'),
   }
 );
 
-// Delete a staff/admin account
+// Deactivate a staff/admin account. Accounts are never hard-deleted: orders,
+// status history and the audit log keep pointing at who did what.
+// Bumping tokenVersion signs the person out everywhere immediately.
+async function setActive(targetId: string, actorId: string, isActive: boolean) {
+  const user = await prisma.user.findUnique({ where: { id: targetId }, select: { id: true, email: true, role: true, isActive: true } });
+  if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
+  if (user.id === actorId) throw Object.assign(new Error('You cannot deactivate your own account'), { statusCode: 400 });
+  const updated = await prisma.user.update({
+    where: { id: targetId },
+    data: { isActive, ...(isActive ? {} : { tokenVersion: { increment: 1 } }) },
+    select: { id: true, name: true, email: true, role: true, isActive: true },
+  });
+  audit({
+    actorId,
+    action: isActive ? 'REACTIVATE' : 'DEACTIVATE',
+    entityType: 'USER',
+    entityId: user.id,
+    metadata: { email: user.email, role: user.role },
+  });
+  return updated;
+}
+
 router.delete('/:id', authenticate, requireRole('SUPER_ADMIN'), async (req, res, next) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, role: true, email: true } });
-    if (!user) { res.status(404).json({ message: 'User not found' }); return; }
-    if (user.id === req.user!.userId) { res.status(400).json({ message: 'Cannot delete your own account' }); return; }
-    await prisma.user.delete({ where: { id: req.params.id } });
-    audit({ actorId: req.user!.userId, action: 'DELETE', entityType: 'USER', entityId: user.id, metadata: { email: user.email, role: user.role } });
-    res.status(204).send();
+    res.json(await setActive(req.params.id, req.user!.userId, false));
   } catch (err) { next(err); }
 });
+
+router.patch('/:id/active', authenticate, requireRole('SUPER_ADMIN'),
+  validate(z.object({ isActive: z.boolean() })),
+  async (req, res, next) => {
+    try {
+      res.json(await setActive(req.params.id, req.user!.userId, req.body.isActive));
+    } catch (err) { next(err); }
+  }
+);
 
 export default router;

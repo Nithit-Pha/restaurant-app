@@ -3,7 +3,7 @@ import { prisma } from '../config/db';
 
 interface AuditEntry {
   actorId: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'LOGIN';
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'LOGIN' | 'DEACTIVATE' | 'REACTIVATE';
   entityType: 'USER' | 'MENU_ITEM' | 'ORDER' | 'EXPENSE' | 'SETTING';
   entityId?: string;
   // Accepts any JSON-serializable snapshot (Decimals, etc.); cast at the

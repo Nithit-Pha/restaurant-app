@@ -24,6 +24,9 @@ export const env = {
   deliveryFreeKm: parseFloat(process.env.DELIVERY_FREE_KM ?? '3'),
   deliveryMaxKm: parseFloat(process.env.DELIVERY_MAX_KM ?? '0'), // 0 = no limit
 
+  // Business day, order numbers and opening hours use this time zone.
+  businessTimeZone: process.env.BUSINESS_TIMEZONE ?? 'Asia/Bangkok',
+
   storageProvider: (process.env.STORAGE_PROVIDER ?? 'local') as 'local' | 's3' | 'cloudinary',
   uploadDir: process.env.UPLOAD_DIR ?? './uploads',
 };

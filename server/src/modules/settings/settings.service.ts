@@ -1,5 +1,6 @@
 import { prisma } from '../../config/db';
 import { env } from '../../config/env';
+import { isOpenAt, nextOpening, type NextOpening } from '../../utils/businessTime';
 
 const DEFAULTS: Record<string, string> = {
   TAX_RATE: String(env.taxRate),
@@ -7,6 +8,8 @@ const DEFAULTS: Record<string, string> = {
   DELIVERY_FEE_PER_KM: String(env.deliveryFeePerKm),
   DELIVERY_FREE_KM: String(env.deliveryFreeKm),
   DELIVERY_MAX_KM: String(env.deliveryMaxKm),
+  // 1 = refuse orders outside the restaurant's opening hours, 0 = always accept.
+  ORDERING_HOURS_ENFORCED: '1',
 };
 
 // ---- Restaurant profile (name, hours, address, etc.) ------------------
@@ -111,4 +114,25 @@ export async function seedDefaultSettings() {
     update: {},
     create: { key: RESTAURANT_KEY, value: JSON.stringify(DEFAULT_RESTAURANT) },
   });
+}
+
+// ---- Open / closed ----------------------------------------------------
+export interface OpenStatus {
+  isOpen: boolean; // false only when hours are enforced and we are outside them
+  enforced: boolean;
+  nextOpening: NextOpening | null;
+  timeZone: string;
+}
+
+/** Whether online ordering is open right now (public: storefront banner). */
+export async function getOpenStatus(now: Date = new Date()): Promise<OpenStatus> {
+  const [profile, enforced] = await Promise.all([getRestaurantProfile(), getSetting('ORDERING_HOURS_ENFORCED')]);
+  const tz = env.businessTimeZone;
+  const open = isOpenAt(profile.openingHours, now, tz);
+  return {
+    isOpen: enforced === 0 || open,
+    enforced: enforced !== 0,
+    nextOpening: open ? null : nextOpening(profile.openingHours, now, tz),
+    timeZone: tz,
+  };
 }
