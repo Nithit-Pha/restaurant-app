@@ -31,6 +31,8 @@ npm run dev           # http://localhost:5173
 - `DATABASE_URL` — PostgreSQL connection string
 - `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` — change before production
 - `TAX_RATE` — default `0.07` (7%)
+- `BUSINESS_TIMEZONE` — default `Asia/Bangkok`; business day, daily order numbers and opening hours use it
+- `SEED_SUPERADMIN_PASSWORD` / `SEED_STAFF_PASSWORD` — optional passwords for the sample accounts (the seed refuses to run with `NODE_ENV=production` unless `ALLOW_SEED=1`)
 
 ### Frontend (`client/.env.local`)
 - `SITE_URL` — canonical site URL used for metadata, sitemap, robots, JSON-LD (default `http://localhost:5173`)
@@ -52,3 +54,37 @@ The client is a single unified Next.js 14 app (App Router):
 - **SEO infrastructure**: `app/robots.ts`, `app/sitemap.ts`, and a dynamic `app/llms.txt` route (with AI-crawler allowlisting per the project plan §10.5) are generated automatically from live menu/category data.
 
 See `restaurant-app-plan.md` §10 for the full migration rationale and SEO strategy.
+
+## Order workflow (Phase 0)
+
+`PENDING → PREPARING → READY → (OUT_FOR_DELIVERY →) DELIVERED`, or `CANCELLED` with a reason.
+The server enforces it (`server/src/modules/orders/orderStateMachine.ts`); see
+[`docs/phase-0-stabilize.md`](docs/phase-0-stabilize.md) for the full Phase 0 plan.
+
+- Orders are only accepted during the opening hours in the restaurant profile.
+  Switch this off under **Admin → Settings → Online Ordering** for testing at night.
+- Staff accounts are deactivated, never deleted.
+
+### Updating an existing install
+
+New packages and database changes come with each phase. After pulling:
+
+```bash
+cd server
+npm install            # installs new packages and regenerates the Prisma client (postinstall)
+npx prisma migrate deploy
+```
+
+## Tests
+
+```bash
+cd server && npm test            # unit tests (Vitest)
+
+# End-to-end (Playwright) against the running app (API :3001, website :5173)
+cd e2e
+npm install
+npx playwright install chromium  # first time only
+npm test
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the type checks, unit tests, a production build and the end-to-end tests on every push.

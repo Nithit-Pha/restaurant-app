@@ -1,0 +1,14 @@
+{
+  "name": "restaurant-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end tests: a customer orders, staff work the order through to completion.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "install-browser": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}
