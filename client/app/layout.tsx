@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import Providers from '../src/components/Providers';
-import Navbar from '../src/components/Navbar';
-import ThemeToggle from '../src/components/ThemeToggle';
+import AppShell from '../src/components/AppShell';
 import CartDrawer from '../src/features/cart/CartDrawer';
 import { buildOrgJsonLd, SITE_URL } from '../src/lib/site';
 import { getRestaurant } from '../src/lib/api/server';
@@ -73,10 +72,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body suppressHydrationWarning>
         <Providers>
-          <Navbar />
-          <ThemeToggle />
+          <AppShell restaurantName={restaurant.name}>{children}</AppShell>
           <CartDrawer />
-          {children}
         </Providers>
       </body>
     </html>

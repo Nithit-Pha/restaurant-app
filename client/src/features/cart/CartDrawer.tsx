@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { X } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import {
   selectCartItems, selectCartIsOpen, selectSubtotal, selectTaxAmount, selectTotal,
@@ -24,7 +25,7 @@ export default function CartDrawer() {
       <div className="fixed right-0 top-0 h-full w-full max-w-sm bg-white dark:bg-gray-800 z-50 shadow-xl flex flex-col">
         <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Your Cart</h2>
-          <button onClick={() => dispatch(closeCart())} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-2xl">&times;</button>
+          <button onClick={() => dispatch(closeCart())} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white " aria-label="Close cart"><X size={20} strokeWidth={1.75} aria-hidden /></button>
         </div>
 
         {items.length === 0 ? (
@@ -55,7 +56,8 @@ export default function CartDrawer() {
                   <button
                     onClick={() => dispatch(removeItem(item.id))}
                     className="text-red-400 hover:text-red-600 text-xs ml-1"
-                  >✕</button>
+                    aria-label={`Remove ${item.name}`}
+                  ><X size={16} strokeWidth={1.75} aria-hidden /></button>
                 </div>
               ))}
             </div>

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { UtensilsCrossed } from 'lucide-react';
 import { getMenuItems, getRestaurant } from '../src/lib/api/server';
 import { formatCurrency } from '../src/lib/format';
 
@@ -96,7 +97,7 @@ export default async function HomePage() {
                 {item.imageUrl ? (
                   <img src={item.imageUrl} alt={item.name} className="w-full h-40 object-cover" />
                 ) : (
-                  <div className="w-full h-40 bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-300 text-4xl">🍽️</div>
+                  <div className="w-full h-40 bg-surface-muted flex items-center justify-center text-fg-subtle"><UtensilsCrossed size={28} strokeWidth={1.5} aria-hidden /></div>
                 )}
                 <div className="p-4">
                   <h3 className="font-semibold text-gray-900 dark:text-white">{item.name}</h3>

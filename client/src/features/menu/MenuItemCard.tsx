@@ -1,5 +1,6 @@
 'use client';
 
+import { UtensilsCrossed } from 'lucide-react';
 import type { MenuItem } from '../../api/apiSlice';
 import { useAppDispatch } from '../../app/hooks';
 import { addItem, openCart } from '../cart/cartSlice';
@@ -29,7 +30,7 @@ export default function MenuItemCard({ item }: Props) {
       {item.imageUrl ? (
         <img src={item.imageUrl} alt={item.name} itemProp="image" className="w-full h-48 object-cover" />
       ) : (
-        <div className="w-full h-48 bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-300 text-5xl">🍽️</div>
+        <div className="w-full h-48 bg-surface-muted flex items-center justify-center text-fg-subtle"><UtensilsCrossed size={32} strokeWidth={1.5} aria-hidden /></div>
       )}
       <div className="p-4 flex flex-col flex-1">
         <h3 itemProp="name" className="font-semibold text-gray-900 dark:text-white">{item.name}</h3>

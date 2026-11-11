@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
+import { Bell, BellOff } from 'lucide-react';
 import {
   useGetAdminOrdersQuery,
   useGetMeQuery,
@@ -231,10 +232,11 @@ export default function AdminOrdersPage() {
             type="button"
             onClick={toggleSound}
             aria-pressed={soundOn}
-            className="text-xs rounded border dark:border-gray-600 px-2.5 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="inline-flex items-center gap-1.5 text-xs rounded border dark:border-gray-600 px-2.5 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             title="Chime when a new order arrives"
           >
-            {soundOn ? '🔔 Sound on' : '🔕 Sound off'}
+            {soundOn ? <Bell size={14} strokeWidth={1.75} aria-hidden /> : <BellOff size={14} strokeWidth={1.75} aria-hidden />}
+            {soundOn ? 'Sound on' : 'Sound off'}
           </button>
 
           {/* Date stepper: ‹ DD/MM/YYYY ›  (filtered on the server) */}

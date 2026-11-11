@@ -1,3 +1,5 @@
+import { MapPin } from 'lucide-react';
+
 interface Props {
   address: string;
   onChange: (value: string) => void;
@@ -29,9 +31,10 @@ export default function DeliveryForm({ address, onChange, onUseLocation, locatin
           type="button"
           onClick={onUseLocation}
           disabled={locating}
-          className="text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+          className="inline-flex items-center gap-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
         >
-          {locating ? 'Finding your location…' : located ? '📍 Location shared — update' : '📍 Use my current location'}
+          <MapPin size={16} strokeWidth={1.75} aria-hidden />
+          {locating ? 'Finding your location…' : located ? 'Location shared — update' : 'Use my current location'}
         </button>
         <span className="text-xs text-gray-500 dark:text-gray-400">
           Used to work out the delivery fee and check we deliver to you.

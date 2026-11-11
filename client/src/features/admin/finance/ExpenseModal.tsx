@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import { X } from 'lucide-react';
 import { useAddExpenseMutation, NewExpense } from './financeApi';
 import { bangkokDateISO } from '../../../lib/format';
 
@@ -101,7 +102,7 @@ export default function ExpenseModal({ open, onClose }: Props) {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Expense</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" aria-label="Close">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" aria-label="Close"><X size={18} strokeWidth={1.75} aria-hidden /></button>
         </div>
 
         {serverError && (
