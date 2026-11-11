@@ -1,4 +1,5 @@
 import type { CancelReason, Order, OrderStatus } from '../../api/apiSlice';
+import { TIME_ZONE } from '../../lib/format';
 
 /** "#042" for the daily order number; falls back to the id for older orders. */
 export function formatOrderNumber(order: Pick<Order, 'id' | 'orderNumber'>): string {
@@ -60,8 +61,8 @@ export function forwardActionLabel(order: Pick<Order, 'status' | 'type'>): strin
 
 export const isFinal = (status: OrderStatus) => status === 'DELIVERED' || status === 'CANCELLED';
 
-/** "14:35" in the viewer's locale. */
+/** "14:35" in Bangkok time. */
 export function formatClock(iso?: string | null): string {
   if (!iso) return '';
-  return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+  return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: TIME_ZONE }).format(new Date(iso));
 }

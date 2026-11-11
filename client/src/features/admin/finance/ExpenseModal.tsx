@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from 'react';
 import { useAddExpenseMutation, NewExpense } from './financeApi';
+import { bangkokDateISO } from '../../../lib/format';
 
 const CATEGORIES = [
   'RENT',
@@ -23,7 +24,7 @@ interface Errors {
   date?: string;
 }
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = () => bangkokDateISO();
 
 const fieldCls = 'w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white';
 
@@ -116,7 +117,7 @@ export default function ExpenseModal({ open, onClose }: Props) {
               Amount <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">฿</span>
               <input
                 type="number"
                 step="0.01"

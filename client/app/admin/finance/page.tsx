@@ -4,46 +4,37 @@ import { useMemo, useState } from 'react';
 import { useGetDashboardQuery } from '../../../src/features/admin/finance/financeApi';
 import ExpenseModal from '../../../src/features/admin/finance/ExpenseModal';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
+import { bangkokDateISO, formatCurrency, TIME_ZONE } from '../../../src/lib/format';
 
 // ---- date helpers ------------------------------------------------------
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Calendar arithmetic on the Bangkok date, done in UTC so the device's own
+// time zone cannot shift a day.
+const day = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10);
 
 function presetRange(preset: string): { startDate?: string; endDate?: string } {
-  const now = new Date();
+  const [y, m, d] = bangkokDateISO().split('-').map(Number);
   switch (preset) {
     case 'this_month':
-      return {
-        startDate: iso(new Date(now.getFullYear(), now.getMonth(), 1)),
-        endDate: iso(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-      };
+      return { startDate: day(y, m, 1), endDate: day(y, m + 1, 0) };
     case 'last_month':
-      return {
-        startDate: iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
-        endDate: iso(new Date(now.getFullYear(), now.getMonth(), 0)),
-      };
+      return { startDate: day(y, m - 1, 1), endDate: day(y, m, 0) };
     case 'last_30':
-      return {
-        startDate: iso(new Date(now.getTime() - 29 * 864e5)),
-        endDate: iso(now),
-      };
+      return { startDate: day(y, m, d - 29), endDate: day(y, m, d) };
     case 'ytd':
-      return {
-        startDate: iso(new Date(now.getFullYear(), 0, 1)),
-        endDate: iso(now),
-      };
+      return { startDate: day(y, 1, 1), endDate: day(y, m, d) };
     default:
       return {};
   }
 }
 
-const money = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+const money = formatCurrency;
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: TIME_ZONE,
   });
 
 // ---- KPI card ----------------------------------------------------------
@@ -76,10 +67,10 @@ function KpiCard({
 export default function FinancialDashboard() {
   const { ready } = useRequireRole('SUPER_ADMIN');
   const [preset, setPreset] = useState('this_month');
-  const [custom, setCustom] = useState<{ startDate: string; endDate: string }>({
-    startDate: iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
-    endDate: iso(new Date()),
-  });
+  const [custom, setCustom] = useState<{ startDate: string; endDate: string }>(() => ({
+    startDate: presetRange('this_month').startDate!,
+    endDate: bangkokDateISO(),
+  }));
   const [modalOpen, setModalOpen] = useState(false);
 
   const range = useMemo(
@@ -144,7 +135,7 @@ export default function FinancialDashboard() {
               type="date"
               value={custom.endDate}
               min={custom.startDate}
-              max={iso(new Date())}
+              max={bangkokDateISO()}
               onChange={(e) => setCustom((c) => ({ ...c, endDate: e.target.value }))}
               className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 text-sm"
             />

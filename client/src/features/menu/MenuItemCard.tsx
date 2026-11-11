@@ -3,7 +3,7 @@
 import type { MenuItem } from '../../api/apiSlice';
 import { useAppDispatch } from '../../app/hooks';
 import { addItem, openCart } from '../cart/cartSlice';
-import { formatCurrency } from '../../lib/format';
+import { CURRENCY, formatCurrency } from '../../lib/format';
 
 interface Props {
   item: MenuItem;
@@ -43,7 +43,7 @@ export default function MenuItemCard({ item }: Props) {
             itemType="https://schema.org/Offer"
             className="text-lg font-bold text-brand-600"
           >
-            <span itemProp="priceCurrency" content="USD" />
+            <span itemProp="priceCurrency" content={CURRENCY} />
             <span itemProp="price" content={String(item.sellingPrice)}>{formatCurrency(item.sellingPrice)}</span>
           </span>
           <button

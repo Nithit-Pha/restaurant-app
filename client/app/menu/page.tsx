@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getCategories, getMenuItems, getRestaurant } from '../../src/lib/api/server';
 import { SITE_URL } from '../../src/lib/site';
+import { CURRENCY } from '../../src/lib/format';
 import MenuItemCard from '../../src/features/menu/MenuItemCard';
 import CategoryTabs from '../../src/features/menu/CategoryTabs';
 import ClosedBanner from '../../src/features/orders/ClosedBanner';
@@ -49,7 +50,7 @@ export default async function MenuPage({ searchParams }: PageProps) {
       offers: {
         '@type': 'Offer',
         price: item.sellingPrice,
-        priceCurrency: 'USD',
+        priceCurrency: CURRENCY,
         availability: item.isAvailable ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       },
       category: item.category,

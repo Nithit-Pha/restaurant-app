@@ -20,21 +20,21 @@ import {
 } from '../../../src/features/orders/orderDisplay';
 import { AcceptDialog, CancelDialog } from '../../../src/features/admin/orders/OrderDialogs';
 import { useNewOrderAlert } from '../../../src/features/admin/orders/useNewOrderAlert';
-import { formatCurrency } from '../../../src/lib/format';
+import { bangkokDateISO, formatCurrency } from '../../../src/lib/format';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
 
 const STATUSES = ['', 'PENDING', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'] as const;
 
-// --- date helpers (local time, YYYY-MM-DD) ---
-const todayISO = () => new Date().toLocaleDateString('en-CA');
+// --- date helpers (Bangkok business day, YYYY-MM-DD) ---
+const todayISO = () => bangkokDateISO();
 const ddmmyyyy = (iso: string) => {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
 };
 const shiftDay = (iso: string, delta: number) => {
-  const dt = new Date(`${iso}T00:00:00`);
-  dt.setDate(dt.getDate() + delta);
-  return dt.toLocaleDateString('en-CA');
+  const dt = new Date(`${iso}T00:00:00Z`);
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  return dt.toISOString().slice(0, 10);
 };
 
 function errorMessage(err: unknown): string {
@@ -312,7 +312,7 @@ export default function AdminOrdersPage() {
                         </td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap tabular-nums">
                           {formatClock(order.createdAt)}
-                          {!day && <span className="block text-xs">{ddmmyyyy(new Date(order.createdAt).toLocaleDateString('en-CA'))}</span>}
+                          {!day && <span className="block text-xs">{ddmmyyyy(bangkokDateISO(new Date(order.createdAt)))}</span>}
                         </td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{order.user?.name ?? '—'}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{order.type === 'DELIVERY' ? 'Delivery' : 'Pickup'}</td>

@@ -304,8 +304,8 @@ export default function SettingsPage() {
         <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-4">Delivery Fee Rules</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-3">
           {[
-            { label: 'Base fee ($)', value: baseFee, set: setBaseFee },
-            { label: 'Per km beyond free zone ($)', value: feePerKm, set: setFeePerKm },
+            { label: 'Base fee (฿)', value: baseFee, set: setBaseFee },
+            { label: 'Per km beyond free zone (฿)', value: feePerKm, set: setFeePerKm },
             { label: 'Free zone (km)', value: freeKm, set: setFreeKm },
             { label: 'Max delivery distance (km, 0 = no limit)', value: maxKm, set: setMaxKm },
           ].map(({ label, value, set }) => (
