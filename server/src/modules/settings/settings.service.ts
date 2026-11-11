@@ -1,6 +1,14 @@
 import { prisma } from '../../config/db';
 import { env } from '../../config/env';
 import { isOpenAt, nextOpening, type NextOpening } from '../../utils/businessTime';
+import {
+  DEFAULT_PAUSE_MESSAGE,
+  modeSettings,
+  orderingMode,
+  resolveOrdering,
+  type ClosedReason,
+  type OrderingMode,
+} from '../../utils/orderingMode';
 
 const DEFAULTS: Record<string, string> = {
   TAX_RATE: String(env.taxRate),
@@ -10,7 +18,11 @@ const DEFAULTS: Record<string, string> = {
   DELIVERY_MAX_KM: String(env.deliveryMaxKm),
   // 1 = refuse orders outside the restaurant's opening hours, 0 = always accept.
   ORDERING_HOURS_ENFORCED: '1',
+  // Busy mode (staff, during a rush): 1 = no new orders; minutes added to the estimate.
+  ORDERING_PAUSED: '0',
+  BUSY_EXTRA_MINUTES: '0',
 };
+const PAUSE_MESSAGE_KEY = 'ORDERING_PAUSE_MESSAGE';
 
 // ---- Restaurant profile (name, hours, address, etc.) ------------------
 const RESTAURANT_KEY = 'RESTAURANT_PROFILE';
@@ -141,9 +153,45 @@ export async function getPaymentOptions() {
   return { cash: true, promptPay: promptPayId !== '', promptPayName };
 }
 
+// ---- Busy mode --------------------------------------------------------
+export interface BusyMode {
+  mode: OrderingMode;
+  busyExtraMinutes: number;
+  pauseMessage: string; // what customers see while paused
+}
+
+export async function getBusyMode(): Promise<BusyMode> {
+  const [paused, extra, message] = await Promise.all([
+    getSetting('ORDERING_PAUSED'),
+    getSetting('BUSY_EXTRA_MINUTES'),
+    prisma.setting.findUnique({ where: { key: PAUSE_MESSAGE_KEY } }),
+  ]);
+  return {
+    mode: orderingMode(paused, extra),
+    busyExtraMinutes: extra,
+    pauseMessage: message?.value || DEFAULT_PAUSE_MESSAGE,
+  };
+}
+
+export async function setBusyMode(mode: OrderingMode, extraMinutes?: number, pauseMessage?: string) {
+  const { paused, busyExtraMinutes } = modeSettings(mode, extraMinutes);
+  await setSetting('ORDERING_PAUSED', paused);
+  await setSetting('BUSY_EXTRA_MINUTES', busyExtraMinutes);
+  if (pauseMessage !== undefined) {
+    // '' goes back to the default text.
+    await prisma.setting.upsert({
+      where: { key: PAUSE_MESSAGE_KEY },
+      update: { value: pauseMessage },
+      create: { key: PAUSE_MESSAGE_KEY, value: pauseMessage },
+    });
+  }
+  return getBusyMode();
+}
+
 // ---- Open / closed ----------------------------------------------------
-export interface OpenStatus {
-  isOpen: boolean; // false only when hours are enforced and we are outside them
+export interface OpenStatus extends BusyMode {
+  isOpen: boolean; // false when paused, or outside opening hours that are enforced
+  closedReason: ClosedReason | null;
   enforced: boolean;
   nextOpening: NextOpening | null;
   timeZone: string;
@@ -151,11 +199,18 @@ export interface OpenStatus {
 
 /** Whether online ordering is open right now (public: storefront banner). */
 export async function getOpenStatus(now: Date = new Date()): Promise<OpenStatus> {
-  const [profile, enforced] = await Promise.all([getRestaurantProfile(), getSetting('ORDERING_HOURS_ENFORCED')]);
+  const [profile, enforced, busy] = await Promise.all([
+    getRestaurantProfile(),
+    getSetting('ORDERING_HOURS_ENFORCED'),
+    getBusyMode(),
+  ]);
   const tz = env.businessTimeZone;
   const open = isOpenAt(profile.openingHours, now, tz);
+  const { isOpen, closedReason } = resolveOrdering({ mode: busy.mode, hoursEnforced: enforced !== 0, openByHours: open });
   return {
-    isOpen: enforced === 0 || open,
+    isOpen,
+    closedReason,
+    ...busy,
     enforced: enforced !== 0,
     nextOpening: open ? null : nextOpening(profile.openingHours, now, tz),
     timeZone: tz,

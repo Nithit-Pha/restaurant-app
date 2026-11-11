@@ -244,6 +244,18 @@ describe('placeOrder — Phase 0 rules', () => {
     });
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
+
+  it('refuses orders while staff have paused ordering, with their message', async () => {
+    (getOpenStatus as any).mockResolvedValueOnce({
+      isOpen: false, closedReason: 'PAUSED', pauseMessage: 'Kitchen is full, back in 20 minutes.',
+      enforced: true, timeZone: 'Asia/Bangkok', nextOpening: null,
+    });
+    await expect(placeOrder('user-1', pickup)).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'Kitchen is full, back in 20 minutes.',
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
 });
 
 describe('changeOrderStatus', () => {

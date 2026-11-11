@@ -117,7 +117,9 @@ export async function placeOrder(userId: string, input: PlaceOrderInput) {
   }
 
   const open = await getOpenStatus();
-  if (!open.isOpen) throw httpError(409, closedMessage(open.nextOpening));
+  if (!open.isOpen) {
+    throw httpError(409, open.closedReason === 'PAUSED' ? open.pauseMessage : closedMessage(open.nextOpening));
+  }
 
   const paymentMethod = input.paymentMethod ?? 'CASH';
   if (paymentMethod === 'PROMPTPAY' && !(await getPaymentSettings()).promptPayId) {

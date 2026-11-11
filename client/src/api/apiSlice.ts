@@ -191,6 +191,11 @@ export const apiSlice = createApi({
       query: ({ id, ...body }) => ({ url: `/orders/${id}/payment/refund`, method: 'POST', body }),
       invalidatesTags: ['Order', 'Finance'],
     }),
+    // Busy mode (staff): Normal / Busy (+minutes) / Paused
+    setBusyMode: builder.mutation<BusyMode, BusyModeInput>({
+      query: (body) => ({ url: '/settings/busy', method: 'PUT', body }),
+      invalidatesTags: ['OpenStatus'],
+    }),
     getPaymentOptions: builder.query<PaymentOptions, void>({
       query: () => '/settings/payment-options',
       providesTags: ['Settings'],
@@ -278,6 +283,7 @@ export const {
   useLoginMutation,
   useRegisterMutation,
   useGetMeQuery,
+  useSetBusyModeMutation,
   useGetSettingsQuery,
   useSetTaxRateMutation,
   useSetDeliveryFeeMutation,
@@ -334,11 +340,26 @@ export interface AppSettings {
   ORDERING_HOURS_ENFORCED: number; // 1 = only accept orders during opening hours
 }
 
-export interface OpenStatus {
+export type OrderingMode = 'NORMAL' | 'BUSY' | 'PAUSED';
+
+export interface BusyMode {
+  mode: OrderingMode;
+  busyExtraMinutes: number; // added to the usual wait while BUSY
+  pauseMessage: string; // what customers see while PAUSED
+}
+
+export interface OpenStatus extends BusyMode {
   isOpen: boolean;
+  closedReason: 'HOURS' | 'PAUSED' | null;
   enforced: boolean;
   nextOpening: { dayOfWeek: string; time: string; inDays: number } | null;
   timeZone: string;
+}
+
+export interface BusyModeInput {
+  mode: OrderingMode;
+  extraMinutes?: number; // required for BUSY
+  pauseMessage?: string; // '' = default text
 }
 
 export interface RestaurantProfile {

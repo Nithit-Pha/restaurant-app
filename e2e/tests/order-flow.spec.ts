@@ -38,6 +38,7 @@ test.afterAll(async () => {
   const auth = { authorization: `Bearer ${adminToken}` };
   await api.put('/api/settings/ordering', { data: { hoursEnforced: hoursWereEnforced }, headers: auth });
   if (paymentSettingsBefore) await api.put('/api/settings/payment', { data: paymentSettingsBefore, headers: auth });
+  await api.put('/api/settings/busy', { data: { mode: 'NORMAL' }, headers: auth }); // never leave ordering paused
   if (staffId) await api.delete(`/api/admin/staff/${staffId}`, { headers: auth });
   await api.dispose();
 });
@@ -197,5 +198,62 @@ test('customer can cancel while the order is still waiting; staff see why', asyn
   const row = staff.locator('tr', { hasText: orderNumber });
   await expect(row.getByText('Cancelled')).toBeVisible();
   await expect(row.getByRole('button', { name: 'Accept' })).toHaveCount(0);
+  await staffContext.close();
+});
+
+test('staff switch to busy and paused; customers see it and cannot order while paused', async ({ page, browser }) => {
+  const username = `e2e-busy-${Date.now()}`;
+  await page.goto('/register');
+  await page.locator('form input').first().fill('E2E Busy');
+  await page.locator('input[autocomplete="username"]').fill(username);
+  await page.locator('input[type="email"]').fill(`${username}@example.com`);
+  await page.locator('input[type="password"]').fill('password123');
+  await page.locator('button[type="submit"]').click();
+  await expect(page).toHaveURL(/\/$/);
+
+  const staffContext = await browser.newContext();
+  const staff = await staffContext.newPage();
+  await signIn(staff, STAFF.username, STAFF.password);
+  await staff.goto('/admin/orders');
+  const modes = staff.getByRole('group', { name: 'Online ordering' });
+
+  // Busy: customers are told it takes longer, and still order.
+  await modes.getByRole('button', { name: 'Busy' }).click();
+  await expect(modes.getByRole('button', { name: 'Busy' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(staff.getByLabel('Extra minutes while busy')).toHaveValue('15');
+  // A full page load each time: the open status is cached in the page for a minute.
+  await page.goto('/menu');
+  await addFirstItemAndCheckout(page);
+  await expect(page.getByText('Orders take about 15 minutes longer than usual.')).toBeVisible();
+  await page.getByLabel('Phone number').fill('0822222222');
+  await page.getByRole('button', { name: /Place order/ }).click();
+  await expect(page).toHaveURL(/\/orders\/[0-9a-f-]{36}$/);
+  const orderNumber = (await page.getByRole('heading', { level: 1 }).textContent())!.replace('Order ', '').trim();
+
+  // The accept dialog starts at the usual 15 minutes plus the busy 15.
+  await staff.reload();
+  const row = staff.locator('tr', { hasText: orderNumber });
+  await row.getByRole('button', { name: 'Accept' }).click();
+  await expect(staff.getByRole('button', { name: 'Accept · ready in 30 min' })).toBeVisible();
+  await staff.getByRole('button', { name: 'Back' }).click();
+
+  // Paused: the menu says so, checkout cannot place an order.
+  await modes.getByRole('button', { name: 'Paused' }).click();
+  await expect(modes.getByRole('button', { name: 'Paused' })).toHaveAttribute('aria-pressed', 'true');
+  await page.goto('/menu');
+  await expect(page.getByText('Online ordering is paused.')).toBeVisible();
+  await addFirstItemAndCheckout(page);
+  await expect(page.getByText('Online ordering is paused.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ordering is paused right now' })).toBeDisabled();
+
+  // Back to normal: the notice disappears and ordering works again.
+  await modes.getByRole('button', { name: 'Normal' }).click();
+  await expect(modes.getByRole('button', { name: 'Normal' })).toHaveAttribute('aria-pressed', 'true');
+  await page.goto('/menu');
+  await expect(page.getByRole('button', { name: 'Add' }).first()).toBeVisible();
+  await expect(page.getByText('Online ordering is paused.')).toHaveCount(0);
+  await expect(page.getByText(/We're busy right now/)).toHaveCount(0);
+  await addFirstItemAndCheckout(page);
+  await expect(page.getByRole('button', { name: /Place order/ })).toBeVisible();
   await staffContext.close();
 });

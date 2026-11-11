@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from 'react';
 import {
   useGetAdminOrdersQuery,
   useGetMeQuery,
+  useGetOpenStatusQuery,
   useMarkOrderPaidMutation,
   useRefundOrderMutation,
   useUpdateOrderStatusMutation,
@@ -24,6 +25,7 @@ import {
 } from '../../../src/features/orders/orderDisplay';
 import { AcceptDialog, CancelDialog, CompleteCashDialog, MarkPaidDialog, RefundDialog } from '../../../src/features/admin/orders/OrderDialogs';
 import { useNewOrderAlert } from '../../../src/features/admin/orders/useNewOrderAlert';
+import BusyModeControl from '../../../src/features/admin/orders/BusyModeControl';
 import { bangkokDateISO, formatCurrency } from '../../../src/lib/format';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
 
@@ -174,6 +176,9 @@ export default function AdminOrdersPage() {
   const saving = savingStatus || savingPaid || savingRefund;
   const { data: me } = useGetMeQuery(undefined, { skip: !ready });
   const isOwner = me?.role === 'SUPER_ADMIN';
+  // While busy, the accept dialog starts with the usual time plus the extra minutes.
+  const { data: openStatus } = useGetOpenStatusQuery(undefined, { skip: !ready });
+  const busyExtra = openStatus?.mode === 'BUSY' ? openStatus.busyExtraMinutes : 0;
   const [expanded, setExpanded] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<Order | null>(null);
   const [cancelling, setCancelling] = useState<Order | null>(null);
@@ -290,6 +295,10 @@ export default function AdminOrdersPage() {
             ))}
           </select>
         </div>
+      </div>
+
+      <div className="mb-3">
+        <BusyModeControl />
       </div>
 
       {/* Status counts for the selected day */}
@@ -422,6 +431,7 @@ export default function AdminOrdersPage() {
         <AcceptDialog
           order={accepting}
           busy={saving}
+          defaultMinutes={15 + busyExtra}
           onClose={() => setAccepting(null)}
           onConfirm={async (prepMinutes) => {
             await run({ id: accepting.id, status: 'PREPARING', prepMinutes });

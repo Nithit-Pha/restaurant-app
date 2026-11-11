@@ -25,13 +25,15 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
 }
 
 /** Accept = move to PREPARING with a preparation time (drives the customer's ETA). */
-export function AcceptDialog({ order, busy, onConfirm, onClose }: {
+export function AcceptDialog({ order, busy, onConfirm, onClose, defaultMinutes = 15 }: {
   order: Order;
   busy: boolean;
   onConfirm: (prepMinutes: number) => void;
   onClose: () => void;
+  /** Pre-selected prep time (more while the kitchen is in busy mode). */
+  defaultMinutes?: number;
 }) {
-  const [minutes, setMinutes] = useState(15);
+  const [minutes, setMinutes] = useState(Math.min(240, defaultMinutes));
   return (
     <Dialog title={`Accept order ${formatOrderNumber(order)}`} onClose={onClose}>
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">How long until it is ready?</p>
