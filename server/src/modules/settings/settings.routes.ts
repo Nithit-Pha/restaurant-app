@@ -70,6 +70,18 @@ router.put('/ordering', authenticate, requireRole('SUPER_ADMIN'),
   ctrl.setOrderingHandler
 );
 
+// Busy mode: staff slow down or pause online ordering during a rush.
+router.put('/busy', authenticate, requireRole('STAFF', 'SUPER_ADMIN'),
+  validate(z.object({
+    mode: z.enum(['NORMAL', 'BUSY', 'PAUSED']),
+    extraMinutes: z.number().int().min(5).max(120).optional(),
+    pauseMessage: z.string().trim().max(200).optional(), // '' = default text
+  }).refine((b) => b.mode !== 'BUSY' || b.extraMinutes !== undefined, {
+    message: 'Busy mode needs the extra minutes', path: ['extraMinutes'],
+  })),
+  ctrl.setBusyModeHandler
+);
+
 // Payment: public list of methods for checkout; PromptPay account for the owner.
 router.get('/payment-options', ctrl.getPaymentOptionsHandler);
 router.get('/payment', authenticate, requireRole('SUPER_ADMIN'), ctrl.getPaymentSettingsHandler);

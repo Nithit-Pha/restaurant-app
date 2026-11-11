@@ -86,6 +86,23 @@ export async function getOpenStatusHandler(_req: Request, res: Response, next: N
   } catch (err) { next(err); }
 }
 
+/** Staff: Normal / Busy (+minutes) / Paused, for a rush. */
+export async function setBusyModeHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { mode, extraMinutes, pauseMessage } = req.body;
+    const prev = await settingsService.getBusyMode();
+    const updated = await settingsService.setBusyMode(mode, extraMinutes, pauseMessage);
+    audit({
+      actorId: req.user!.userId,
+      action: 'UPDATE',
+      entityType: 'SETTING',
+      entityId: 'ORDERING_MODE',
+      metadata: { from: prev.mode, to: updated.mode, ...(updated.mode === 'BUSY' ? { extraMinutes: updated.busyExtraMinutes } : {}) },
+    });
+    res.json(updated);
+  } catch (err) { next(err); }
+}
+
 export async function setOrderingHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const value = req.body.hoursEnforced ? 1 : 0;

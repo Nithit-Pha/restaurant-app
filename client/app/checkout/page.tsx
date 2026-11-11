@@ -297,7 +297,7 @@ export default function CheckoutPage() {
         className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 rounded-lg disabled:opacity-50"
       >
         {isClosed
-          ? 'Ordering is closed right now'
+          ? openStatus?.closedReason === 'PAUSED' ? 'Ordering is paused right now' : 'Ordering is closed right now'
           : isLoading
           ? 'Placing order…'
           : quote && !quoting
