@@ -12,6 +12,7 @@ const ACTION_COLORS: Record<string, string> = {
   UPDATE: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
   DELETE: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
   STATUS_CHANGE: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400',
+  PAYMENT: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400',
   LOGIN: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
 };
 

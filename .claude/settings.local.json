@@ -1,0 +1,5 @@
+{
+  "skillOverrides": {
+    "anthropic-skills:quick-change": "off"
+  }
+}

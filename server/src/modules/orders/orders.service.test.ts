@@ -2,14 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // --- Mocks -------------------------------------------------------------
 // vi.hoisted runs before vi.mock factories, so these are safe to reference.
-const { prismaMock, txOrderCreate } = vi.hoisted(() => {
+const { prismaMock, txOrderCreate, txQueryRaw, txUserUpdate, tx } = vi.hoisted(() => {
   const txOrderCreate = vi.fn();
+  const txQueryRaw = vi.fn();
+  const txUserUpdate = vi.fn();
+  const tx = {
+    order: { create: txOrderCreate, updateMany: vi.fn(), findUnique: vi.fn() },
+    orderStatusHistory: { create: vi.fn() },
+    payment: { create: vi.fn() },
+    user: { update: txUserUpdate },
+    $queryRaw: txQueryRaw,
+  };
   const prismaMock = {
     menuItem: { findMany: vi.fn() },
-    order: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), aggregate: vi.fn() },
-    $transaction: vi.fn(async (cb: (tx: any) => any) => cb({ order: { create: txOrderCreate } })),
+    order: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), aggregate: vi.fn() },
+    $transaction: vi.fn(async (cb: (t: any) => any) => cb(tx)),
   };
-  return { prismaMock, txOrderCreate };
+  return { prismaMock, txOrderCreate, txQueryRaw, txUserUpdate, tx };
 });
 
 vi.mock('../../config/db', () => ({ prisma: prismaMock }));
@@ -19,6 +28,8 @@ const RESTAURANT_GEO = { latitude: 39.7817, longitude: -89.6501 };
 vi.mock('../settings/settings.service', () => ({
   getSetting: vi.fn(async (key: string) => (key === 'DELIVERY_MAX_KM' ? 0 : 0.07)),
   getRestaurantProfile: vi.fn(async () => ({ geo: { latitude: 39.7817, longitude: -89.6501 } })),
+  getOpenStatus: vi.fn(async () => ({ isOpen: true, enforced: true, nextOpening: null, timeZone: 'Asia/Bangkok' })),
+  getPaymentSettings: vi.fn(async () => ({ promptPayId: '0812345678', promptPayName: 'Test Shop' })),
 }));
 
 // Keep real priceCart + haversineKm; stub only the async delivery-fee lookup.
@@ -27,9 +38,9 @@ vi.mock('../../utils/pricing', async (importOriginal) => {
   return { ...actual, calcDeliveryFeeAsync: vi.fn(async () => 5.99) };
 });
 
-import { quoteOrder, placeOrder } from './orders.service';
+import { quoteOrder, placeOrder, changeOrderStatus, cancelByCustomer, changePayment, getPromptPayQr } from './orders.service';
 import { calcDeliveryFeeAsync } from '../../utils/pricing';
-import { getSetting } from '../settings/settings.service';
+import { getSetting, getOpenStatus, getPaymentSettings } from '../settings/settings.service';
 
 const MENU = [
   { id: 'burger', name: 'Burger', sellingPrice: 12.0, costPrice: 4.5, isAvailable: true },
@@ -46,6 +57,9 @@ beforeEach(() => {
     return MENU.filter((m) => ids.includes(m.id));
   });
   txOrderCreate.mockImplementation(async ({ data }: any) => ({ id: 'order-1', status: 'PENDING', ...data }));
+  txQueryRaw.mockResolvedValue([{ value: 42 }]);
+  prismaMock.order.findUnique.mockResolvedValue(null); // no earlier order with this idempotency key
+  (getOpenStatus as any).mockResolvedValue({ isOpen: true, enforced: true, nextOpening: null, timeZone: 'Asia/Bangkok' });
 });
 
 describe('quoteOrder', () => {
@@ -142,11 +156,12 @@ describe('placeOrder', () => {
   });
 
   it('writes the order in a transaction with computed totals and line snapshots', async () => {
-    const order = await placeOrder('user-1', {
+    const { order, created } = await placeOrder('user-1', {
       type: 'PICKUP',
       items: [{ menuItemId: 'burger', quantity: 2 }],
     });
 
+    expect(created).toBe(true);
     expect(prismaMock.$transaction).toHaveBeenCalledOnce();
     const data = txOrderCreate.mock.calls[0][0].data;
     expect(data.userId).toBe('user-1');
@@ -168,7 +183,7 @@ describe('placeOrder', () => {
   });
 
   it('delivery order persists the address and a non-zero fee', async () => {
-    const order = await placeOrder('user-1', {
+    const { order } = await placeOrder('user-1', {
       type: 'DELIVERY',
       deliveryAddress: '123 Main St',
       items: [{ menuItemId: 'fries', quantity: 1 }],
@@ -177,5 +192,192 @@ describe('placeOrder', () => {
     expect(data.deliveryAddress).toBe('123 Main St');
     expect(data.deliveryFee).toBe(5.99);
     expect(order.deliveryFee).toBe(5.99);
+  });
+});
+
+describe('placeOrder — Phase 0 rules', () => {
+  const pickup = { type: 'PICKUP' as const, items: [{ menuItemId: 'burger', quantity: 1 }] };
+
+  it('gives the order the next daily number and the business date', async () => {
+    await placeOrder('user-1', pickup);
+    const data = txOrderCreate.mock.calls[0][0].data;
+    expect(txQueryRaw).toHaveBeenCalledOnce();
+    expect(data.orderNumber).toBe(42);
+    expect(data.businessDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('records the first status in the history', async () => {
+    await placeOrder('user-1', pickup);
+    const data = txOrderCreate.mock.calls[0][0].data;
+    expect(data.statusHistory.create).toMatchObject({ toStatus: 'PENDING', actorId: 'user-1' });
+  });
+
+  it('stores the phone on the order and on the customer profile', async () => {
+    await placeOrder('user-1', { ...pickup, customerPhone: '081 234 5678' });
+    expect(txOrderCreate.mock.calls[0][0].data.customerPhone).toBe('081 234 5678');
+    expect(txUserUpdate).toHaveBeenCalledWith({ where: { id: 'user-1' }, data: { phone: '081 234 5678' } });
+  });
+
+  it('returns the existing order for a repeated idempotency key (no second order)', async () => {
+    prismaMock.order.findUnique.mockResolvedValueOnce({ id: 'order-7', userId: 'user-1', items: [] });
+    const { order, created } = await placeOrder('user-1', { ...pickup, idempotencyKey: '7b0e1c1e-3f6a-4d4b-9a51-1d2a3b4c5d6e' });
+    expect(created).toBe(false);
+    expect(order.id).toBe('order-7');
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses another customer's idempotency key", async () => {
+    prismaMock.order.findUnique.mockResolvedValueOnce({ id: 'order-7', userId: 'someone-else', items: [] });
+    await expect(
+      placeOrder('user-1', { ...pickup, idempotencyKey: '7b0e1c1e-3f6a-4d4b-9a51-1d2a3b4c5d6e' }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('refuses orders while the restaurant is closed, saying when it opens', async () => {
+    (getOpenStatus as any).mockResolvedValueOnce({
+      isOpen: false, enforced: true, timeZone: 'Asia/Bangkok',
+      nextOpening: { dayOfWeek: 'Monday', time: '11:00', inDays: 1 },
+    });
+    await expect(placeOrder('user-1', pickup)).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining('tomorrow at 11:00'),
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('changeOrderStatus', () => {
+  beforeEach(() => {
+    tx.order.updateMany.mockResolvedValue({ count: 1 });
+    tx.order.findUnique.mockResolvedValue({ id: 'o1', status: 'PREPARING', items: [] });
+  });
+
+  it('accepts a pending order with a prep time and writes history', async () => {
+    prismaMock.order.findUnique.mockResolvedValueOnce({ status: 'PENDING', type: 'PICKUP' });
+    const { from } = await changeOrderStatus('o1', { to: 'PREPARING', actorId: 'staff-1', prepMinutes: 15 });
+    expect(from).toBe('PENDING');
+    const call = tx.order.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: 'o1', status: 'PENDING' }); // only if nobody moved it meanwhile
+    expect(call.data.status).toBe('PREPARING');
+    expect(call.data.estimatedReadyAt).toBeInstanceOf(Date);
+    expect(tx.orderStatusHistory.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ orderId: 'o1', fromStatus: 'PENDING', toStatus: 'PREPARING', actorId: 'staff-1' }),
+    });
+  });
+
+  it('rejects a move the workflow does not allow (409)', async () => {
+    prismaMock.order.findUnique.mockResolvedValueOnce({ status: 'DELIVERED', type: 'PICKUP' });
+    await expect(changeOrderStatus('o1', { to: 'PREPARING', actorId: 's', prepMinutes: 10 }))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('reports a conflict when someone else moved the order first', async () => {
+    prismaMock.order.findUnique.mockResolvedValueOnce({ status: 'PENDING', type: 'PICKUP' });
+    tx.order.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(changeOrderStatus('o1', { to: 'PREPARING', actorId: 's', prepMinutes: 10 }))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(tx.orderStatusHistory.create).not.toHaveBeenCalled();
+  });
+
+  it('404s for an unknown order', async () => {
+    prismaMock.order.findUnique.mockResolvedValueOnce(null);
+    await expect(changeOrderStatus('nope', { to: 'READY', actorId: 's' })).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('cancelByCustomer', () => {
+  it('lets a customer cancel while the order is still pending', async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'PENDING' });
+    prismaMock.order.findUnique.mockResolvedValueOnce({ status: 'PENDING', type: 'PICKUP' });
+    tx.order.updateMany.mockResolvedValueOnce({ count: 1 });
+    tx.order.findUnique.mockResolvedValueOnce({ id: 'o1', status: 'CANCELLED', items: [] });
+    await cancelByCustomer('o1', 'user-1');
+    expect(tx.order.updateMany.mock.calls[0][0].data).toMatchObject({ status: 'CANCELLED', cancelReason: 'CUSTOMER_REQUEST' });
+  });
+
+  it('refuses once the kitchen has accepted it', async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'PREPARING' });
+    await expect(cancelByCustomer('o1', 'user-1')).rejects.toMatchObject({ statusCode: 409 });
+  });
+});
+
+describe('placeOrder — payment method', () => {
+  const pickup = { type: 'PICKUP' as const, items: [{ menuItemId: 'burger', quantity: 1 }] };
+
+  it('defaults to cash', async () => {
+    await placeOrder('user-1', pickup);
+    expect(txOrderCreate.mock.calls[0][0].data.paymentMethod).toBe('CASH');
+  });
+
+  it('stores PromptPay when the restaurant has set it up', async () => {
+    await placeOrder('user-1', { ...pickup, paymentMethod: 'PROMPTPAY' });
+    expect(txOrderCreate.mock.calls[0][0].data.paymentMethod).toBe('PROMPTPAY');
+  });
+
+  it('refuses PromptPay when no PromptPay ID is set', async () => {
+    (getPaymentSettings as any).mockResolvedValueOnce({ promptPayId: '', promptPayName: '' });
+    await expect(placeOrder('user-1', { ...pickup, paymentMethod: 'PROMPTPAY' })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('changePayment', () => {
+  beforeEach(() => {
+    tx.order.updateMany.mockResolvedValue({ count: 1 });
+    tx.order.findUnique.mockResolvedValue({ id: 'o1', items: [] });
+  });
+
+  it('staff mark a cash order paid: conditional update, paidAt and a Payment row', async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'DELIVERED', paymentMethod: 'CASH', paymentStatus: 'UNPAID', total: 120 });
+    const { from, to } = await changePayment('o1', 'MARK_PAID', { actorId: 'staff-1', providerRef: ' ref-9 ' });
+    expect([from, to]).toEqual(['UNPAID', 'PAID']);
+    const call = tx.order.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: 'o1', paymentStatus: 'UNPAID' });
+    expect(call.data.paidAt).toBeInstanceOf(Date);
+    expect(tx.payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ orderId: 'o1', method: 'CASH', status: 'PAID', amount: 120, providerRef: 'ref-9', confirmedById: 'staff-1' }),
+    });
+  });
+
+  it('a customer reporting a transfer only moves it to PENDING, without a Payment row', async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'PENDING', paymentMethod: 'PROMPTPAY', paymentStatus: 'UNPAID', total: 89 });
+    const { to } = await changePayment('o1', 'CUSTOMER_SENT', { actorId: 'user-1', customerId: 'user-1' });
+    expect(to).toBe('PENDING');
+    expect(prismaMock.order.findFirst.mock.calls[0][0].where).toEqual({ id: 'o1', userId: 'user-1' }); // own order only
+    expect(tx.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('reports a conflict when someone else changed the payment first', async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'READY', paymentMethod: 'CASH', paymentStatus: 'UNPAID', total: 50 });
+    tx.order.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(changePayment('o1', 'MARK_PAID', { actorId: 's' })).rejects.toMatchObject({ statusCode: 409 });
+    expect(tx.payment.create).not.toHaveBeenCalled();
+  });
+
+  it("404s for an unknown order or another customer's order", async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce(null);
+    await expect(changePayment('o1', 'CUSTOMER_SENT', { actorId: 'u', customerId: 'u' })).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('getPromptPayQr', () => {
+  it('returns a payload with the order total for an unpaid PromptPay order', async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'PENDING', paymentMethod: 'PROMPTPAY', paymentStatus: 'UNPAID', total: '120.00' });
+    const qr = await getPromptPayQr('o1', 'user-1');
+    expect(qr.amount).toBe(120);
+    expect(qr.payload).toContain('5406120.00');
+    expect(qr.promptPayName).toBe('Test Shop');
+  });
+
+  it('refuses for cash, paid or cancelled orders', async () => {
+    for (const o of [
+      { status: 'PENDING', paymentMethod: 'CASH', paymentStatus: 'UNPAID' },
+      { status: 'PENDING', paymentMethod: 'PROMPTPAY', paymentStatus: 'PAID' },
+      { status: 'CANCELLED', paymentMethod: 'PROMPTPAY', paymentStatus: 'UNPAID' },
+    ]) {
+      prismaMock.order.findFirst.mockResolvedValueOnce({ ...o, total: 10 });
+      await expect(getPromptPayQr('o1')).rejects.toMatchObject({ statusCode: 409 });
+    }
   });
 });

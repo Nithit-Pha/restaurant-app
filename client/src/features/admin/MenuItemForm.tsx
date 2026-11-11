@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useCreateMenuItemMutation, useUpdateMenuItemMutation, type MenuItem } from '../../api/apiSlice';
+import { useCreateMenuItemMutation, useGetMeQuery, useUpdateMenuItemMutation, type MenuItem } from '../../api/apiSlice';
 
 interface Props {
   item?: MenuItem;
@@ -13,6 +13,9 @@ const CATEGORIES = ['Appetizers', 'Mains', 'Drinks', 'Desserts'];
 export default function MenuItemForm({ item, onDone }: Props) {
   const [create] = useCreateMenuItemMutation();
   const [update] = useUpdateMenuItemMutation();
+  // Cost price is the owner's business: staff never see or send it.
+  const { data: me } = useGetMeQuery();
+  const isOwner = me?.role === 'SUPER_ADMIN';
   const [preview, setPreview] = useState<string | null>(item?.imageUrl ?? null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
@@ -34,7 +37,10 @@ export default function MenuItemForm({ item, onDone }: Props) {
     setIsLoading(true);
     try {
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      Object.entries(form).forEach(([k, v]) => {
+        if (k === 'costPrice' && (!isOwner || v === '')) return;
+        fd.append(k, v);
+      });
       if (fileRef.current?.files?.[0]) fd.append('image', fileRef.current.files[0]);
 
       if (item) {
@@ -73,15 +79,17 @@ export default function MenuItemForm({ item, onDone }: Props) {
             {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
           </select>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Cost Price</label>
-          <input
-            type="number" step="0.01" min="0"
-            value={form.costPrice}
-            onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
-            className={inputCls}
-          />
-        </div>
+        {isOwner && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Cost Price</label>
+            <input
+              type="number" step="0.01" min="0"
+              value={form.costPrice}
+              onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
+              className={inputCls}
+            />
+          </div>
+        )}
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Selling Price</label>
           <input

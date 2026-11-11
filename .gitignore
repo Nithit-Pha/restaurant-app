@@ -36,3 +36,13 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Temporary files left by the Windows file-sharing layer
+.fuse_hidden*
+
+# Local git bundle used to move work between machines
+.repo.bundle
+
+# Playwright
+test-results/
+playwright-report/

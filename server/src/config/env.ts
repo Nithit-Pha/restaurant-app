@@ -19,10 +19,14 @@ export const env = {
   },
 
   taxRate: parseFloat(process.env.TAX_RATE ?? '0.07'),
-  deliveryBaseFee: parseFloat(process.env.DELIVERY_BASE_FEE ?? '3.99'),
-  deliveryFeePerKm: parseFloat(process.env.DELIVERY_FEE_PER_KM ?? '1.00'),
+  // Money in THB
+  deliveryBaseFee: parseFloat(process.env.DELIVERY_BASE_FEE ?? '30'),
+  deliveryFeePerKm: parseFloat(process.env.DELIVERY_FEE_PER_KM ?? '10'),
   deliveryFreeKm: parseFloat(process.env.DELIVERY_FREE_KM ?? '3'),
   deliveryMaxKm: parseFloat(process.env.DELIVERY_MAX_KM ?? '0'), // 0 = no limit
+
+  // Business day, order numbers and opening hours use this time zone.
+  businessTimeZone: process.env.BUSINESS_TIMEZONE ?? 'Asia/Bangkok',
 
   storageProvider: (process.env.STORAGE_PROVIDER ?? 'local') as 'local' | 's3' | 'cloudinary',
   uploadDir: process.env.UPLOAD_DIR ?? './uploads',

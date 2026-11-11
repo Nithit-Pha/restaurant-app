@@ -41,20 +41,25 @@ export async function listCategories(_req: Request, res: Response, next: NextFun
 
 export async function createItem(req: Request, res: Response, next: NextFunction) {
   try {
+    const isSuperAdmin = hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN');
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
-    const item = await menuService.createMenuItem({ ...req.body, imageUrl });
+    // Only the owner sets cost; staff-created items start at 0 ("cost missing").
+    const costPrice = isSuperAdmin ? req.body.costPrice ?? 0 : 0;
+    const item = await menuService.createMenuItem({ ...req.body, costPrice, imageUrl });
     audit({ actorId: req.user!.userId, action: 'CREATE', entityType: 'MENU_ITEM', entityId: item.id, metadata: { name: item.name } });
-    res.status(201).json(item);
+    res.status(201).json(stripCost(item, isSuperAdmin));
   } catch (err) { next(err); }
 }
 
 export async function updateItem(req: Request, res: Response, next: NextFunction) {
   try {
+    const isSuperAdmin = hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN');
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
-    const data = imageUrl ? { ...req.body, imageUrl } : req.body;
+    const data = imageUrl ? { ...req.body, imageUrl } : { ...req.body };
+    if (!isSuperAdmin) delete data.costPrice; // staff can never change cost
     const item = await menuService.updateMenuItem(req.params.id, data);
     audit({ actorId: req.user!.userId, action: 'UPDATE', entityType: 'MENU_ITEM', entityId: item.id, metadata: { name: item.name } });
-    res.json(item);
+    res.json(stripCost(item, isSuperAdmin));
   } catch (err) { next(err); }
 }
 
@@ -62,7 +67,7 @@ export async function patchAvailability(req: Request, res: Response, next: NextF
   try {
     const item = await menuService.toggleAvailability(req.params.id, req.body.isAvailable);
     audit({ actorId: req.user!.userId, action: 'UPDATE', entityType: 'MENU_ITEM', entityId: item.id, metadata: { isAvailable: item.isAvailable } });
-    res.json(item);
+    res.json(stripCost(item, hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN')));
   } catch (err) { next(err); }
 }
 

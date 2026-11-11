@@ -1,11 +1,13 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../../config/db';
 import type {
   CreateExpenseInput,
   UpdateExpenseInput,
 } from './finance.validation';
 import { computeKpis, mergeTransactions, resolveRange } from './finance.calc';
+import { env } from '../../config/env';
+import { zonedDayRange } from '../../utils/businessTime';
 
-const prisma = new PrismaClient();
 
 // Helpers ---------------------------------------------------------------
 const D = (v: Prisma.Decimal | number | string) => new Prisma.Decimal(v);
@@ -14,12 +16,15 @@ const num = (v: Prisma.Decimal) => Number(v.toFixed(2));
 // =====================================================================
 // FINANCE DASHBOARD
 // =====================================================================
-export async function getDashboard(startDate?: Date, endDate?: Date) {
-  const { start, end } = resolveRange(startDate, endDate);
+export async function getDashboard(startDate?: string, endDate?: string) {
+  const { start, end } = resolveRange(startDate, endDate, env.businessTimeZone);
 
-  // Only completed/non-cancelled orders count as revenue.
+  // Revenue = completed AND paid orders (same definition as the profit report).
+  // Pending or in-progress orders may still be cancelled; unpaid or refunded
+  // orders brought in no money.
   const revenueStatuses: Prisma.OrderWhereInput = {
-    status: { not: 'CANCELLED' },
+    status: 'DELIVERED',
+    paymentStatus: 'PAID',
     createdAt: { gte: start, lte: end },
   };
 
@@ -65,15 +70,15 @@ export async function getDashboard(startDate?: Date, endDate?: Date) {
  * (latest orders + latest expenses).
  */
 export async function getTransactionHistory(
-  startDate?: Date,
-  endDate?: Date,
+  startDate?: string,
+  endDate?: string,
   limit = 50,
 ) {
-  const { start, end } = resolveRange(startDate, endDate);
+  const { start, end } = resolveRange(startDate, endDate, env.businessTimeZone);
 
   const [orders, expenses] = await Promise.all([
     prisma.order.findMany({
-      where: { status: { not: 'CANCELLED' }, createdAt: { gte: start, lte: end } },
+      where: { status: 'DELIVERED', paymentStatus: 'PAID', createdAt: { gte: start, lte: end } },
       select: {
         id: true,
         createdAt: true,
@@ -114,12 +119,13 @@ export async function getTransactionHistory(
 // =====================================================================
 // EXPENSE CRUD
 // =====================================================================
-export async function listExpenses(startDate?: Date, endDate?: Date) {
+export async function listExpenses(startDate?: string, endDate?: string) {
   const where: Prisma.ExpenseWhereInput = {};
   if (startDate || endDate) {
     where.date = {};
-    if (startDate) (where.date as Prisma.DateTimeFilter).gte = startDate;
-    if (endDate) (where.date as Prisma.DateTimeFilter).lte = endDate;
+    const tz = env.businessTimeZone;
+    if (startDate) (where.date as Prisma.DateTimeFilter).gte = zonedDayRange(startDate, tz).start;
+    if (endDate) (where.date as Prisma.DateTimeFilter).lte = zonedDayRange(endDate, tz).end;
   }
   return prisma.expense.findMany({ where, orderBy: { date: 'desc' } });
 }

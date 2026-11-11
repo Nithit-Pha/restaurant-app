@@ -80,7 +80,7 @@ const baseQueryWithReauth: BaseQueryFn<
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant'],
+  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus'],
   endpoints: (builder) => ({
     // Auth
     login: builder.mutation<AuthResponse, LoginInput>({
@@ -141,7 +141,7 @@ export const apiSlice = createApi({
     quoteOrder: builder.mutation<PricingResult, CheckoutInput>({
       query: (body) => ({ url: '/orders/quote', method: 'POST', body }),
     }),
-    placeOrder: builder.mutation<Order, CheckoutInput>({
+    placeOrder: builder.mutation<Order, PlaceOrderInput>({
       query: (body) => ({ url: '/orders', method: 'POST', body }),
       invalidatesTags: ['Order'],
     }),
@@ -153,13 +153,55 @@ export const apiSlice = createApi({
       query: (id) => `/orders/${id}`,
       providesTags: (_r, _e, id) => [{ type: 'Order', id }],
     }),
-    getAdminOrders: builder.query<Order[], { status?: string }>({
-      query: ({ status } = {}) => `/orders/admin/all${status ? `?status=${status}` : ''}`,
+    // date = business day 'YYYY-MM-DD' (filtered on the server); omit for all days
+    getAdminOrders: builder.query<Order[], { status?: string; date?: string }>({
+      query: ({ status, date } = {}) => {
+        const p = new URLSearchParams();
+        if (status) p.set('status', status);
+        if (date) p.set('date', date);
+        return `/orders/admin/all?${p}`;
+      },
       providesTags: ['Order'],
     }),
-    updateOrderStatus: builder.mutation<Order, { id: string; status: string }>({
-      query: ({ id, status }) => ({ url: `/orders/${id}/status`, method: 'PATCH', body: { status } }),
+    updateOrderStatus: builder.mutation<Order, StatusChangeInput>({
+      query: ({ id, ...body }) => ({ url: `/orders/${id}/status`, method: 'PATCH', body }),
       invalidatesTags: ['Order'],
+    }),
+    cancelMyOrder: builder.mutation<Order, { id: string; note?: string }>({
+      query: ({ id, note }) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: { note } }),
+      invalidatesTags: ['Order'],
+    }),
+
+    // Payments
+    getPromptPayQr: builder.query<PromptPayQr, string>({
+      query: (id) => `/orders/${id}/promptpay`,
+    }),
+    // Customer: "I've transferred" (PromptPay)
+    reportPaymentSent: builder.mutation<Order, string>({
+      query: (id) => ({ url: `/orders/${id}/payment/sent`, method: 'POST' }),
+      invalidatesTags: ['Order'],
+    }),
+    // Staff: money received
+    markOrderPaid: builder.mutation<Order, { id: string; providerRef?: string; note?: string }>({
+      query: ({ id, ...body }) => ({ url: `/orders/${id}/payment/paid`, method: 'POST', body }),
+      invalidatesTags: ['Order', 'Finance'],
+    }),
+    // Owner: money given back
+    refundOrder: builder.mutation<Order, { id: string; note?: string }>({
+      query: ({ id, ...body }) => ({ url: `/orders/${id}/payment/refund`, method: 'POST', body }),
+      invalidatesTags: ['Order', 'Finance'],
+    }),
+    getPaymentOptions: builder.query<PaymentOptions, void>({
+      query: () => '/settings/payment-options',
+      providesTags: ['Settings'],
+    }),
+    getPaymentSettings: builder.query<PaymentSettings, void>({
+      query: () => '/settings/payment',
+      providesTags: ['Settings'],
+    }),
+    setPaymentSettings: builder.mutation<PaymentSettings, PaymentSettings>({
+      query: (body) => ({ url: '/settings/payment', method: 'PUT', body }),
+      invalidatesTags: ['Settings'],
     }),
 
     // Settings (Staff+ read, Super Admin write)
@@ -175,6 +217,15 @@ export const apiSlice = createApi({
       query: (body) => ({ url: '/settings/delivery-fee', method: 'PUT', body }),
       invalidatesTags: ['Settings'],
     }),
+    setOrdering: builder.mutation<AppSettings, { hoursEnforced: boolean }>({
+      query: (body) => ({ url: '/settings/ordering', method: 'PUT', body }),
+      invalidatesTags: ['Settings', 'OpenStatus'],
+    }),
+    // Public: is online ordering open right now?
+    getOpenStatus: builder.query<OpenStatus, void>({
+      query: () => '/settings/open-status',
+      providesTags: ['OpenStatus'],
+    }),
 
     // Restaurant profile (public read, Super Admin write)
     getRestaurant: builder.query<RestaurantProfile, void>({
@@ -183,7 +234,7 @@ export const apiSlice = createApi({
     }),
     setRestaurant: builder.mutation<RestaurantProfile, RestaurantProfile>({
       query: (body) => ({ url: '/settings/restaurant', method: 'PUT', body }),
-      invalidatesTags: ['Restaurant'],
+      invalidatesTags: ['Restaurant', 'OpenStatus'],
       onQueryStarted: revalidateOnSuccess,
     }),
 
@@ -192,7 +243,7 @@ export const apiSlice = createApi({
       query: () => '/admin/staff',
       providesTags: ['Staff'],
     }),
-    createStaff: builder.mutation<StaffUser, { name: string; email: string; password: string; role: 'STAFF' | 'SUPER_ADMIN' }>({
+    createStaff: builder.mutation<StaffUser, { name: string; username: string; email?: string; password: string; role: 'STAFF' | 'SUPER_ADMIN' }>({
       query: (body) => ({ url: '/admin/staff', method: 'POST', body }),
       invalidatesTags: ['Staff'],
     }),
@@ -200,8 +251,9 @@ export const apiSlice = createApi({
       query: ({ id, role }) => ({ url: `/admin/staff/${id}/role`, method: 'PATCH', body: { role } }),
       invalidatesTags: ['Staff'],
     }),
-    deleteStaff: builder.mutation<void, string>({
-      query: (id) => ({ url: `/admin/staff/${id}`, method: 'DELETE' }),
+    // Accounts are deactivated, never deleted (history keeps its author).
+    setStaffActive: builder.mutation<StaffUser, { id: string; isActive: boolean }>({
+      query: ({ id, isActive }) => ({ url: `/admin/staff/${id}/active`, method: 'PATCH', body: { isActive } }),
       invalidatesTags: ['Staff'],
     }),
 
@@ -229,12 +281,14 @@ export const {
   useGetSettingsQuery,
   useSetTaxRateMutation,
   useSetDeliveryFeeMutation,
+  useSetOrderingMutation,
+  useGetOpenStatusQuery,
   useGetRestaurantQuery,
   useSetRestaurantMutation,
   useGetStaffQuery,
   useCreateStaffMutation,
   useUpdateStaffRoleMutation,
-  useDeleteStaffMutation,
+  useSetStaffActiveMutation,
   useGetAuditLogQuery,
   useGetMenuItemsQuery,
   useGetMenuItemQuery,
@@ -249,13 +303,22 @@ export const {
   useGetOrderQuery,
   useGetAdminOrdersQuery,
   useUpdateOrderStatusMutation,
+  useCancelMyOrderMutation,
+  useGetPromptPayQrQuery,
+  useReportPaymentSentMutation,
+  useMarkOrderPaidMutation,
+  useRefundOrderMutation,
+  useGetPaymentOptionsQuery,
+  useGetPaymentSettingsQuery,
+  useSetPaymentSettingsMutation,
 } = apiSlice;
 
 // --- Types ---
 export interface User {
   id: string;
   name: string;
-  email: string;
+  username: string;
+  email: string | null;
   role: 'CUSTOMER' | 'STAFF' | 'SUPER_ADMIN';
   phone?: string;
   address?: string;
@@ -268,6 +331,14 @@ export interface AppSettings {
   DELIVERY_FEE_PER_KM: number;
   DELIVERY_FREE_KM: number;
   DELIVERY_MAX_KM: number;
+  ORDERING_HOURS_ENFORCED: number; // 1 = only accept orders during opening hours
+}
+
+export interface OpenStatus {
+  isOpen: boolean;
+  enforced: boolean;
+  nextOpening: { dayOfWeek: string; time: string; inDays: number } | null;
+  timeZone: string;
 }
 
 export interface RestaurantProfile {
@@ -292,15 +363,17 @@ export interface RestaurantProfile {
 export interface StaffUser {
   id: string;
   name: string;
-  email: string;
+  username: string;
+  email: string | null;
   role: 'STAFF' | 'SUPER_ADMIN';
+  isActive: boolean;
   createdAt: string;
 }
 
 export interface AuditLogEntry {
   id: string;
   actorId: string;
-  actor: { id: string; name: string; email: string; role: string };
+  actor: { id: string; name: string; username: string; email: string | null; role: string };
   action: string;
   entityType: string;
   entityId?: string;
@@ -343,13 +416,72 @@ export interface OrderItem {
   quantity: number;
 }
 
+export type OrderStatus = 'PENDING' | 'PREPARING' | 'READY' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED';
+export type CancelReason = 'SOLD_OUT' | 'CLOSING_SOON' | 'TOO_BUSY' | 'OUT_OF_AREA' | 'CUSTOMER_REQUEST' | 'OTHER';
+
+export interface OrderStatusHistoryEntry {
+  fromStatus: OrderStatus | null;
+  toStatus: OrderStatus;
+  note?: string | null;
+  createdAt: string;
+  actor?: { name: string; role: string } | null;
+}
+
+export type PaymentMethod = 'CASH' | 'PROMPTPAY';
+export type PaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'REFUNDED';
+
+export interface PaymentRecord {
+  method: PaymentMethod;
+  status: 'PAID' | 'REFUNDED';
+  amount: number;
+  providerRef?: string | null;
+  note?: string | null;
+  createdAt: string;
+  confirmedBy?: { name: string } | null;
+}
+
+export interface PromptPayQr {
+  payload: string; // text to encode in the QR
+  amount: number;
+  promptPayName: string;
+}
+
+export interface PaymentOptions {
+  cash: boolean;
+  promptPay: boolean;
+  promptPayName: string;
+}
+
+export interface PaymentSettings {
+  promptPayId: string; // '' = PromptPay off
+  promptPayName: string;
+}
+
 export interface Order {
   id: string;
   userId: string;
   items: OrderItem[];
   type: 'PICKUP' | 'DELIVERY';
-  status: 'PENDING' | 'PREPARING' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED';
+  status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  paidAt?: string | null;
+  payments?: PaymentRecord[]; // staff views only
+  orderNumber?: number | null;
+  businessDate?: string | null;
+  customerPhone?: string | null;
+  acceptedAt?: string | null;
+  estimatedReadyAt?: string | null;
+  readyAt?: string | null;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: CancelReason | null;
+  cancelNote?: string | null;
+  statusHistory?: OrderStatusHistoryEntry[];
+  user?: { id: string; name: string; username: string; email: string | null; phone?: string | null };
   deliveryAddress?: string;
+  deliveryLat?: number | null;
+  deliveryLng?: number | null;
   subtotal: number;
   taxRate: number;
   taxAmount: number;
@@ -377,6 +509,20 @@ export interface CheckoutInput {
   deliveryLng?: number;
 }
 
+export interface PlaceOrderInput extends CheckoutInput {
+  customerPhone: string;
+  idempotencyKey: string; // one UUID per checkout attempt
+  paymentMethod: PaymentMethod;
+}
+
+export interface StatusChangeInput {
+  id: string;
+  status: Exclude<OrderStatus, 'PENDING'>;
+  prepMinutes?: number;
+  cancelReason?: CancelReason;
+  cancelNote?: string;
+}
+
 interface AuthResponse {
   user: User;
   accessToken: string;
@@ -384,12 +530,13 @@ interface AuthResponse {
 }
 
 interface LoginInput {
-  email: string;
+  username: string;
   password: string;
 }
 
 interface RegisterInput {
   name: string;
+  username: string;
   email: string;
   password: string;
 }

@@ -21,22 +21,45 @@ enum OrderType {
 enum OrderStatus {
   PENDING
   PREPARING
+  READY
   OUT_FOR_DELIVERY
   DELIVERED
   CANCELLED
 }
 
+enum PaymentMethod {
+  CASH       // at pickup or on delivery
+  PROMPTPAY  // the restaurant's own PromptPay QR, confirmed by staff
+}
+
+// Separate from the order status: a delivered order can still be unpaid.
+enum PaymentStatus {
+  UNPAID
+  PENDING   // customer says they transferred; staff still have to check
+  PAID
+  REFUNDED
+}
+
 model User {
   id         String     @id @default(uuid())
   name       String
-  email      String     @unique
+  // Sign-in name: 3-32 chars, a-z 0-9 . _ -, stored lowercase.
+  username   String     @unique
+  // Required when a customer registers; optional for staff accounts.
+  email      String?    @unique
   password   String
   role       Role       @default(CUSTOMER)
   phone      String?
   address    String?
+  // Deactivated accounts cannot log in; history keeps pointing at them.
+  isActive     Boolean    @default(true)
+  // Bumped to invalidate every token issued before (deactivate, log out everywhere).
+  tokenVersion Int        @default(0)
   orders     Order[]
   expenses   Expense[]
   auditLogs  AuditLog[]
+  statusChanges OrderStatusHistory[]
+  confirmedPayments Payment[]
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 }
@@ -74,11 +97,81 @@ model Order {
   total           Decimal     @db.Decimal(10, 2)
   totalCost       Decimal     @db.Decimal(10, 2)
   profit          Decimal     @db.Decimal(10, 2)
+  // Short number per business day (#042), shown to staff and customers.
+  orderNumber     Int?
+  businessDate    String?     // YYYY-MM-DD in the restaurant's time zone
+  // Sent by the client per checkout attempt; a retry returns the same order.
+  idempotencyKey  String?     @unique
+  customerPhone   String?
+  acceptedAt       DateTime?
+  estimatedReadyAt DateTime?
+  readyAt          DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  cancelReason     CancelReason?
+  cancelNote       String?
+  cancelledById    String?
+  paymentMethod   PaymentMethod @default(CASH)
+  paymentStatus   PaymentStatus @default(UNPAID)
+  paidAt          DateTime?
+  payments        Payment[]
+  statusHistory   OrderStatusHistory[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
+  @@unique([businessDate, orderNumber])
   @@index([userId])
   @@index([status])
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+enum CancelReason {
+  SOLD_OUT
+  CLOSING_SOON
+  TOO_BUSY
+  OUT_OF_AREA
+  CUSTOMER_REQUEST
+  OTHER
+}
+
+// One row per status change: who moved the order, from what, to what, when.
+model OrderStatusHistory {
+  id         String       @id @default(uuid())
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId    String
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  actor      User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorId    String?
+  note       String?
+  createdAt  DateTime     @default(now())
+
+  @@index([orderId])
+}
+
+// Money that moved for an order: one row when it was paid, one more if it was
+// refunded. A card gateway later adds rows the same way (providerRef = its id).
+model Payment {
+  id            String        @id @default(uuid())
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId       String
+  method        PaymentMethod
+  status        PaymentStatus // PAID or REFUNDED
+  amount        Decimal       @db.Decimal(10, 2)
+  providerRef   String?       // e.g. the bank transfer reference
+  note          String?
+  confirmedBy   User?         @relation(fields: [confirmedById], references: [id], onDelete: SetNull)
+  confirmedById String?
+  createdAt     DateTime      @default(now())
+
+  @@index([orderId])
+}
+
+// Atomic per-day counter behind Order.orderNumber.
+model DailyCounter {
+  date  String @id // YYYY-MM-DD in the restaurant's time zone
+  value Int    @default(0)
 }
 
 model OrderItem {

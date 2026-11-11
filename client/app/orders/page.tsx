@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useGetMyOrdersQuery } from '../../src/api/apiSlice';
 import OrderStatusBadge from '../../src/features/orders/OrderStatusBadge';
+import PaymentBadge from '../../src/features/orders/PaymentBadge';
+import { formatOrderNumber } from '../../src/features/orders/orderDisplay';
 import { formatCurrency } from '../../src/lib/format';
 import { useRequireAuth } from '../../src/routes/useAuthGuard';
 
@@ -28,11 +30,13 @@ export default function MyOrdersPage() {
           {orders.map((order) => (
             <Link key={order.id} href={`/orders/${order.id}`} className="block bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-500 dark:text-gray-400">#{order.id.slice(0, 8)}</span>
-                <OrderStatusBadge status={order.status} />
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{formatOrderNumber(order)}</span>
+                <OrderStatusBadge status={order.status} type={order.type} />
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{order.items.length} item(s) · {order.type}</p>
-              <p className="font-semibold text-gray-900 dark:text-white mt-1">{formatCurrency(order.total)}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{order.items.length} item(s) · {order.type === 'DELIVERY' ? 'Delivery' : 'Pickup'}</p>
+              <p className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white mt-1">
+                {formatCurrency(order.total)} <PaymentBadge order={order} />
+              </p>
             </Link>
           ))}
         </div>

@@ -24,10 +24,26 @@ where docker >nul 2>nul || (
   echo  [X] Docker was not found. Install Docker Desktop and try again.
   goto :fail
 )
-docker info >nul 2>nul || (
+docker info >nul 2>nul && goto :dockerready
+set "DOCKER_EXE=%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+if not exist "%DOCKER_EXE%" set "DOCKER_EXE=%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe"
+if not exist "!DOCKER_EXE!" (
   echo  [X] Docker is not running. Please start Docker Desktop, wait until it is ready, then run this again.
   goto :fail
 )
+echo        Docker is not running - starting Docker Desktop, this can take a minute...
+start "" "!DOCKER_EXE!"
+set /a tries=0
+:waitdocker
+timeout /t 2 /nobreak >nul
+docker info >nul 2>nul && goto :dockerready
+set /a tries+=1
+if !tries! geq 60 (
+  echo  [X] Docker Desktop did not become ready within 2 minutes. Wait until it shows "Engine running", then run this again.
+  goto :fail
+)
+goto :waitdocker
+:dockerready
 
 rem ---- 1. Database ---------------------------------------------------------
 echo  [1/5] Starting the database...
@@ -123,8 +139,8 @@ echo   API     : http://localhost:3001
 if "!FIRST_RUN!"=="1" (
   echo.
   echo   Sample logins - change these passwords before going live:
-  echo     Super admin : superadmin@restaurant.com / superadmin123
-  echo     Staff       : staff@restaurant.com / staff123
+  echo     Super admin : username superadmin / password superadmin123
+  echo     Super admin : username admin      / password superadmin123
 )
 echo.
 echo   To stop everything, run stop.bat (or close the two windows).

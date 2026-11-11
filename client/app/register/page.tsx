@@ -11,6 +11,11 @@ import { useAppDispatch } from '../../src/app/hooks';
 
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
+  username: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9._-]{3,32}$/, 'Username must be 3-32 characters: letters, numbers, dot, underscore or dash'),
   email: z.string().email('Invalid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
 });
@@ -48,6 +53,17 @@ export default function RegisterPage() {
             {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+            <input
+              {...register('username')}
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
             <input
               {...register('email')}
@@ -65,7 +81,11 @@ export default function RegisterPage() {
             />
             {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
           </div>
-          {error && <p className="text-red-500 text-sm">Registration failed. Try again.</p>}
+          {error && (
+            <p className="text-red-500 text-sm">
+              {(error as { data?: { message?: string } }).data?.message || 'Registration failed. Try again.'}
+            </p>
+          )}
           <button
             type="submit"
             disabled={isLoading}

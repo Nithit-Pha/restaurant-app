@@ -1,8 +1,9 @@
 // Pure, DB-free P&L math — the financial heart of the dashboard.
 // Kept separate from finance.service.ts so it can be unit-tested in isolation.
+import { businessDate, zonedDayRange } from '../../utils/businessTime';
 
 export interface KpiInput {
-  totalRevenue: number; // Σ Order.subtotal (selling price), non-cancelled
+  totalRevenue: number; // Σ Order.subtotal (net of tax), completed (DELIVERED) and PAID orders
   totalCOGS: number; // Σ Order.totalCost (cost price snapshot)
   totalOperatingExpenses: number; // Σ Expense.amount
   orderCount: number;
@@ -110,24 +111,22 @@ export function mergeTransactions(
   return rows.slice(0, limit);
 }
 
-// ---- Default date range (current calendar month) ----------------------
+// ---- Date range (business days in the restaurant's time zone) ---------
+/**
+ * [start, end] instants covering business days `startYmd`..`endYmd`
+ * ('YYYY-MM-DD', both inclusive) on the wall clock of `timeZone`.
+ * A missing bound defaults to the current calendar month there.
+ */
 export function resolveRange(
-  startDate?: Date,
-  endDate?: Date,
+  startYmd: string | undefined,
+  endYmd: string | undefined,
+  timeZone: string,
   now: Date = new Date(),
 ): { start: Date; end: Date } {
-  const start =
-    startDate ?? new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-  const end = endDate
-    ? new Date(
-        endDate.getFullYear(),
-        endDate.getMonth(),
-        endDate.getDate(),
-        23,
-        59,
-        59,
-        999,
-      )
-    : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  const [y, m] = businessDate(now, timeZone).split('-').map(Number);
+  const ymd = (yy: number, mm: number, dd: number) =>
+    new Date(Date.UTC(yy, mm - 1, dd)).toISOString().slice(0, 10);
+  const start = zonedDayRange(startYmd ?? ymd(y, m, 1), timeZone).start;
+  const end = zonedDayRange(endYmd ?? ymd(y, m + 1, 0), timeZone).end;
   return { start, end };
 }

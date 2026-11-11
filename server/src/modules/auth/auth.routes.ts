@@ -3,17 +3,19 @@ import { z } from 'zod';
 import { validate } from '../../middleware/validate';
 import { authenticate } from '../../middleware/auth';
 import * as ctrl from './auth.controller';
+import { usernameSchema } from './username';
 
 const router = Router();
 
 const registerSchema = z.object({
   name: z.string().min(2).max(100),
+  username: usernameSchema,
   email: z.string().email(),
   password: z.string().min(8),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  username: z.string().trim().toLowerCase().min(1),
   password: z.string().min(1),
 });
 
