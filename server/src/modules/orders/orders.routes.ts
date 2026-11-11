@@ -33,6 +33,7 @@ const placeOrderSchema = checkoutSchema.extend({
   customerPhone: phoneSchema,
   // One UUID per checkout attempt; a retry with the same key returns the same order.
   idempotencyKey: z.string().uuid().optional(),
+  paymentMethod: z.enum(['CASH', 'PROMPTPAY']).default('CASH'),
 }).refine(
   (d) => d.type !== 'DELIVERY' || !!d.deliveryAddress,
   { message: 'Delivery address is required for delivery orders', path: ['deliveryAddress'] },
@@ -47,15 +48,25 @@ const statusSchema = z.object({
 
 const customerCancelSchema = z.object({ note: z.string().trim().max(300).optional() });
 
+const markPaidSchema = z.object({
+  providerRef: z.string().trim().max(100).optional(), // e.g. the transfer reference from the bank app
+  note: z.string().trim().max(300).optional(),
+});
+const refundSchema = z.object({ note: z.string().trim().max(300).optional() });
+
 // User routes
 router.post('/quote', authenticate, validate(checkoutSchema), ctrl.quoteHandler);
 router.post('/', authenticate, validate(placeOrderSchema), ctrl.placeOrderHandler);
 router.get('/', authenticate, ctrl.myOrdersHandler);
 router.get('/:id', authenticate, ctrl.getOrderHandler);
 router.post('/:id/cancel', authenticate, validate(customerCancelSchema), ctrl.cancelMyOrderHandler);
+router.get('/:id/promptpay', authenticate, ctrl.promptPayQrHandler);
+router.post('/:id/payment/sent', authenticate, ctrl.paymentSentHandler);
 
 // Staff+ routes
 router.get('/admin/all', authenticate, requireRole('STAFF', 'SUPER_ADMIN'), ctrl.adminOrdersHandler);
 router.patch('/:id/status', authenticate, requireRole('STAFF', 'SUPER_ADMIN'), validate(statusSchema), ctrl.updateStatusHandler);
+router.post('/:id/payment/paid', authenticate, requireRole('STAFF', 'SUPER_ADMIN'), validate(markPaidSchema), ctrl.markPaidHandler);
+router.post('/:id/payment/refund', authenticate, requireRole('SUPER_ADMIN'), validate(refundSchema), ctrl.refundHandler);
 
 export default router;

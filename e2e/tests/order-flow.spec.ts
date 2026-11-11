@@ -10,6 +10,7 @@ let api: APIRequestContext;
 let adminToken = '';
 let staffId = '';
 let hoursWereEnforced = true;
+let paymentSettingsBefore: { promptPayId: string; promptPayName: string } | null = null;
 
 // The test must work at any time of day, so switch off the opening-hours
 // rule for the run and restore it afterwards.
@@ -26,11 +27,17 @@ test.beforeAll(async () => {
   const staff = await api.post('/api/admin/staff', { data: { name: 'E2E Staff', ...STAFF, role: 'STAFF' }, headers: auth });
   expect(staff.ok(), 'create staff').toBeTruthy();
   staffId = (await staff.json()).id;
+
+  // Offer PromptPay for the run; the previous account is restored afterwards.
+  paymentSettingsBefore = await (await api.get('/api/settings/payment', { headers: auth })).json();
+  const pp = await api.put('/api/settings/payment', { data: { promptPayId: '0812345678', promptPayName: 'E2E Shop' }, headers: auth });
+  expect(pp.ok(), 'set PromptPay').toBeTruthy();
 });
 
 test.afterAll(async () => {
   const auth = { authorization: `Bearer ${adminToken}` };
   await api.put('/api/settings/ordering', { data: { hoursEnforced: hoursWereEnforced }, headers: auth });
+  if (paymentSettingsBefore) await api.put('/api/settings/payment', { data: paymentSettingsBefore, headers: auth });
   if (staffId) await api.delete(`/api/admin/staff/${staffId}`, { headers: auth });
   await api.dispose();
 });
@@ -109,11 +116,58 @@ test('customer orders for pickup, staff complete it, customer sees it completed'
   await row.getByRole('button', { name: 'Picked up' }).click();
   await expect(row.getByText('Completed')).toBeVisible();
   await expect(row.getByRole('button', { name: /Accept|Mark ready|Picked up/ })).toHaveCount(0);
+
+  // Cash collected at the counter.
+  await expect(row.getByText('Cash · Unpaid')).toBeVisible();
+  await row.getByRole('button', { name: 'Mark paid' }).click();
+  await staff.getByRole('button', { name: 'Cash received' }).click();
+  await expect(row.getByText('Cash · Paid')).toBeVisible();
+  await expect(row.getByRole('button', { name: 'Mark paid' })).toHaveCount(0);
   await staffContext.close();
 
   // --- Customer sees the final status -------------------------------------
   await page.reload();
   await expect(page.getByText('Completed').first()).toBeVisible();
+  await expect(page.getByText('Paid. Thank you!')).toBeVisible();
+});
+
+test('customer pays by PromptPay QR, staff confirm the transfer', async ({ page, browser }) => {
+  const username = `e2e-pp-${Date.now()}`;
+  await page.goto('/register');
+  await page.locator('form input').first().fill('E2E PromptPay');
+  await page.locator('input[autocomplete="username"]').fill(username);
+  await page.locator('input[type="email"]').fill(`${username}@example.com`);
+  await page.locator('input[type="password"]').fill('password123');
+  await page.locator('button[type="submit"]').click();
+  await expect(page).toHaveURL(/\/$/);
+
+  await addFirstItemAndCheckout(page);
+  await page.getByRole('radio', { name: /PromptPay QR/ }).check();
+  await page.getByLabel('Phone number').fill('0811111111');
+  await page.getByRole('button', { name: /Place order/ }).click();
+  await expect(page).toHaveURL(/\/orders\/[0-9a-f-]{36}$/);
+  const orderNumber = (await page.getByRole('heading', { level: 1 }).textContent())!.replace('Order ', '').trim();
+
+  // The QR with the exact amount, then "I've transferred".
+  await expect(page.getByAltText(/PromptPay QR code for ฿/)).toBeVisible();
+  await expect(page.getByText('E2E Shop')).toBeVisible();
+  await page.getByRole('button', { name: "I've transferred the money" }).click();
+  await expect(page.getByText('The restaurant is checking your transfer.')).toBeVisible();
+
+  const staffContext = await browser.newContext();
+  const staff = await staffContext.newPage();
+  await signIn(staff, STAFF.username, STAFF.password);
+  await staff.goto('/admin/orders');
+  const row = staff.locator('tr', { hasText: orderNumber });
+  await expect(row.getByText('PromptPay · Check transfer')).toBeVisible();
+  await row.getByRole('button', { name: 'Check transfer' }).click();
+  await staff.getByLabel('Transfer reference').fill('E2E-REF-1');
+  await staff.getByRole('button', { name: 'Transfer received' }).click();
+  await expect(row.getByText('PromptPay · Paid')).toBeVisible();
+  await staffContext.close();
+
+  await page.reload();
+  await expect(page.getByText('Payment received. Thank you!')).toBeVisible();
 });
 
 test('customer can cancel while the order is still waiting; staff see why', async ({ page, browser }) => {

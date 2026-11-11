@@ -7,8 +7,10 @@ import { selectCartItems, clearCart } from '../../src/features/cart/cartSlice';
 import {
   useGetMeQuery,
   useGetOpenStatusQuery,
+  useGetPaymentOptionsQuery,
   usePlaceOrderMutation,
   useQuoteOrderMutation,
+  type PaymentMethod,
   type PricingResult,
 } from '../../src/api/apiSlice';
 import ClosedBanner from '../../src/features/orders/ClosedBanner';
@@ -51,6 +53,10 @@ export default function CheckoutPage() {
   const { data: me } = useGetMeQuery(undefined, { skip: !ready });
   const { data: openStatus } = useGetOpenStatusQuery(undefined, { pollingInterval: 60_000 });
   const isClosed = openStatus ? !openStatus.isOpen : false;
+  const { data: paymentOptions } = useGetPaymentOptionsQuery();
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
+  // Fall back to cash if the restaurant switches PromptPay off.
+  const method: PaymentMethod = paymentMethod === 'PROMPTPAY' && !paymentOptions?.promptPay ? 'CASH' : paymentMethod;
 
   // Phone so the restaurant (or rider) can reach the customer. Prefilled from
   // the profile; whatever is used here is saved back to it.
@@ -102,7 +108,7 @@ export default function CheckoutPage() {
   // One idempotency key per checkout attempt. A double click or a retry after a
   // network error sends the same key, so the server never creates two orders.
   // Any change to what is being ordered starts a new attempt.
-  const attemptKey = `${cartKey}|${orderType}|${locationKey}|${deliveryAddress.trim()}|${phone.trim()}`;
+  const attemptKey = `${cartKey}|${orderType}|${locationKey}|${deliveryAddress.trim()}|${phone.trim()}|${method}`;
   const [idempotencyKey, setIdempotencyKey] = useState(newUuid);
   useEffect(() => { setIdempotencyKey(newUuid()); }, [attemptKey]);
 
@@ -144,6 +150,7 @@ export default function CheckoutPage() {
         deliveryAddress: orderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
         customerPhone: phone.trim(),
         idempotencyKey,
+        paymentMethod: method,
         ...location,
       }).unwrap();
       dispatch(clearCart());
@@ -212,6 +219,42 @@ export default function CheckoutPage() {
           />
         </div>
       )}
+
+      {/* Payment */}
+      <fieldset className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 mb-4">
+        <legend className="float-left w-full font-medium text-gray-700 dark:text-gray-300 mb-3">Payment</legend>
+        <div className="space-y-2 clear-left">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="payment"
+              checked={method === 'CASH'}
+              onChange={() => setPaymentMethod('CASH')}
+              className="accent-brand-500 mt-1"
+            />
+            <span className="text-sm dark:text-gray-300">
+              <span className="font-medium">{orderType === 'DELIVERY' ? 'Cash on delivery' : 'Cash at pickup'}</span>
+            </span>
+          </label>
+          {paymentOptions?.promptPay && (
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="payment"
+                checked={method === 'PROMPTPAY'}
+                onChange={() => setPaymentMethod('PROMPTPAY')}
+                className="accent-brand-500 mt-1"
+              />
+              <span className="text-sm dark:text-gray-300">
+                <span className="font-medium">PromptPay QR</span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400">
+                  After you order, scan the QR code with your banking app.
+                </span>
+              </span>
+            </label>
+          )}
+        </div>
+      </fieldset>
 
       {/* Order summary */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 mb-6">

@@ -116,6 +116,31 @@ export async function seedDefaultSettings() {
   });
 }
 
+// ---- Payment (PromptPay) ----------------------------------------------
+export interface PaymentSettings {
+  promptPayId: string; // '' = PromptPay is not offered at checkout
+  promptPayName: string; // account name the customer should see in their bank app
+}
+
+export async function getPaymentSettings(): Promise<PaymentSettings> {
+  const rows = await prisma.setting.findMany({ where: { key: { in: ['PROMPTPAY_ID', 'PROMPTPAY_NAME'] } } });
+  const get = (key: string) => rows.find((r) => r.key === key)?.value ?? '';
+  return { promptPayId: get('PROMPTPAY_ID'), promptPayName: get('PROMPTPAY_NAME') };
+}
+
+export async function setPaymentSettings(s: PaymentSettings) {
+  for (const [key, value] of [['PROMPTPAY_ID', s.promptPayId], ['PROMPTPAY_NAME', s.promptPayName]]) {
+    await prisma.setting.upsert({ where: { key }, update: { value }, create: { key, value } });
+  }
+  return getPaymentSettings();
+}
+
+/** Public: which payment methods checkout offers. */
+export async function getPaymentOptions() {
+  const { promptPayId, promptPayName } = await getPaymentSettings();
+  return { cash: true, promptPay: promptPayId !== '', promptPayName };
+}
+
 // ---- Open / closed ----------------------------------------------------
 export interface OpenStatus {
   isOpen: boolean; // false only when hours are enforced and we are outside them

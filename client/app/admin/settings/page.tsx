@@ -15,6 +15,7 @@ import {
   type RestaurantProfile,
 } from '../../../src/api/apiSlice';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
+import PaymentSettingsSection from '../../../src/features/admin/settings/PaymentSettingsSection';
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -324,6 +325,8 @@ export default function SettingsPage() {
           Save
         </button>
       </section>
+
+      <PaymentSettingsSection onSaved={setMsg} />
 
       {/* Online ordering */}
       <section className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-5">

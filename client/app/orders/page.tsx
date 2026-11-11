@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useGetMyOrdersQuery } from '../../src/api/apiSlice';
 import OrderStatusBadge from '../../src/features/orders/OrderStatusBadge';
+import PaymentBadge from '../../src/features/orders/PaymentBadge';
 import { formatOrderNumber } from '../../src/features/orders/orderDisplay';
 import { formatCurrency } from '../../src/lib/format';
 import { useRequireAuth } from '../../src/routes/useAuthGuard';
@@ -33,7 +34,9 @@ export default function MyOrdersPage() {
                 <OrderStatusBadge status={order.status} type={order.type} />
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">{order.items.length} item(s) · {order.type === 'DELIVERY' ? 'Delivery' : 'Pickup'}</p>
-              <p className="font-semibold text-gray-900 dark:text-white mt-1">{formatCurrency(order.total)}</p>
+              <p className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white mt-1">
+                {formatCurrency(order.total)} <PaymentBadge order={order} />
+              </p>
             </Link>
           ))}
         </div>

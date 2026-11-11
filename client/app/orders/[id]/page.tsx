@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCancelMyOrderMutation, useGetOrderQuery, type Order, type OrderStatus } from '../../../src/api/apiSlice';
 import OrderStatusBadge from '../../../src/features/orders/OrderStatusBadge';
+import PaymentBadge, { paymentMethodText } from '../../../src/features/orders/PaymentBadge';
+import PromptPayPanel from '../../../src/features/orders/PromptPayPanel';
 import {
   CANCEL_REASON_LABELS,
   formatClock,
@@ -140,6 +142,25 @@ export default function OrderDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Payment */}
+      <section aria-label="Payment" className="mt-4 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <p className="font-medium text-gray-700 dark:text-gray-300">Payment · {paymentMethodText(order)}</p>
+          <PaymentBadge order={order} withMethod={false} />
+        </div>
+        {order.paymentMethod === 'PROMPTPAY' ? (
+          <PromptPayPanel order={order} />
+        ) : order.paymentStatus === 'PAID' ? (
+          <p className="text-sm text-green-700 dark:text-green-400">Paid. Thank you!</p>
+        ) : order.paymentStatus === 'REFUNDED' ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">Your payment was refunded.</p>
+        ) : order.status !== 'CANCELLED' ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Please have {formatCurrency(order.total)} ready {order.type === 'DELIVERY' ? 'for the rider' : 'when you pick up'}.
+          </p>
+        ) : null}
+      </section>
 
       <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 space-y-1">
         <p className="text-sm text-gray-600 dark:text-gray-400">

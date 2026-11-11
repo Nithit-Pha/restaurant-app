@@ -101,6 +101,52 @@ export async function cancelMyOrderHandler(req: Request, res: Response, next: Ne
   } catch (err) { next(err); }
 }
 
+// ---- Payments ---------------------------------------------------------
+export async function promptPayQrHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const isStaff = hasMinRole(req.user?.role ?? '', 'STAFF');
+    res.json(await ordersService.getPromptPayQr(req.params.id, isStaff ? undefined : req.user!.userId));
+  } catch (err) { next(err); }
+}
+
+/** Customer: "I've transferred" for their own PromptPay order. */
+export async function paymentSentHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { from, to, order } = await ordersService.changePayment(req.params.id, 'CUSTOMER_SENT', {
+      actorId: req.user!.userId,
+      customerId: req.user!.userId,
+    });
+    audit({ actorId: req.user!.userId, action: 'PAYMENT', entityType: 'ORDER', entityId: order.id, metadata: { from, to } });
+    res.json(stripProfit(order, hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN')));
+  } catch (err) { next(err); }
+}
+
+/** Staff: the money is in (cash collected, or the transfer seen in the bank app). */
+export async function markPaidHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { providerRef, note } = req.body;
+    const { from, to, order } = await ordersService.changePayment(req.params.id, 'MARK_PAID', {
+      actorId: req.user!.userId,
+      providerRef,
+      note,
+    });
+    audit({ actorId: req.user!.userId, action: 'PAYMENT', entityType: 'ORDER', entityId: order.id, metadata: { from, to, ...(providerRef ? { providerRef } : {}) } });
+    res.json(stripProfit(order, hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN')));
+  } catch (err) { next(err); }
+}
+
+/** Owner: the money was given back. */
+export async function refundHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { from, to, order } = await ordersService.changePayment(req.params.id, 'REFUND', {
+      actorId: req.user!.userId,
+      note: req.body?.note,
+    });
+    audit({ actorId: req.user!.userId, action: 'PAYMENT', entityType: 'ORDER', entityId: order.id, metadata: { from, to } });
+    res.json(stripProfit(order, true));
+  } catch (err) { next(err); }
+}
+
 export async function profitReportHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const { from, to } = req.query;

@@ -27,6 +27,19 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum PaymentMethod {
+  CASH       // at pickup or on delivery
+  PROMPTPAY  // the restaurant's own PromptPay QR, confirmed by staff
+}
+
+// Separate from the order status: a delivered order can still be unpaid.
+enum PaymentStatus {
+  UNPAID
+  PENDING   // customer says they transferred; staff still have to check
+  PAID
+  REFUNDED
+}
+
 model User {
   id         String     @id @default(uuid())
   name       String
@@ -46,6 +59,7 @@ model User {
   expenses   Expense[]
   auditLogs  AuditLog[]
   statusChanges OrderStatusHistory[]
+  confirmedPayments Payment[]
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 }
@@ -97,6 +111,10 @@ model Order {
   cancelReason     CancelReason?
   cancelNote       String?
   cancelledById    String?
+  paymentMethod   PaymentMethod @default(CASH)
+  paymentStatus   PaymentStatus @default(UNPAID)
+  paidAt          DateTime?
+  payments        Payment[]
   statusHistory   OrderStatusHistory[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -128,6 +146,24 @@ model OrderStatusHistory {
   actorId    String?
   note       String?
   createdAt  DateTime     @default(now())
+
+  @@index([orderId])
+}
+
+// Money that moved for an order: one row when it was paid, one more if it was
+// refunded. A card gateway later adds rows the same way (providerRef = its id).
+model Payment {
+  id            String        @id @default(uuid())
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId       String
+  method        PaymentMethod
+  status        PaymentStatus // PAID or REFUNDED
+  amount        Decimal       @db.Decimal(10, 2)
+  providerRef   String?       // e.g. the bank transfer reference
+  note          String?
+  confirmedBy   User?         @relation(fields: [confirmedById], references: [id], onDelete: SetNull)
+  confirmedById String?
+  createdAt     DateTime      @default(now())
 
   @@index([orderId])
 }

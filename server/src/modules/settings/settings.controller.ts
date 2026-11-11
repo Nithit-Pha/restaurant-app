@@ -51,6 +51,34 @@ export async function setRestaurantHandler(req: Request, res: Response, next: Ne
   } catch (err) { next(err); }
 }
 
+// ---- Payment ----------------------------------------------------------
+export async function getPaymentOptionsHandler(_req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await settingsService.getPaymentOptions());
+  } catch (err) { next(err); }
+}
+
+export async function getPaymentSettingsHandler(_req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await settingsService.getPaymentSettings());
+  } catch (err) { next(err); }
+}
+
+export async function setPaymentSettingsHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const prev = await settingsService.getPaymentSettings();
+    const updated = await settingsService.setPaymentSettings(req.body);
+    audit({
+      actorId: req.user!.userId,
+      action: 'UPDATE',
+      entityType: 'SETTING',
+      entityId: 'PAYMENT',
+      metadata: { from: prev, to: updated },
+    });
+    res.json(updated);
+  } catch (err) { next(err); }
+}
+
 // ---- Ordering hours ---------------------------------------------------
 export async function getOpenStatusHandler(_req: Request, res: Response, next: NextFunction) {
   try {

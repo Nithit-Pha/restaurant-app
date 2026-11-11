@@ -3,12 +3,16 @@
 import { Fragment, useMemo, useState } from 'react';
 import {
   useGetAdminOrdersQuery,
+  useGetMeQuery,
+  useMarkOrderPaidMutation,
+  useRefundOrderMutation,
   useUpdateOrderStatusMutation,
   type CancelReason,
   type Order,
   type StatusChangeInput,
 } from '../../../src/api/apiSlice';
 import OrderStatusBadge from '../../../src/features/orders/OrderStatusBadge';
+import PaymentBadge from '../../../src/features/orders/PaymentBadge';
 import {
   CANCEL_REASON_LABELS,
   formatClock,
@@ -18,7 +22,7 @@ import {
   nextForwardStatus,
   shortStatusLabel,
 } from '../../../src/features/orders/orderDisplay';
-import { AcceptDialog, CancelDialog } from '../../../src/features/admin/orders/OrderDialogs';
+import { AcceptDialog, CancelDialog, MarkPaidDialog, RefundDialog } from '../../../src/features/admin/orders/OrderDialogs';
 import { useNewOrderAlert } from '../../../src/features/admin/orders/useNewOrderAlert';
 import { bangkokDateISO, formatCurrency } from '../../../src/lib/format';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
@@ -57,7 +61,11 @@ function minutesSince(iso: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 }
 
-function OrderDetail({ order }: { order: Order }) {
+/** Same rule as the server: open payments, except a cancelled order nobody paid for. */
+const canMarkPaid = (o: Order) =>
+  (o.paymentStatus === 'UNPAID' || o.paymentStatus === 'PENDING') && !(o.status === 'CANCELLED' && o.paymentStatus === 'UNPAID');
+
+function OrderDetail({ order, isOwner, onRefund }: { order: Order; isOwner: boolean; onRefund: () => void }) {
   const phone = order.customerPhone || order.user?.phone;
   const map = order.type === 'DELIVERY' ? mapsUrl(order) : null;
   return (
@@ -111,6 +119,29 @@ function OrderDetail({ order }: { order: Order }) {
             {order.cancelNote ? ` — ${order.cancelNote}` : ''}
           </p>
         )}
+        <div>
+          <p>
+            <span className="text-gray-500 dark:text-gray-400">Payment:</span> <PaymentBadge order={order} />
+            {isOwner && order.paymentStatus === 'PAID' && (
+              <button type="button" onClick={onRefund} className="ml-2 text-xs text-red-600 dark:text-red-400 hover:underline">
+                Record refund
+              </button>
+            )}
+          </p>
+          {order.payments && order.payments.length > 0 && (
+            <ul className="mt-1 space-y-0.5 text-xs">
+              {order.payments.map((p, idx) => (
+                <li key={idx}>
+                  <span className="tabular-nums">{formatClock(p.createdAt)}</span> · {p.status === 'PAID' ? 'Paid' : 'Refunded'}{' '}
+                  {formatCurrency(p.amount)}
+                  {p.confirmedBy ? ` · ${p.confirmedBy.name}` : ''}
+                  {p.providerRef ? ` · ref ${p.providerRef}` : ''}
+                  {p.note ? ` · ${p.note}` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         {order.statusHistory && order.statusHistory.length > 0 && (
           <div>
             <p className="text-gray-500 dark:text-gray-400 mb-1">History</p>
@@ -137,10 +168,17 @@ export default function AdminOrdersPage() {
     { status: filterStatus || undefined, date: day || undefined },
     { pollingInterval: 15000, skip: !ready },
   );
-  const [updateStatus, { isLoading: saving }] = useUpdateOrderStatusMutation();
+  const [updateStatus, { isLoading: savingStatus }] = useUpdateOrderStatusMutation();
+  const [markPaid, { isLoading: savingPaid }] = useMarkOrderPaidMutation();
+  const [refund, { isLoading: savingRefund }] = useRefundOrderMutation();
+  const saving = savingStatus || savingPaid || savingRefund;
+  const { data: me } = useGetMeQuery(undefined, { skip: !ready });
+  const isOwner = me?.role === 'SUPER_ADMIN';
   const [expanded, setExpanded] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<Order | null>(null);
   const [cancelling, setCancelling] = useState<Order | null>(null);
+  const [paying, setPaying] = useState<Order | null>(null);
+  const [refunding, setRefunding] = useState<Order | null>(null);
   const [actionError, setActionError] = useState('');
   const { soundOn, toggleSound, pendingCount } = useNewOrderAlert(orders);
 
@@ -152,16 +190,17 @@ export default function AdminOrdersPage() {
     return c;
   }, [list]);
 
-  const run = async (change: StatusChangeInput) => {
+  const attempt = async (action: () => Promise<unknown>) => {
     setActionError('');
     try {
-      await updateStatus(change).unwrap();
+      await action();
       return true;
     } catch (err) {
       setActionError(errorMessage(err));
       return false;
     }
   };
+  const run = (change: StatusChangeInput) => attempt(() => updateStatus(change).unwrap());
 
   const forward = (order: Order) => {
     const next = nextForwardStatus(order);
@@ -316,7 +355,10 @@ export default function AdminOrdersPage() {
                         </td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{order.user?.name ?? '—'}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{order.type === 'DELIVERY' ? 'Delivery' : 'Pickup'}</td>
-                        <td className="px-4 py-3 text-right font-semibold dark:text-white whitespace-nowrap">{formatCurrency(order.total)}</td>
+                        <td className="px-4 py-3 text-right font-semibold dark:text-white whitespace-nowrap">
+                          {formatCurrency(order.total)}
+                          <span className="block mt-0.5 font-normal"><PaymentBadge order={order} /></span>
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <OrderStatusBadge status={order.status} type={order.type} short />
                           {waiting != null && waiting >= 5 && (
@@ -334,6 +376,19 @@ export default function AdminOrdersPage() {
                               {forwardActionLabel(order)}
                             </button>
                           )}
+                          {canMarkPaid(order) && (
+                            <button
+                              onClick={() => setPaying(order)}
+                              disabled={saving}
+                              className={`ml-2 min-h-[36px] px-3 rounded-lg text-xs font-semibold disabled:opacity-50 ${
+                                order.paymentStatus === 'PENDING'
+                                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                                  : 'border border-green-600 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30'
+                              }`}
+                            >
+                              {order.paymentStatus === 'PENDING' ? 'Check transfer' : 'Mark paid'}
+                            </button>
+                          )}
                           {!isFinal(order.status) && (
                             <button
                               onClick={() => setCancelling(order)}
@@ -347,7 +402,7 @@ export default function AdminOrdersPage() {
                       {open && (
                         <tr>
                           <td colSpan={7} className="p-0">
-                            <OrderDetail order={order} />
+                            <OrderDetail order={order} isOwner={isOwner} onRefund={() => setRefunding(order)} />
                           </td>
                         </tr>
                       )}
@@ -379,6 +434,28 @@ export default function AdminOrdersPage() {
           onConfirm={async (cancelReason: CancelReason, cancelNote: string) => {
             await run({ id: cancelling.id, status: 'CANCELLED', cancelReason, cancelNote: cancelNote || undefined });
             setCancelling(null);
+          }}
+        />
+      )}
+      {paying && (
+        <MarkPaidDialog
+          order={paying}
+          busy={saving}
+          onClose={() => setPaying(null)}
+          onConfirm={async (providerRef) => {
+            await attempt(() => markPaid({ id: paying.id, providerRef: providerRef || undefined }).unwrap());
+            setPaying(null);
+          }}
+        />
+      )}
+      {refunding && (
+        <RefundDialog
+          order={refunding}
+          busy={saving}
+          onClose={() => setRefunding(null)}
+          onConfirm={async (note) => {
+            await attempt(() => refund({ id: refunding.id, note }).unwrap());
+            setRefunding(null);
           }}
         />
       )}

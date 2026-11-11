@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { CancelReason, Order } from '../../../api/apiSlice';
 import { CANCEL_REASON_LABELS, formatOrderNumber } from '../../orders/orderDisplay';
+import { formatCurrency } from '../../../lib/format';
 
 const PREP_PRESETS = [10, 15, 20, 30, 45, 60];
 
@@ -79,7 +80,91 @@ export function AcceptDialog({ order, busy, onConfirm, onClose }: {
   );
 }
 
-const STAFF_REASONS: CancelReason[] = ['SOLD_OUT', 'TOO_BUSY', 'CLOSING_SOON', 'OUT_OF_AREA', 'CUSTOMER_REQUEST', 'OTHER'];
+const inputCls =
+  'w-full border rounded px-2 py-1.5 text-sm mb-4 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white';
+
+/** Money received: cash in hand, or the PromptPay transfer seen in the bank app. */
+export function MarkPaidDialog({ order, busy, onConfirm, onClose }: {
+  order: Order;
+  busy: boolean;
+  onConfirm: (providerRef: string) => void;
+  onClose: () => void;
+}) {
+  const [ref, setRef] = useState('');
+  const promptPay = order.paymentMethod === 'PROMPTPAY';
+  return (
+    <Dialog title={`Payment for ${formatOrderNumber(order)}`} onClose={onClose}>
+      <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+        {promptPay
+          ? <>Open the bank app and check that <span className="font-semibold">{formatCurrency(order.total)}</span> has arrived.</>
+          : <>Collect <span className="font-semibold">{formatCurrency(order.total)}</span> in cash.</>}
+      </p>
+      {promptPay && (
+        <input
+          value={ref}
+          onChange={(e) => setRef(e.target.value)}
+          maxLength={100}
+          placeholder="Transfer reference (optional)"
+          aria-label="Transfer reference"
+          className={inputCls}
+        />
+      )}
+      <div className="flex gap-2 justify-end">
+        <button type="button" onClick={onClose} className="min-h-[44px] px-4 rounded-lg border dark:border-gray-600 text-sm dark:text-gray-300">
+          Back
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onConfirm(ref.trim())}
+          className="min-h-[44px] px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold disabled:opacity-50"
+        >
+          {busy ? 'Saving…' : promptPay ? 'Transfer received' : 'Cash received'}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+/** Owner only: the money was given back to the customer. */
+export function RefundDialog({ order, busy, onConfirm, onClose }: {
+  order: Order;
+  busy: boolean;
+  onConfirm: (note: string) => void;
+  onClose: () => void;
+}) {
+  const [note, setNote] = useState('');
+  return (
+    <Dialog title={`Refund ${formatOrderNumber(order)}`} onClose={onClose}>
+      <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+        Record that <span className="font-semibold">{formatCurrency(order.total)}</span> was given back. This does not send any money; do the transfer or cash refund first.
+      </p>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        maxLength={300}
+        rows={2}
+        placeholder="Why, and how it was refunded"
+        className={inputCls}
+      />
+      <div className="flex gap-2 justify-end">
+        <button type="button" onClick={onClose} className="min-h-[44px] px-4 rounded-lg border dark:border-gray-600 text-sm dark:text-gray-300">
+          Back
+        </button>
+        <button
+          type="button"
+          disabled={busy || !note.trim()}
+          onClick={() => onConfirm(note.trim())}
+          className="min-h-[44px] px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50"
+        >
+          {busy ? 'Saving…' : 'Mark refunded'}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+const STAFF_REASONS: CancelReason[] =['SOLD_OUT', 'TOO_BUSY', 'CLOSING_SOON', 'OUT_OF_AREA', 'CUSTOMER_REQUEST', 'OTHER'];
 
 /** Reject (while new) or cancel (later): always with a reason the customer sees. */
 export function CancelDialog({ order, busy, onConfirm, onClose }: {

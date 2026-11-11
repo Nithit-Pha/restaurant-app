@@ -3,8 +3,10 @@ import { prisma } from '../../config/db';
 import { env } from '../../config/env';
 import { priceCart, calcDeliveryFeeAsync, haversineKm } from '../../utils/pricing';
 import { businessDate, zonedDayRange } from '../../utils/businessTime';
-import { getSetting, getRestaurantProfile, getOpenStatus } from '../settings/settings.service';
+import { getSetting, getRestaurantProfile, getOpenStatus, getPaymentSettings } from '../settings/settings.service';
 import { planTransition, type CancelReason, type OrderStatus, type OrderType } from './orderStateMachine';
+import { planPayment, type PaymentAction, type PaymentMethod, type PaymentStatus } from './paymentState';
+import { buildPromptPayPayload } from '../../utils/promptpay';
 
 // Distance assumed when the customer shares no location and no max delivery
 // distance is configured.
@@ -26,6 +28,7 @@ interface CheckoutInput {
 interface PlaceOrderInput extends CheckoutInput {
   customerPhone?: string;
   idempotencyKey?: string;
+  paymentMethod?: PaymentMethod;
 }
 
 const badRequest = (message: string) => Object.assign(new Error(message), { statusCode: 400 });
@@ -116,6 +119,11 @@ export async function placeOrder(userId: string, input: PlaceOrderInput) {
   const open = await getOpenStatus();
   if (!open.isOpen) throw httpError(409, closedMessage(open.nextOpening));
 
+  const paymentMethod = input.paymentMethod ?? 'CASH';
+  if (paymentMethod === 'PROMPTPAY' && !(await getPaymentSettings()).promptPayId) {
+    throw badRequest('PromptPay is not available right now. Please choose cash.');
+  }
+
   const { lines, pricing } = await priceOrder(input);
   const now = new Date();
   const day = businessDate(now, env.businessTimeZone);
@@ -134,6 +142,7 @@ export async function placeOrder(userId: string, input: PlaceOrderInput) {
           businessDate: day,
           idempotencyKey: input.idempotencyKey,
           customerPhone: input.customerPhone,
+          paymentMethod,
           deliveryAddress: input.deliveryAddress,
           deliveryLat: input.deliveryLat,
           deliveryLng: input.deliveryLng,
@@ -190,11 +199,19 @@ const historyInclude = {
   select: { fromStatus: true, toStatus: true, note: true, createdAt: true, actor: { select: { name: true, role: true } } },
 };
 
-/** One order. `userId` limits it to that customer's own orders. */
+const paymentsInclude = {
+  orderBy: { createdAt: 'asc' as const },
+  select: {
+    method: true, status: true, amount: true, providerRef: true, note: true, createdAt: true,
+    confirmedBy: { select: { name: true } },
+  },
+};
+
+/** One order. `userId` limits it to that customer's own orders. Staff also get history and payments. */
 export async function getOrderById(id: string, userId?: string, withHistory = false) {
   return prisma.order.findFirst({
     where: { id, ...(userId ? { userId } : {}) },
-    include: { items: true, ...(withHistory ? { statusHistory: historyInclude } : {}) },
+    include: { items: true, ...(withHistory ? { statusHistory: historyInclude, payments: paymentsInclude } : {}) },
   });
 }
 
@@ -216,6 +233,7 @@ export async function getAllOrders({ status, date, limit = 200 }: AdminOrderFilt
       user: { select: { id: true, name: true, username: true, email: true, phone: true } },
       items: true,
       statusHistory: historyInclude,
+      payments: paymentsInclude,
     },
     orderBy: { createdAt: 'desc' },
     take: Math.min(Math.max(limit, 1), 500),
@@ -273,10 +291,85 @@ export async function cancelByCustomer(id: string, userId: string, note?: string
   return changeOrderStatus(id, { to: 'CANCELLED', actorId: userId, cancelReason: 'CUSTOMER_REQUEST', cancelNote: note });
 }
 
+export interface PaymentChange {
+  actorId: string;
+  customerId?: string; // set when a customer acts: limits it to their own order
+  providerRef?: string;
+  note?: string;
+}
+
+/**
+ * Move an order's payment through the payment rules (paymentState.ts). Like
+ * status changes, the update only applies if the payment status is still what
+ * we read. PAID and REFUNDED also write a Payment row.
+ */
+export async function changePayment(id: string, action: PaymentAction, change: PaymentChange) {
+  const order = await prisma.order.findFirst({
+    where: { id, ...(change.customerId ? { userId: change.customerId } : {}) },
+    select: { status: true, paymentMethod: true, paymentStatus: true, total: true },
+  });
+  if (!order) throw httpError(404, 'Order not found');
+
+  const from = order.paymentStatus as PaymentStatus;
+  const to = planPayment(
+    { status: order.status, paymentMethod: order.paymentMethod as PaymentMethod, paymentStatus: from },
+    action,
+  );
+
+  return prisma.$transaction(async (tx) => {
+    const res = await tx.order.updateMany({
+      where: { id, paymentStatus: from },
+      data: { paymentStatus: to, ...(to === 'PAID' ? { paidAt: new Date() } : {}) },
+    });
+    if (res.count === 0) {
+      throw httpError(409, 'This payment was just updated by someone else. Refresh and try again.');
+    }
+    if (to === 'PAID' || to === 'REFUNDED') {
+      await tx.payment.create({
+        data: {
+          orderId: id,
+          method: order.paymentMethod,
+          status: to,
+          amount: order.total,
+          providerRef: change.providerRef?.trim() || null,
+          note: change.note?.trim() || null,
+          confirmedById: change.actorId,
+        },
+      });
+    }
+    const updated = await tx.order.findUnique({
+      where: { id },
+      include: { items: true, ...(change.customerId ? {} : { payments: paymentsInclude }) },
+    });
+    return { from, to, order: updated! };
+  });
+}
+
+/**
+ * What the customer scans to pay: a PromptPay QR payload with the order total.
+ * Only while a PromptPay order is still waiting for its payment.
+ */
+export async function getPromptPayQr(id: string, userId?: string) {
+  const order = await prisma.order.findFirst({
+    where: { id, ...(userId ? { userId } : {}) },
+    select: { status: true, paymentMethod: true, paymentStatus: true, total: true },
+  });
+  if (!order) throw httpError(404, 'Order not found');
+  if (order.paymentMethod !== 'PROMPTPAY' || order.status === 'CANCELLED' ||
+      !['UNPAID', 'PENDING'].includes(order.paymentStatus)) {
+    throw httpError(409, 'There is nothing to pay by PromptPay for this order.');
+  }
+  const { promptPayId, promptPayName } = await getPaymentSettings();
+  if (!promptPayId) throw httpError(409, 'PromptPay is not set up. Please pay the restaurant directly.');
+  const amount = Number(order.total);
+  return { payload: buildPromptPayPayload(promptPayId, amount), amount, promptPayName };
+}
+
 export async function getProfitReport(from?: Date, to?: Date) {
   return prisma.order.aggregate({
     where: {
       status: 'DELIVERED',
+      paymentStatus: 'PAID',
       ...(from || to ? { createdAt: { gte: from, lte: to } } : {}),
     },
     _sum: { subtotal: true, profit: true, total: true, taxAmount: true },

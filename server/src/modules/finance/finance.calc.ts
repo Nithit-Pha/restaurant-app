@@ -3,7 +3,7 @@
 import { businessDate, zonedDayRange } from '../../utils/businessTime';
 
 export interface KpiInput {
-  totalRevenue: number; // Σ Order.subtotal (net of tax), completed (DELIVERED) orders
+  totalRevenue: number; // Σ Order.subtotal (net of tax), completed (DELIVERED) and PAID orders
   totalCOGS: number; // Σ Order.totalCost (cost price snapshot)
   totalOperatingExpenses: number; // Σ Expense.amount
   orderCount: number;

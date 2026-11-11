@@ -9,6 +9,7 @@ const { prismaMock, txOrderCreate, txQueryRaw, txUserUpdate, tx } = vi.hoisted((
   const tx = {
     order: { create: txOrderCreate, updateMany: vi.fn(), findUnique: vi.fn() },
     orderStatusHistory: { create: vi.fn() },
+    payment: { create: vi.fn() },
     user: { update: txUserUpdate },
     $queryRaw: txQueryRaw,
   };
@@ -28,6 +29,7 @@ vi.mock('../settings/settings.service', () => ({
   getSetting: vi.fn(async (key: string) => (key === 'DELIVERY_MAX_KM' ? 0 : 0.07)),
   getRestaurantProfile: vi.fn(async () => ({ geo: { latitude: 39.7817, longitude: -89.6501 } })),
   getOpenStatus: vi.fn(async () => ({ isOpen: true, enforced: true, nextOpening: null, timeZone: 'Asia/Bangkok' })),
+  getPaymentSettings: vi.fn(async () => ({ promptPayId: '0812345678', promptPayName: 'Test Shop' })),
 }));
 
 // Keep real priceCart + haversineKm; stub only the async delivery-fee lookup.
@@ -36,9 +38,9 @@ vi.mock('../../utils/pricing', async (importOriginal) => {
   return { ...actual, calcDeliveryFeeAsync: vi.fn(async () => 5.99) };
 });
 
-import { quoteOrder, placeOrder, changeOrderStatus, cancelByCustomer } from './orders.service';
+import { quoteOrder, placeOrder, changeOrderStatus, cancelByCustomer, changePayment, getPromptPayQr } from './orders.service';
 import { calcDeliveryFeeAsync } from '../../utils/pricing';
-import { getSetting, getOpenStatus } from '../settings/settings.service';
+import { getSetting, getOpenStatus, getPaymentSettings } from '../settings/settings.service';
 
 const MENU = [
   { id: 'burger', name: 'Burger', sellingPrice: 12.0, costPrice: 4.5, isAvailable: true },
@@ -297,5 +299,85 @@ describe('cancelByCustomer', () => {
   it('refuses once the kitchen has accepted it', async () => {
     prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'PREPARING' });
     await expect(cancelByCustomer('o1', 'user-1')).rejects.toMatchObject({ statusCode: 409 });
+  });
+});
+
+describe('placeOrder — payment method', () => {
+  const pickup = { type: 'PICKUP' as const, items: [{ menuItemId: 'burger', quantity: 1 }] };
+
+  it('defaults to cash', async () => {
+    await placeOrder('user-1', pickup);
+    expect(txOrderCreate.mock.calls[0][0].data.paymentMethod).toBe('CASH');
+  });
+
+  it('stores PromptPay when the restaurant has set it up', async () => {
+    await placeOrder('user-1', { ...pickup, paymentMethod: 'PROMPTPAY' });
+    expect(txOrderCreate.mock.calls[0][0].data.paymentMethod).toBe('PROMPTPAY');
+  });
+
+  it('refuses PromptPay when no PromptPay ID is set', async () => {
+    (getPaymentSettings as any).mockResolvedValueOnce({ promptPayId: '', promptPayName: '' });
+    await expect(placeOrder('user-1', { ...pickup, paymentMethod: 'PROMPTPAY' })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('changePayment', () => {
+  beforeEach(() => {
+    tx.order.updateMany.mockResolvedValue({ count: 1 });
+    tx.order.findUnique.mockResolvedValue({ id: 'o1', items: [] });
+  });
+
+  it('staff mark a cash order paid: conditional update, paidAt and a Payment row', async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'DELIVERED', paymentMethod: 'CASH', paymentStatus: 'UNPAID', total: 120 });
+    const { from, to } = await changePayment('o1', 'MARK_PAID', { actorId: 'staff-1', providerRef: ' ref-9 ' });
+    expect([from, to]).toEqual(['UNPAID', 'PAID']);
+    const call = tx.order.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: 'o1', paymentStatus: 'UNPAID' });
+    expect(call.data.paidAt).toBeInstanceOf(Date);
+    expect(tx.payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ orderId: 'o1', method: 'CASH', status: 'PAID', amount: 120, providerRef: 'ref-9', confirmedById: 'staff-1' }),
+    });
+  });
+
+  it('a customer reporting a transfer only moves it to PENDING, without a Payment row', async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'PENDING', paymentMethod: 'PROMPTPAY', paymentStatus: 'UNPAID', total: 89 });
+    const { to } = await changePayment('o1', 'CUSTOMER_SENT', { actorId: 'user-1', customerId: 'user-1' });
+    expect(to).toBe('PENDING');
+    expect(prismaMock.order.findFirst.mock.calls[0][0].where).toEqual({ id: 'o1', userId: 'user-1' }); // own order only
+    expect(tx.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('reports a conflict when someone else changed the payment first', async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'READY', paymentMethod: 'CASH', paymentStatus: 'UNPAID', total: 50 });
+    tx.order.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(changePayment('o1', 'MARK_PAID', { actorId: 's' })).rejects.toMatchObject({ statusCode: 409 });
+    expect(tx.payment.create).not.toHaveBeenCalled();
+  });
+
+  it("404s for an unknown order or another customer's order", async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce(null);
+    await expect(changePayment('o1', 'CUSTOMER_SENT', { actorId: 'u', customerId: 'u' })).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('getPromptPayQr', () => {
+  it('returns a payload with the order total for an unpaid PromptPay order', async () => {
+    prismaMock.order.findFirst.mockResolvedValueOnce({ status: 'PENDING', paymentMethod: 'PROMPTPAY', paymentStatus: 'UNPAID', total: '120.00' });
+    const qr = await getPromptPayQr('o1', 'user-1');
+    expect(qr.amount).toBe(120);
+    expect(qr.payload).toContain('5406120.00');
+    expect(qr.promptPayName).toBe('Test Shop');
+  });
+
+  it('refuses for cash, paid or cancelled orders', async () => {
+    for (const o of [
+      { status: 'PENDING', paymentMethod: 'CASH', paymentStatus: 'UNPAID' },
+      { status: 'PENDING', paymentMethod: 'PROMPTPAY', paymentStatus: 'PAID' },
+      { status: 'CANCELLED', paymentMethod: 'PROMPTPAY', paymentStatus: 'UNPAID' },
+    ]) {
+      prismaMock.order.findFirst.mockResolvedValueOnce({ ...o, total: 10 });
+      await expect(getPromptPayQr('o1')).rejects.toMatchObject({ statusCode: 409 });
+    }
   });
 });

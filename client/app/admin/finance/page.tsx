@@ -160,7 +160,7 @@ export default function FinancialDashboard() {
           ))
         ) : (
           <>
-            <KpiCard label="Total Revenue" value={money(k.totalRevenue)} sub={`${k.orderCount} orders`} accent="indigo" />
+            <KpiCard label="Total Revenue" value={money(k.totalRevenue)} sub={`${k.orderCount} completed, paid orders`} accent="indigo" />
             <KpiCard label="COGS (Food Cost)" value={money(k.totalCOGS)} sub={`Gross margin ${k.grossMarginPct}%`} accent="amber" />
             <KpiCard label="Operating Expenses" value={money(k.totalOperatingExpenses)} sub={`${k.expenseCount} expenses`} accent="red" />
             <KpiCard label="Net Profit" value={money(k.netProfit)} sub={`Gross profit ${money(k.grossProfit)}`} accent={k.netProfit >= 0 ? 'green' : 'red'} />

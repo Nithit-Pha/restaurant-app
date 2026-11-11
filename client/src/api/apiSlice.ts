@@ -172,6 +172,38 @@ export const apiSlice = createApi({
       invalidatesTags: ['Order'],
     }),
 
+    // Payments
+    getPromptPayQr: builder.query<PromptPayQr, string>({
+      query: (id) => `/orders/${id}/promptpay`,
+    }),
+    // Customer: "I've transferred" (PromptPay)
+    reportPaymentSent: builder.mutation<Order, string>({
+      query: (id) => ({ url: `/orders/${id}/payment/sent`, method: 'POST' }),
+      invalidatesTags: ['Order'],
+    }),
+    // Staff: money received
+    markOrderPaid: builder.mutation<Order, { id: string; providerRef?: string; note?: string }>({
+      query: ({ id, ...body }) => ({ url: `/orders/${id}/payment/paid`, method: 'POST', body }),
+      invalidatesTags: ['Order', 'Finance'],
+    }),
+    // Owner: money given back
+    refundOrder: builder.mutation<Order, { id: string; note?: string }>({
+      query: ({ id, ...body }) => ({ url: `/orders/${id}/payment/refund`, method: 'POST', body }),
+      invalidatesTags: ['Order', 'Finance'],
+    }),
+    getPaymentOptions: builder.query<PaymentOptions, void>({
+      query: () => '/settings/payment-options',
+      providesTags: ['Settings'],
+    }),
+    getPaymentSettings: builder.query<PaymentSettings, void>({
+      query: () => '/settings/payment',
+      providesTags: ['Settings'],
+    }),
+    setPaymentSettings: builder.mutation<PaymentSettings, PaymentSettings>({
+      query: (body) => ({ url: '/settings/payment', method: 'PUT', body }),
+      invalidatesTags: ['Settings'],
+    }),
+
     // Settings (Staff+ read, Super Admin write)
     getSettings: builder.query<AppSettings, void>({
       query: () => '/settings',
@@ -272,6 +304,13 @@ export const {
   useGetAdminOrdersQuery,
   useUpdateOrderStatusMutation,
   useCancelMyOrderMutation,
+  useGetPromptPayQrQuery,
+  useReportPaymentSentMutation,
+  useMarkOrderPaidMutation,
+  useRefundOrderMutation,
+  useGetPaymentOptionsQuery,
+  useGetPaymentSettingsQuery,
+  useSetPaymentSettingsMutation,
 } = apiSlice;
 
 // --- Types ---
@@ -388,12 +427,46 @@ export interface OrderStatusHistoryEntry {
   actor?: { name: string; role: string } | null;
 }
 
+export type PaymentMethod = 'CASH' | 'PROMPTPAY';
+export type PaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'REFUNDED';
+
+export interface PaymentRecord {
+  method: PaymentMethod;
+  status: 'PAID' | 'REFUNDED';
+  amount: number;
+  providerRef?: string | null;
+  note?: string | null;
+  createdAt: string;
+  confirmedBy?: { name: string } | null;
+}
+
+export interface PromptPayQr {
+  payload: string; // text to encode in the QR
+  amount: number;
+  promptPayName: string;
+}
+
+export interface PaymentOptions {
+  cash: boolean;
+  promptPay: boolean;
+  promptPayName: string;
+}
+
+export interface PaymentSettings {
+  promptPayId: string; // '' = PromptPay off
+  promptPayName: string;
+}
+
 export interface Order {
   id: string;
   userId: string;
   items: OrderItem[];
   type: 'PICKUP' | 'DELIVERY';
   status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  paidAt?: string | null;
+  payments?: PaymentRecord[]; // staff views only
   orderNumber?: number | null;
   businessDate?: string | null;
   customerPhone?: string | null;
@@ -439,6 +512,7 @@ export interface CheckoutInput {
 export interface PlaceOrderInput extends CheckoutInput {
   customerPhone: string;
   idempotencyKey: string; // one UUID per checkout attempt
+  paymentMethod: PaymentMethod;
 }
 
 export interface StatusChangeInput {

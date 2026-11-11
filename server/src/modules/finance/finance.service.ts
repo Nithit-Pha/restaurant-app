@@ -19,10 +19,12 @@ const num = (v: Prisma.Decimal) => Number(v.toFixed(2));
 export async function getDashboard(startDate?: string, endDate?: string) {
   const { start, end } = resolveRange(startDate, endDate, env.businessTimeZone);
 
-  // Revenue = completed orders only (same definition as the profit report).
-  // Pending or in-progress orders may still be cancelled.
+  // Revenue = completed AND paid orders (same definition as the profit report).
+  // Pending or in-progress orders may still be cancelled; unpaid or refunded
+  // orders brought in no money.
   const revenueStatuses: Prisma.OrderWhereInput = {
     status: 'DELIVERED',
+    paymentStatus: 'PAID',
     createdAt: { gte: start, lte: end },
   };
 
@@ -76,7 +78,7 @@ export async function getTransactionHistory(
 
   const [orders, expenses] = await Promise.all([
     prisma.order.findMany({
-      where: { status: 'DELIVERED', createdAt: { gte: start, lte: end } },
+      where: { status: 'DELIVERED', paymentStatus: 'PAID', createdAt: { gte: start, lte: end } },
       select: {
         id: true,
         createdAt: true,
