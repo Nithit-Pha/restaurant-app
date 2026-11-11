@@ -56,7 +56,7 @@ export default function SettingsPage() {
   const [cuisineStr, setCuisineStr] = useState('');
   const [sameAsStr, setSameAsStr] = useState('');
 
-  const [newStaff, setNewStaff] = useState({ name: '', email: '', password: '', confirmPassword: '', role: 'STAFF' as 'STAFF' | 'SUPER_ADMIN' });
+  const [newStaff, setNewStaff] = useState({ name: '', username: '', email: '', password: '', confirmPassword: '', role: 'STAFF' as 'STAFF' | 'SUPER_ADMIN' });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -145,14 +145,15 @@ export default function SettingsPage() {
     }
     setSaving(true);
     try {
-      const { confirmPassword: _, ...payload } = newStaff;
-      await createStaff(payload).unwrap();
-      setNewStaff({ name: '', email: '', password: '', confirmPassword: '', role: 'STAFF' });
+      const { confirmPassword: _, email, ...rest } = newStaff;
+      await createStaff({ ...rest, email: email.trim() || undefined }).unwrap();
+      setNewStaff({ name: '', username: '', email: '', password: '', confirmPassword: '', role: 'STAFF' });
       setShowPassword(false);
       setShowConfirm(false);
       setMsg('Staff account created');
-    } catch {
-      setFormError('Failed to create staff account');
+    } catch (err) {
+      // Show the server's reason (e.g. "Username already taken") when there is one.
+      setFormError((err as { data?: { message?: string } })?.data?.message || 'Failed to create staff account');
     }
     setSaving(false);
   };
@@ -351,14 +352,21 @@ export default function SettingsPage() {
         <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-4">Staff Accounts</h2>
 
         <form onSubmit={handleCreateStaff} className="grid grid-cols-2 gap-3 mb-5">
-          {(['name', 'email'] as const).map((f) => (
+          {(['name', 'username', 'email'] as const).map((f) => (
             <div key={f}>
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1 capitalize">{f}</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1 capitalize">
+                {f}{f === 'email' && ' (optional)'}
+              </label>
               <input
                 type={f === 'email' ? 'email' : 'text'}
                 value={newStaff[f]}
                 onChange={(e) => setNewStaff({ ...newStaff, [f]: e.target.value })}
-                required
+                required={f !== 'email'}
+                {...(f === 'username' && {
+                  pattern: '[A-Za-z0-9._\\-]{3,32}',
+                  title: '3-32 characters: letters, numbers, dot, underscore or dash',
+                  autoCapitalize: 'none',
+                })}
                 className={inputCls}
               />
             </div>
@@ -427,6 +435,7 @@ export default function SettingsPage() {
           <thead className="bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
             <tr>
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Name</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Username</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Email</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Role</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Status</th>
@@ -437,7 +446,8 @@ export default function SettingsPage() {
             {staff.map((s) => (
               <tr key={s.id} className={s.isActive ? '' : 'opacity-60'}>
                 <td className="px-3 py-2 text-gray-900 dark:text-gray-200">{s.name}</td>
-                <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{s.email}</td>
+                <td className="px-3 py-2 text-gray-900 dark:text-gray-200">{s.username}</td>
+                <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{s.email ?? '—'}</td>
                 <td className="px-3 py-2">
                   <select
                     value={s.role}

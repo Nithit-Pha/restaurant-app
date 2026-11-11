@@ -23,7 +23,7 @@ router.get('/', authenticate, requireRole('SUPER_ADMIN'), async (req: Request, r
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({
         where,
-        include: { actor: { select: { id: true, name: true, email: true, role: true } } },
+        include: { actor: { select: { id: true, name: true, username: true, email: true, role: true } } },
         orderBy: { createdAt: 'desc' },
         take: Math.min(parseInt(limit), 200),
         skip: parseInt(offset),

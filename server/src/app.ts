@@ -53,14 +53,14 @@ app.use('/uploads', express.static(path.resolve(env.uploadDir), {
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// Brute-force protection on sign-in. Login is limited per address + email,
+// Brute-force protection on sign-in. Login is limited per address + username,
 // so one busy office network does not lock everyone out.
 const limiterOptions = { standardHeaders: true, legacyHeaders: false, message: { message: 'Too many attempts. Please wait a few minutes and try again.' } } as const;
 app.use('/api/auth/login', rateLimit({
   ...limiterOptions,
   windowMs: 15 * 60 * 1000,
   limit: 10,
-  keyGenerator: (req) => `${req.ip}|${String(req.body?.email ?? '').toLowerCase()}`,
+  keyGenerator: (req) => `${req.ip}|${String(req.body?.username ?? '').trim().toLowerCase()}`,
 }));
 app.use('/api/auth/register', rateLimit({ ...limiterOptions, windowMs: 60 * 60 * 1000, limit: 20 }));
 app.use('/api/auth/refresh', rateLimit({ ...limiterOptions, windowMs: 15 * 60 * 1000, limit: 120 }));

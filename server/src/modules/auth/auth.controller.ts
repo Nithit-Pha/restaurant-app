@@ -3,8 +3,8 @@ import * as authService from './auth.service';
 
 export async function registerHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    const { name, email, password } = req.body;
-    const result = await authService.register(name, email, password);
+    const { name, username, email, password } = req.body;
+    const result = await authService.register(name, username, email, password);
     res.status(201).json(result);
   } catch (err) {
     next(err);
@@ -13,8 +13,8 @@ export async function registerHandler(req: Request, res: Response, next: NextFun
 
 export async function loginHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    const { email, password } = req.body;
-    const result = await authService.login(email, password);
+    const { username, password } = req.body;
+    const result = await authService.login(username, password);
     res.json(result);
   } catch (err) {
     next(err);

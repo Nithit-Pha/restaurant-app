@@ -32,7 +32,7 @@ npm run dev           # http://localhost:5173
 - `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` — change before production
 - `TAX_RATE` — default `0.07` (7%)
 - `BUSINESS_TIMEZONE` — default `Asia/Bangkok`; business day, daily order numbers and opening hours use it
-- `SEED_SUPERADMIN_PASSWORD` / `SEED_STAFF_PASSWORD` — optional passwords for the sample accounts (the seed refuses to run with `NODE_ENV=production` unless `ALLOW_SEED=1`)
+- `SEED_SUPERADMIN_PASSWORD` / `SEED_ADMIN_PASSWORD` — optional passwords for the sample accounts (the seed refuses to run with `NODE_ENV=production` unless `ALLOW_SEED=1`)
 
 ### Frontend (`client/.env.local`)
 - `SITE_URL` — canonical site URL used for metadata, sitemap, robots, JSON-LD (default `http://localhost:5173`)
@@ -64,6 +64,25 @@ The server enforces it (`server/src/modules/orders/orderStateMachine.ts`); see
 - Orders are only accepted during the opening hours in the restaurant profile.
   Switch this off under **Admin → Settings → Online Ordering** for testing at night.
 - Staff accounts are deactivated, never deleted.
+
+## Sign-in
+
+Everyone signs in with a **username** and password. Customers also give an email when
+they register; for staff accounts the email is optional.
+
+`npm run db:seed` creates two Super Admin logins for local development:
+
+| Username     | Password        |
+|--------------|-----------------|
+| `superadmin` | `superadmin123` |
+| `admin`      | `superadmin123` |
+
+These passwords are public. Change them (or set `SEED_SUPERADMIN_PASSWORD` /
+`SEED_ADMIN_PASSWORD` before seeding) before the app is reachable from other devices.
+
+Users created before the username change got a username from the part of their email
+before `@` (lowercased, other characters removed, a number added on clashes), e.g.
+`superadmin@restaurant.com` → `superadmin`.
 
 ### Updating an existing install
 

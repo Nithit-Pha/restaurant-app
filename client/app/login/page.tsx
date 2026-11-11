@@ -10,7 +10,7 @@ import { setCredentials } from '../../src/features/auth/authSlice';
 import { useAppDispatch } from '../../src/app/hooks';
 
 const schema = z.object({
-  email: z.string().email('Invalid email'),
+  username: z.string().trim().min(1, 'Username required'),
   password: z.string().min(1, 'Password required'),
 });
 
@@ -39,13 +39,15 @@ export default function LoginPage() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Sign in</h1>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
             <input
-              {...register('email')}
-              type="email"
+              {...register('username')}
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
               className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
-            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+            {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
@@ -56,7 +58,7 @@ export default function LoginPage() {
             />
             {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
           </div>
-          {error && <p className="text-red-500 text-sm">Invalid email or password</p>}
+          {error && <p className="text-red-500 text-sm">Invalid username or password</p>}
           <button
             type="submit"
             disabled={isLoading}

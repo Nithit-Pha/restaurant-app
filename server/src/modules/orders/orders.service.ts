@@ -213,7 +213,7 @@ export async function getAllOrders({ status, date, limit = 200 }: AdminOrderFilt
       ...(range ? { createdAt: { gte: range.start, lte: range.end } } : {}),
     },
     include: {
-      user: { select: { id: true, name: true, email: true, phone: true } },
+      user: { select: { id: true, name: true, username: true, email: true, phone: true } },
       items: true,
       statusHistory: historyInclude,
     },

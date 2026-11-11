@@ -211,7 +211,7 @@ export const apiSlice = createApi({
       query: () => '/admin/staff',
       providesTags: ['Staff'],
     }),
-    createStaff: builder.mutation<StaffUser, { name: string; email: string; password: string; role: 'STAFF' | 'SUPER_ADMIN' }>({
+    createStaff: builder.mutation<StaffUser, { name: string; username: string; email?: string; password: string; role: 'STAFF' | 'SUPER_ADMIN' }>({
       query: (body) => ({ url: '/admin/staff', method: 'POST', body }),
       invalidatesTags: ['Staff'],
     }),
@@ -278,7 +278,8 @@ export const {
 export interface User {
   id: string;
   name: string;
-  email: string;
+  username: string;
+  email: string | null;
   role: 'CUSTOMER' | 'STAFF' | 'SUPER_ADMIN';
   phone?: string;
   address?: string;
@@ -323,7 +324,8 @@ export interface RestaurantProfile {
 export interface StaffUser {
   id: string;
   name: string;
-  email: string;
+  username: string;
+  email: string | null;
   role: 'STAFF' | 'SUPER_ADMIN';
   isActive: boolean;
   createdAt: string;
@@ -332,7 +334,7 @@ export interface StaffUser {
 export interface AuditLogEntry {
   id: string;
   actorId: string;
-  actor: { id: string; name: string; email: string; role: string };
+  actor: { id: string; name: string; username: string; email: string | null; role: string };
   action: string;
   entityType: string;
   entityId?: string;
@@ -403,7 +405,7 @@ export interface Order {
   cancelReason?: CancelReason | null;
   cancelNote?: string | null;
   statusHistory?: OrderStatusHistoryEntry[];
-  user?: { id: string; name: string; email: string; phone?: string | null };
+  user?: { id: string; name: string; username: string; email: string | null; phone?: string | null };
   deliveryAddress?: string;
   deliveryLat?: number | null;
   deliveryLng?: number | null;
@@ -454,12 +456,13 @@ interface AuthResponse {
 }
 
 interface LoginInput {
-  email: string;
+  username: string;
   password: string;
 }
 
 interface RegisterInput {
   name: string;
+  username: string;
   email: string;
   password: string;
 }

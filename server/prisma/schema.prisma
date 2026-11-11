@@ -30,7 +30,10 @@ enum OrderStatus {
 model User {
   id         String     @id @default(uuid())
   name       String
-  email      String     @unique
+  // Sign-in name: 3-32 chars, a-z 0-9 . _ -, stored lowercase.
+  username   String     @unique
+  // Required when a customer registers; optional for staff accounts.
+  email      String?    @unique
   password   String
   role       Role       @default(CUSTOMER)
   phone      String?

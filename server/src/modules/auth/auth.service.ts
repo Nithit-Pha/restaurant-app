@@ -3,14 +3,18 @@ import { prisma } from '../../config/db';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt';
 import { audit } from '../../utils/auditLog';
 
-export async function register(name: string, email: string, password: string) {
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) throw Object.assign(new Error('Email already registered'), { statusCode: 409 });
+export async function register(name: string, username: string, email: string, password: string) {
+  if (await prisma.user.findUnique({ where: { username } })) {
+    throw Object.assign(new Error('Username already taken'), { statusCode: 409 });
+  }
+  if (await prisma.user.findUnique({ where: { email } })) {
+    throw Object.assign(new Error('Email already registered'), { statusCode: 409 });
+  }
 
   const hash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
-    data: { name, email, password: hash },
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
+    data: { name, username, email, password: hash },
+    select: { id: true, name: true, username: true, email: true, role: true, createdAt: true },
   });
 
   const payload = { userId: user.id, role: user.role, tv: 0 };
@@ -21,8 +25,8 @@ export async function register(name: string, email: string, password: string) {
   };
 }
 
-export async function login(email: string, password: string) {
-  const user = await prisma.user.findUnique({ where: { email } });
+export async function login(username: string, password: string) {
+  const user = await prisma.user.findUnique({ where: { username } });
   if (!user) throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 });
 
   const valid = await bcrypt.compare(password, user.password);
@@ -64,6 +68,6 @@ export async function refresh(token: string) {
 export async function getMe(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, role: true, phone: true, address: true, createdAt: true },
+    select: { id: true, name: true, username: true, email: true, role: true, phone: true, address: true, createdAt: true },
   });
 }

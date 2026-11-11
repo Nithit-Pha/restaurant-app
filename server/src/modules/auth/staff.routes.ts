@@ -6,12 +6,15 @@ import { requireRole } from '../../middleware/requireRole';
 import { validate } from '../../middleware/validate';
 import { prisma } from '../../config/db';
 import { audit } from '../../utils/auditLog';
+import { usernameSchema } from './username';
 
 const router = Router();
 
 const createStaffSchema = z.object({
   name: z.string().min(2),
-  email: z.string().email(),
+  username: usernameSchema,
+  // Optional for staff: an empty field counts as "no email".
+  email: z.preprocess((v) => (v === '' ? undefined : v), z.string().email().optional()),
   password: z.string().min(8),
   role: z.enum(['STAFF', 'SUPER_ADMIN']),
 });
@@ -21,7 +24,7 @@ router.get('/', authenticate, requireRole('SUPER_ADMIN'), async (_req, res, next
   try {
     const staff = await prisma.user.findMany({
       where: { role: { in: ['STAFF', 'SUPER_ADMIN'] } },
-      select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true },
+      select: { id: true, name: true, username: true, email: true, role: true, isActive: true, createdAt: true },
       orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
     });
     res.json(staff);
@@ -31,15 +34,19 @@ router.get('/', authenticate, requireRole('SUPER_ADMIN'), async (_req, res, next
 // Create a staff or super-admin account
 router.post('/', authenticate, requireRole('SUPER_ADMIN'), validate(createStaffSchema), async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) { res.status(409).json({ message: 'Email already registered' }); return; }
+    const { name, username, email, password, role } = req.body;
+    if (await prisma.user.findUnique({ where: { username } })) {
+      res.status(409).json({ message: 'Username already taken' }); return;
+    }
+    if (email && await prisma.user.findUnique({ where: { email } })) {
+      res.status(409).json({ message: 'Email already registered' }); return;
+    }
     const hash = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
-      data: { name, email, password: hash, role },
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      data: { name, username, email, password: hash, role },
+      select: { id: true, name: true, username: true, email: true, role: true, createdAt: true },
     });
-    audit({ actorId: req.user!.userId, action: 'CREATE', entityType: 'USER', entityId: user.id, metadata: { name, email, role } });
+    audit({ actorId: req.user!.userId, action: 'CREATE', entityType: 'USER', entityId: user.id, metadata: { name, username, email, role } });
     res.status(201).json(user);
   } catch (err) { next(err); }
 });
@@ -53,7 +60,7 @@ router.patch('/:id/role', authenticate, requireRole('SUPER_ADMIN'),
       const user = await prisma.user.update({
         where: { id: req.params.id },
         data: { role: req.body.role },
-        select: { id: true, name: true, email: true, role: true },
+        select: { id: true, name: true, username: true, email: true, role: true },
       });
       audit({ actorId: req.user!.userId, action: 'UPDATE', entityType: 'USER', entityId: user.id, metadata: { from: prev?.role, to: req.body.role } });
       res.json(user);
@@ -65,20 +72,20 @@ router.patch('/:id/role', authenticate, requireRole('SUPER_ADMIN'),
 // status history and the audit log keep pointing at who did what.
 // Bumping tokenVersion signs the person out everywhere immediately.
 async function setActive(targetId: string, actorId: string, isActive: boolean) {
-  const user = await prisma.user.findUnique({ where: { id: targetId }, select: { id: true, email: true, role: true, isActive: true } });
+  const user = await prisma.user.findUnique({ where: { id: targetId }, select: { id: true, username: true, role: true, isActive: true } });
   if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
   if (user.id === actorId) throw Object.assign(new Error('You cannot deactivate your own account'), { statusCode: 400 });
   const updated = await prisma.user.update({
     where: { id: targetId },
     data: { isActive, ...(isActive ? {} : { tokenVersion: { increment: 1 } }) },
-    select: { id: true, name: true, email: true, role: true, isActive: true },
+    select: { id: true, name: true, username: true, email: true, role: true, isActive: true },
   });
   audit({
     actorId,
     action: isActive ? 'REACTIVATE' : 'DEACTIVATE',
     entityType: 'USER',
     entityId: user.id,
-    metadata: { email: user.email, role: user.role },
+    metadata: { username: user.username, role: user.role },
   });
   return updated;
 }

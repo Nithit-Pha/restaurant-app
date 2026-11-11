@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
@@ -11,33 +12,24 @@ if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SEED !== '1') {
 }
 
 async function main() {
-  // Seed Super Admin (passwords can be overridden from the environment)
-  const superAdminPassword = await bcrypt.hash(process.env.SEED_SUPERADMIN_PASSWORD || 'superadmin123', 12);
-  const superAdmin = await prisma.user.upsert({
-    where: { email: 'superadmin@restaurant.com' },
-    update: {},
-    create: {
-      name: 'Super Admin',
-      email: 'superadmin@restaurant.com',
-      password: superAdminPassword,
-      role: Role.SUPER_ADMIN,
-    },
-  });
-  console.log('Super Admin created:', superAdmin.email);
-
-  // Seed Staff
-  const staffPassword = await bcrypt.hash(process.env.SEED_STAFF_PASSWORD || 'staff123', 12);
-  const staff = await prisma.user.upsert({
-    where: { email: 'staff@restaurant.com' },
-    update: {},
-    create: {
-      name: 'Staff Member',
-      email: 'staff@restaurant.com',
-      password: staffPassword,
-      role: Role.STAFF,
-    },
-  });
-  console.log('Staff created:', staff.email);
+  // Seed the two Super Admin logins (passwords can be overridden from the environment)
+  const admins = [
+    { name: 'Super Admin', username: 'superadmin', password: process.env.SEED_SUPERADMIN_PASSWORD || 'superadmin123' },
+    { name: 'Admin', username: 'admin', password: process.env.SEED_ADMIN_PASSWORD || 'superadmin123' },
+  ];
+  for (const admin of admins) {
+    const user = await prisma.user.upsert({
+      where: { username: admin.username },
+      update: {},
+      create: {
+        name: admin.name,
+        username: admin.username,
+        password: await bcrypt.hash(admin.password, 12),
+        role: Role.SUPER_ADMIN,
+      },
+    });
+    console.log('Super Admin created:', user.username);
+  }
 
   // Seed default settings
   const defaults = {
@@ -75,5 +67,8 @@ async function main() {
 }
 
 main()
-  .catch(console.error)
+  .catch((err) => {
+    console.error(err);
+    process.exitCode = 1; // so start.bat notices a failed seed
+  })
   .finally(() => prisma.$disconnect());

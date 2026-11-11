@@ -1,12 +1,14 @@
 import { test, expect, request, type APIRequestContext, type Page } from '@playwright/test';
 
-// Seeded accounts (server/prisma/seed.ts). Override in CI with env vars.
-const ADMIN = { email: process.env.E2E_ADMIN_EMAIL || 'superadmin@restaurant.com', password: process.env.E2E_ADMIN_PASSWORD || 'superadmin123' };
-const STAFF = { email: process.env.E2E_STAFF_EMAIL || 'staff@restaurant.com', password: process.env.E2E_STAFF_PASSWORD || 'staff123' };
+// Seeded admin account (server/prisma/seed.ts). Override in CI with env vars.
+const ADMIN = { username: process.env.E2E_ADMIN_USERNAME || 'superadmin', password: process.env.E2E_ADMIN_PASSWORD || 'superadmin123' };
+// No staff account is seeded: the run creates its own and deactivates it afterwards.
+const STAFF = { username: `e2e-staff-${Date.now()}`, password: 'password123' };
 const API = process.env.E2E_API_URL || 'http://localhost:3001';
 
 let api: APIRequestContext;
 let adminToken = '';
+let staffId = '';
 let hoursWereEnforced = true;
 
 // The test must work at any time of day, so switch off the opening-hours
@@ -16,19 +18,26 @@ test.beforeAll(async () => {
   const login = await api.post('/api/auth/login', { data: ADMIN });
   expect(login.ok(), 'admin login').toBeTruthy();
   adminToken = (await login.json()).accessToken;
-  const settings = await (await api.get('/api/settings', { headers: { authorization: `Bearer ${adminToken}` } })).json();
+  const auth = { authorization: `Bearer ${adminToken}` };
+  const settings = await (await api.get('/api/settings', { headers: auth })).json();
   hoursWereEnforced = settings.ORDERING_HOURS_ENFORCED !== 0;
-  await api.put('/api/settings/ordering', { data: { hoursEnforced: false }, headers: { authorization: `Bearer ${adminToken}` } });
+  await api.put('/api/settings/ordering', { data: { hoursEnforced: false }, headers: auth });
+
+  const staff = await api.post('/api/admin/staff', { data: { name: 'E2E Staff', ...STAFF, role: 'STAFF' }, headers: auth });
+  expect(staff.ok(), 'create staff').toBeTruthy();
+  staffId = (await staff.json()).id;
 });
 
 test.afterAll(async () => {
-  await api.put('/api/settings/ordering', { data: { hoursEnforced: hoursWereEnforced }, headers: { authorization: `Bearer ${adminToken}` } });
+  const auth = { authorization: `Bearer ${adminToken}` };
+  await api.put('/api/settings/ordering', { data: { hoursEnforced: hoursWereEnforced }, headers: auth });
+  if (staffId) await api.delete(`/api/admin/staff/${staffId}`, { headers: auth });
   await api.dispose();
 });
 
-async function signIn(page: Page, email: string, password: string) {
+async function signIn(page: Page, username: string, password: string) {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[autocomplete="username"]').fill(username);
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/\/$/);
@@ -48,10 +57,11 @@ async function addFirstItemAndCheckout(page: Page) {
 
 test('customer orders for pickup, staff complete it, customer sees it completed', async ({ page, browser }) => {
   // --- Customer registers and orders ------------------------------------
-  const email = `e2e-${Date.now()}@example.com`;
+  const username = `e2e-${Date.now()}`;
   await page.goto('/register');
   await page.locator('form input').first().fill('E2E Customer');
-  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[autocomplete="username"]').fill(username);
+  await page.locator('input[type="email"]').fill(`${username}@example.com`);
   await page.locator('input[type="password"]').fill('password123');
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/\/$/);
@@ -74,7 +84,7 @@ test('customer orders for pickup, staff complete it, customer sees it completed'
   // --- Staff work the order through the kitchen ---------------------------
   const staffContext = await browser.newContext();
   const staff = await staffContext.newPage();
-  await signIn(staff, STAFF.email, STAFF.password);
+  await signIn(staff, STAFF.username, STAFF.password);
   await staff.goto('/admin/orders');
   const row = staff.locator('tr', { hasText: orderNumber });
   await expect(row).toBeVisible();
@@ -107,10 +117,11 @@ test('customer orders for pickup, staff complete it, customer sees it completed'
 });
 
 test('customer can cancel while the order is still waiting; staff see why', async ({ page, browser }) => {
-  const email = `e2e-cancel-${Date.now()}@example.com`;
+  const username = `e2e-cancel-${Date.now()}`;
   await page.goto('/register');
   await page.locator('form input').first().fill('E2E Canceller');
-  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[autocomplete="username"]').fill(username);
+  await page.locator('input[type="email"]').fill(`${username}@example.com`);
   await page.locator('input[type="password"]').fill('password123');
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/\/$/);
@@ -128,7 +139,7 @@ test('customer can cancel while the order is still waiting; staff see why', asyn
 
   const staffContext = await browser.newContext();
   const staff = await staffContext.newPage();
-  await signIn(staff, STAFF.email, STAFF.password);
+  await signIn(staff, STAFF.username, STAFF.password);
   await staff.goto('/admin/orders');
   const row = staff.locator('tr', { hasText: orderNumber });
   await expect(row.getByText('Cancelled')).toBeVisible();
