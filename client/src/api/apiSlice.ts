@@ -80,7 +80,7 @@ const baseQueryWithReauth: BaseQueryFn<
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus'],
+  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus', 'Address'],
   endpoints: (builder) => ({
     // Auth
     login: builder.mutation<AuthResponse, LoginInput>({
@@ -249,6 +249,20 @@ export const apiSlice = createApi({
       onQueryStarted: revalidateOnSuccess,
     }),
 
+    // The signed-in customer's saved delivery addresses
+    getAddresses: builder.query<SavedAddress[], void>({
+      query: () => '/addresses',
+      providesTags: ['Address'],
+    }),
+    createAddress: builder.mutation<SavedAddress, AddressInput>({
+      query: (body) => ({ url: '/addresses', method: 'POST', body }),
+      invalidatesTags: ['Address'],
+    }),
+    deleteAddress: builder.mutation<void, string>({
+      query: (id) => ({ url: `/addresses/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Address'],
+    }),
+
     // Staff management (Super Admin only)
     getStaff: builder.query<StaffUser[], void>({
       query: () => '/admin/staff',
@@ -297,6 +311,9 @@ export const {
   useGetOpenStatusQuery,
   useGetRestaurantQuery,
   useSetRestaurantMutation,
+  useGetAddressesQuery,
+  useCreateAddressMutation,
+  useDeleteAddressMutation,
   useGetStaffQuery,
   useCreateStaffMutation,
   useUpdateStaffRoleMutation,
@@ -571,6 +588,18 @@ export interface CheckoutInput {
   deliveryLat?: number;
   deliveryLng?: number;
 }
+
+/** A delivery address the customer saved, with its map pin. */
+export interface SavedAddress {
+  id: string;
+  label: string; // e.g. "Home"
+  text: string;
+  lat: number;
+  lng: number;
+  note?: string | null; // for the driver
+}
+
+export type AddressInput = Omit<SavedAddress, 'id'>;
 
 export interface PlaceOrderInput extends CheckoutInput {
   customerPhone: string;

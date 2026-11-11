@@ -18,7 +18,8 @@ const cartItemSchema = z.object({
 const checkoutSchema = z.object({
   items: z.array(cartItemSchema).min(1),
   type: z.enum(['PICKUP', 'DELIVERY']),
-  deliveryAddress: z.string().trim().max(300).optional(),
+  // Address (300) plus the driver's note (200), as "address · Note: note".
+  deliveryAddress: z.string().trim().max(520).optional(),
   deliveryLat: z.number().min(-90).max(90).optional(),
   deliveryLng: z.number().min(-180).max(180).optional(),
 });

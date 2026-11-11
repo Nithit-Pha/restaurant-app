@@ -7,6 +7,7 @@ import { Banknote, Bike, QrCode, ShoppingBag, Store, type LucideIcon } from 'luc
 import { useAppDispatch, useAppSelector } from '../../src/app/hooks';
 import { selectCartItems, clearCart } from '../../src/features/cart/cartSlice';
 import {
+  useCreateAddressMutation,
   useGetMeQuery,
   useGetOpenStatusQuery,
   useGetPaymentOptionsQuery,
@@ -17,11 +18,12 @@ import {
 } from '../../src/api/apiSlice';
 import ClosedBanner from '../../src/features/orders/ClosedBanner';
 import LineDetails from '../../src/features/orders/LineDetails';
-import DeliveryForm from '../../src/features/checkout/DeliveryForm';
+import DeliveryForm, { deliveryAddressText, emptyDelivery, type DeliveryDraft } from '../../src/features/checkout/DeliveryForm';
 import { formatCurrency } from '../../src/lib/format';
 import { useRequireAuth } from '../../src/routes/useAuthGuard';
 import {
   Alert, Button, Card, CardBody, CardHeader, EmptyState, Field, Input, PageContainer, PageHeader, buttonClasses, checkboxClasses, cn,
+  useToast,
 } from '../../src/components/ui';
 
 /** A random UUID; crypto.randomUUID only exists on https/localhost. */
@@ -86,12 +88,21 @@ export default function CheckoutPage() {
   const router = useRouter();
   const items = useAppSelector(selectCartItems);
   const [orderType, setOrderType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  // Customer's location from the browser (option A). Only sent for delivery.
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  // Address text, driver note and map pin. The pin is only sent for delivery.
+  const [delivery, setDelivery] = useState<DeliveryDraft>(emptyDelivery);
+  // Bumped when the pin is set from outside the map, so the map centres on it.
+  const [mapFocus, setMapFocus] = useState(0);
+  const changeDelivery = (next: DeliveryDraft, recenter = false) => {
+    setDelivery(next);
+    if (recenter) setMapFocus((n) => n + 1);
+  };
+  const coords = delivery.pin;
+  const deliveryAddress = deliveryAddressText(delivery);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
   const [placeOrder, { isLoading, error }] = usePlaceOrderMutation();
+  const [createAddress] = useCreateAddressMutation();
+  const toast = useToast();
   const { data: me } = useGetMeQuery(undefined, { skip: !ready });
   const { data: openStatus } = useGetOpenStatusQuery(undefined, { pollingInterval: 60_000 });
   const isClosed = openStatus ? !openStatus.isOpen : false;
@@ -141,7 +152,8 @@ export default function CheckoutPage() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setDelivery((d) => ({ ...d, pin: { lat: pos.coords.latitude, lng: pos.coords.longitude } }));
+        setMapFocus((n) => n + 1);
         setLocating(false);
       },
       () => {
@@ -155,7 +167,7 @@ export default function CheckoutPage() {
   // One idempotency key per checkout attempt. A double click or a retry after a
   // network error sends the same key, so the server never creates two orders.
   // Any change to what is being ordered starts a new attempt.
-  const attemptKey = `${cartKey}|${orderType}|${locationKey}|${deliveryAddress.trim()}|${phone.trim()}|${method}`;
+  const attemptKey = `${cartKey}|${orderType}|${locationKey}|${deliveryAddress}|${phone.trim()}|${method}`;
   const [idempotencyKey, setIdempotencyKey] = useState(newUuid);
   useEffect(() => { setIdempotencyKey(newUuid()); }, [attemptKey]);
 
@@ -202,20 +214,30 @@ export default function CheckoutPage() {
       const order = await placeOrder({
         items: cartLines,
         type: orderType,
-        deliveryAddress: orderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
+        deliveryAddress: orderType === 'DELIVERY' ? deliveryAddress : undefined,
         customerPhone: phone.trim(),
         idempotencyKey,
         paymentMethod: method,
         ...location,
       }).unwrap();
       dispatch(clearCart());
+      // The order is placed either way; a failed save only costs a toast.
+      if (orderType === 'DELIVERY' && delivery.savedId === null && delivery.save && delivery.pin) {
+        const label = delivery.label.trim() || 'My address';
+        try {
+          await createAddress({ label, text: delivery.text.trim(), note: delivery.note.trim() || null, ...delivery.pin }).unwrap();
+          toast({ title: `Address saved as ${label}` });
+        } catch {
+          toast({ tone: 'error', title: 'Your order is placed, but the address was not saved' });
+        }
+      }
       router.push(`/orders/${order.id}`);
     } catch (_) {}
   };
 
-  const canSubmit =
-    !!quote && !quoting && !isLoading && !isClosed && phoneValid &&
-    (orderType === 'PICKUP' || !!deliveryAddress.trim());
+  // Delivery needs both the address for the driver and the pin for the fee.
+  const deliveryMissing = orderType === 'DELIVERY' && (!delivery.text.trim() ? 'address' : !delivery.pin ? 'pin' : null);
+  const canSubmit = !!quote && !quoting && !isLoading && !isClosed && phoneValid && !deliveryMissing;
 
   const phoneError = phone && !phoneValid ? 'Please enter a valid phone number.' : undefined;
 
@@ -277,11 +299,11 @@ export default function CheckoutPage() {
               </Field>
               {orderType === 'DELIVERY' && (
                 <DeliveryForm
-                  address={deliveryAddress}
-                  onChange={setDeliveryAddress}
+                  value={delivery}
+                  onChange={changeDelivery}
+                  focusKey={mapFocus}
                   onUseLocation={shareLocation}
                   locating={locating}
-                  located={!!coords}
                   locationError={locationError}
                 />
               )}
@@ -366,9 +388,13 @@ export default function CheckoutPage() {
                   ? `Place order · ${formatCurrency(quote.total)}`
                   : 'Calculating total…'}
             </Button>
-            {!isClosed && (!phoneValid || (orderType === 'DELIVERY' && !deliveryAddress.trim())) && (
+            {!isClosed && (!phoneValid || deliveryMissing) && (
               <p className="text-center text-xs text-fg-muted">
-                {!phoneValid ? 'Add your phone number to place the order.' : 'Add a delivery address to place the order.'}
+                {!phoneValid
+                  ? 'Add your phone number to place the order.'
+                  : deliveryMissing === 'address'
+                    ? 'Add a delivery address to place the order.'
+                    : 'Put the pin on the map to place the order.'}
               </p>
             )}
           </CardBody>

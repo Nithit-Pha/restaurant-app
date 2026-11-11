@@ -13,6 +13,7 @@ import ordersRoutes from './modules/orders/orders.routes';
 import settingsRoutes from './modules/settings/settings.routes';
 import financeRoutes from './modules/finance/finance.routes';
 import auditLogRoutes from './modules/auditLog/auditLog.routes';
+import addressesRoutes from './modules/addresses/addresses.routes';
 import { authenticate } from './middleware/auth';
 import { requireRole } from './middleware/requireRole';
 import { profitReportHandler } from './modules/orders/orders.controller';
@@ -73,6 +74,7 @@ app.use('/api/orders', ordersRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/admin/audit-log', auditLogRoutes);
+app.use('/api/addresses', addressesRoutes);
 app.get('/api/admin/reports/profit', authenticate, requireRole('SUPER_ADMIN'), profitReportHandler);
 
 // Error handler (must be last)

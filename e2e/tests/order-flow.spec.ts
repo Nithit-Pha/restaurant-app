@@ -296,6 +296,58 @@ test('customer orders a dish with options and a note; the kitchen sees both', as
   }
 });
 
+test('delivery to a pinned address, saved and picked again next time', async ({ page }) => {
+  const username = `e2e-pin-${Date.now()}`;
+  await page.goto('/register');
+  await page.locator('form input').first().fill('E2E Pin');
+  await page.locator('input[autocomplete="username"]').fill(username);
+  await page.locator('input[type="email"]').fill(`${username}@example.com`);
+  await page.locator('input[type="password"]').fill('password123');
+  await page.locator('button[type="submit"]').click();
+  await expect(page).toHaveURL(/\/$/);
+
+  // --- First order: type the address, put the pin, save it as Home ---------
+  await addFirstItemAndCheckout(page);
+  await page.getByRole('radio', { name: /Delivery/ }).check();
+  await page.getByLabel('Phone number').fill('0844444444');
+  const placeOrder = page.getByRole('button', { name: /Place order/ });
+  await expect(page.getByText('Add a delivery address to place the order.')).toBeVisible();
+  await page.getByLabel('Delivery address').fill('99/1 Soi Ari 4, Phaya Thai');
+  await expect(page.getByText('Put the pin on the map to place the order.')).toBeVisible();
+  await expect(placeOrder).toBeDisabled();
+
+  const map = page.getByTestId('delivery-map');
+  await map.click({ position: { x: 180, y: 120 } }); // tap the map: the pin goes there
+  await expect(page.getByTitle('Your delivery pin. Drag it to your door.')).toBeVisible();
+  await expect(page.getByText('Pin placed. Drag it if it is not on your door.')).toBeVisible();
+  await expect(page.getByText('Delivery fee', { exact: true })).toBeVisible(); // priced from the pin
+  await page.getByLabel('Note for the driver').fill('Blue gate');
+  await expect(page.getByLabel('Save this address for next time')).toBeChecked();
+  await expect(page.getByLabel('Name for this address')).toHaveValue('Home');
+  await expect(placeOrder).toBeEnabled();
+  await placeOrder.click();
+  await expect(page).toHaveURL(/\/orders\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('99/1 Soi Ari 4, Phaya Thai · Note: Blue gate')).toBeVisible();
+
+  // --- Second order: pick Home, everything is filled in -------------------
+  await addFirstItemAndCheckout(page);
+  await page.getByRole('radio', { name: /Delivery/ }).check();
+  await page.getByRole('radio', { name: /Home/ }).check();
+  await expect(page.getByLabel('Delivery address')).toHaveValue('99/1 Soi Ari 4, Phaya Thai');
+  await expect(page.getByLabel('Note for the driver')).toHaveValue('Blue gate');
+  await expect(page.getByTitle('Your delivery pin. Drag it to your door.')).toBeVisible();
+  await expect(page.getByLabel('Save this address for next time')).toHaveCount(0); // already saved
+
+  // Removing the saved address keeps what is filled in for this order.
+  await page.getByRole('button', { name: 'Remove Home' }).click();
+  await expect(page.getByRole('radio', { name: /Home/ })).toHaveCount(0);
+  await expect(page.getByLabel('Delivery address')).toHaveValue('99/1 Soi Ari 4, Phaya Thai');
+  await page.getByLabel('Phone number').fill('0844444444');
+  await page.getByRole('button', { name: /Place order/ }).click();
+  await expect(page).toHaveURL(/\/orders\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('99/1 Soi Ari 4, Phaya Thai · Note: Blue gate')).toBeVisible();
+});
+
 test('staff switch to busy and paused; customers see it and cannot order while paused', async ({ page, browser }) => {
   const username = `e2e-busy-${Date.now()}`;
   await page.goto('/register');

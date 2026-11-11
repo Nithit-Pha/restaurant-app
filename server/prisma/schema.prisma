@@ -60,8 +60,27 @@ model User {
   auditLogs  AuditLog[]
   statusChanges OrderStatusHistory[]
   confirmedPayments Payment[]
+  addresses  Address[]
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+}
+
+// A customer's saved delivery address: the text for the driver and the pin
+// the delivery fee is worked out from. Orders copy both, so editing or
+// deleting an address never changes past orders.
+model Address {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  label     String   // e.g. "Home", "Office"
+  text      String   // house number, street, area
+  lat       Float
+  lng       Float
+  note      String?  // for the driver, e.g. "blue gate, call on arrival"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model MenuItem {
