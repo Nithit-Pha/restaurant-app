@@ -3,6 +3,7 @@
 export const CURRENCY = 'THB';
 export const TIME_ZONE = 'Asia/Bangkok';
 
+/** ฿120.00 — the same in both languages. */
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -11,8 +12,12 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function formatDate(dateStr: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+/**
+ * Date and time in the page's language: "Nov 11, 2026, 03:47 PM" in English,
+ * "11 พ.ย. 2569 15:47" in Thai (Thai dates use the Buddhist year, as Thai readers expect).
+ */
+export function formatDate(dateStr: string, locale: string = 'en'): string {
+  return new Intl.DateTimeFormat(locale === 'th' ? 'th-TH' : 'en-US', {
     year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit',
     timeZone: TIME_ZONE,

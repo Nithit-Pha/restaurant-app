@@ -29,7 +29,7 @@ export async function GET() {
     `${RESTAURANT.servesCuisine.join(', ')} (price range ${RESTAURANT.priceRange})`,
     '',
     '## Ordering',
-    `Order online for pickup or delivery at ${SITE_URL}/menu`,
+    `Order online for pickup or delivery at ${SITE_URL}/en/menu (English) or ${SITE_URL}/th/menu (Thai)`,
   ];
 
   if (signature.length > 0) {

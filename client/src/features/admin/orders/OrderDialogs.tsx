@@ -1,16 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { CancelReason, Order } from '../../../api/apiSlice';
-import { CANCEL_REASON_LABELS, formatOrderNumber } from '../../orders/orderDisplay';
+import { formatOrderNumber } from '../../orders/orderDisplay';
+import { useOrderLabels } from '../../orders/useOrderLabels';
 import { formatCurrency } from '../../../lib/format';
 import { Button, Dialog, Field, Input, Textarea, checkboxClasses, cn } from '../../../components/ui';
 
 const PREP_PRESETS = [10, 15, 20, 30, 45, 60];
 
-function Money({ value }: { value: number }) {
-  return <span className="font-semibold tabular-nums text-fg">{formatCurrency(value)}</span>;
-}
+/** The amount in bold, for t.rich(..., { b }). */
+const bold = (chunks: React.ReactNode) => <span className="font-semibold tabular-nums text-fg">{chunks}</span>;
 
 /** Accept = move to PREPARING with a preparation time (drives the customer's ETA). */
 export function AcceptDialog({ order, busy, onConfirm, onClose, defaultMinutes = 15 }: {
@@ -21,19 +22,21 @@ export function AcceptDialog({ order, busy, onConfirm, onClose, defaultMinutes =
   /** Pre-selected prep time (more while the kitchen is in busy mode). */
   defaultMinutes?: number;
 }) {
+  const t = useTranslations('orderDialogs');
+  const tc = useTranslations('common');
   const [minutes, setMinutes] = useState(Math.min(240, defaultMinutes));
   return (
     <Dialog
       open
       onClose={onClose}
       size="sm"
-      title={`Accept order ${formatOrderNumber(order)}`}
-      description="How long until it is ready? The customer sees this time."
+      title={t('acceptTitle', { number: formatOrderNumber(order) })}
+      description={t('acceptDescription')}
       footer={
         <>
-          <Button variant="ghost" size="lg" onClick={onClose}>Back</Button>
+          <Button variant="ghost" size="lg" onClick={onClose}>{tc('back')}</Button>
           <Button size="lg" loading={busy} onClick={() => onConfirm(minutes)}>
-            {`Accept · ready in ${minutes} min`}
+            {t('acceptButton', { minutes })}
           </Button>
         </>
       }
@@ -55,13 +58,13 @@ export function AcceptDialog({ order, busy, onConfirm, onClose, defaultMinutes =
                   : 'border-line bg-surface text-fg hover:border-line-strong hover:bg-surface-hover',
               )}
             >
-              {m} min
+              {t('minutesShort', { minutes: m })}
             </button>
           );
         })}
       </div>
       <label className="mt-4 flex items-center gap-2 text-sm text-fg-muted">
-        Other
+        {t('other')}
         <Input
           type="number"
           min={1}
@@ -70,7 +73,7 @@ export function AcceptDialog({ order, busy, onConfirm, onClose, defaultMinutes =
           onChange={(e) => setMinutes(Math.max(1, Math.min(240, Number(e.target.value) || 1)))}
           className="!h-9 !w-20 tabular-nums"
         />
-        minutes
+        {t('minutes')}
       </label>
     </Dialog>
   );
@@ -83,30 +86,31 @@ export function MarkPaidDialog({ order, busy, onConfirm, onClose }: {
   onConfirm: (providerRef: string) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations('orderDialogs');
+  const tc = useTranslations('common');
   const [ref, setRef] = useState('');
   const promptPay = order.paymentMethod === 'PROMPTPAY';
+  const amount = formatCurrency(order.total);
   return (
     <Dialog
       open
       onClose={onClose}
       size="sm"
-      title={`Payment for ${formatOrderNumber(order)}`}
+      title={t('paymentTitle', { number: formatOrderNumber(order) })}
       footer={
         <>
-          <Button variant="ghost" size="lg" onClick={onClose}>Back</Button>
+          <Button variant="ghost" size="lg" onClick={onClose}>{tc('back')}</Button>
           <Button size="lg" loading={busy} onClick={() => onConfirm(ref.trim())} data-autofocus={!promptPay || undefined}>
-            {promptPay ? 'Transfer received' : 'Cash received'}
+            {promptPay ? t('transferReceived') : t('cashReceived')}
           </Button>
         </>
       }
     >
       <p className="text-fg-muted">
-        {promptPay
-          ? <>Open the bank app and check that <Money value={order.total} /> has arrived.</>
-          : <>Collect <Money value={order.total} /> in cash.</>}
+        {promptPay ? t.rich('checkBank', { amount, b: bold }) : t.rich('collectCash', { amount, b: bold })}
       </p>
       {promptPay && (
-        <Field label="Transfer reference" htmlFor="paid-ref" hint="Optional — the last digits are enough." className="mt-4">
+        <Field label={t('transferRef')} htmlFor="paid-ref" hint={t('transferRefHint')} className="mt-4">
           <Input
             id="paid-ref"
             data-autofocus
@@ -131,19 +135,23 @@ export function CompleteCashDialog({ order, busy, onConfirm, onClose }: {
   onConfirm: (cashReceived: boolean) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations('orderDialogs');
+  const tc = useTranslations('common');
+  const labels = useOrderLabels();
   const [received, setReceived] = useState(true);
-  const done = order.type === 'DELIVERY' ? 'Delivered' : 'Picked up';
+  const done = labels.forwardAction({ status: 'READY', type: order.type }); // "Picked up" / "Out for delivery"
+  const doneLabel = order.type === 'DELIVERY' ? labels.forwardAction({ status: 'OUT_FOR_DELIVERY', type: order.type }) : done;
   return (
     <Dialog
       open
       onClose={onClose}
       size="sm"
-      title={`${done} · ${formatOrderNumber(order)}`}
+      title={`${doneLabel} · ${formatOrderNumber(order)}`}
       footer={
         <>
-          <Button variant="ghost" size="lg" onClick={onClose}>Back</Button>
+          <Button variant="ghost" size="lg" onClick={onClose}>{tc('back')}</Button>
           <Button size="lg" loading={busy} onClick={() => onConfirm(received)} data-autofocus>
-            {received ? `${done} · cash received` : `${done} · not paid yet`}
+            {received ? t('doneCashReceived', { done: doneLabel }) : t('doneNotPaid', { done: doneLabel })}
           </Button>
         </>
       }
@@ -156,8 +164,8 @@ export function CompleteCashDialog({ order, busy, onConfirm, onClose }: {
           className={cn(checkboxClasses, 'mt-0.5 !h-5 !w-5')}
         />
         <span>
-          Cash received: <Money value={order.total} />
-          <span className="mt-0.5 block text-xs text-fg-muted">Untick if the customer has not paid yet.</span>
+          {t.rich('cashReceivedAmount', { amount: formatCurrency(order.total), b: bold })}
+          <span className="mt-0.5 block text-xs text-fg-muted">{t('untickIfUnpaid')}</span>
         </span>
       </label>
     </Dialog>
@@ -171,26 +179,25 @@ export function RefundDialog({ order, busy, onConfirm, onClose }: {
   onConfirm: (note: string) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations('orderDialogs');
+  const tc = useTranslations('common');
   const [note, setNote] = useState('');
   return (
     <Dialog
       open
       onClose={onClose}
-      title={`Refund ${formatOrderNumber(order)}`}
+      title={t('refundTitle', { number: formatOrderNumber(order) })}
       footer={
         <>
-          <Button variant="ghost" size="lg" onClick={onClose}>Back</Button>
+          <Button variant="ghost" size="lg" onClick={onClose}>{tc('back')}</Button>
           <Button variant="danger" size="lg" loading={busy} disabled={!note.trim()} onClick={() => onConfirm(note.trim())}>
-            Mark refunded
+            {t('markRefunded')}
           </Button>
         </>
       }
     >
-      <p className="text-fg-muted">
-        Record that <Money value={order.total} /> was given back. This does not send any money; do the transfer or
-        cash refund first.
-      </p>
-      <Field label="Why, and how it was refunded" htmlFor="refund-note" required className="mt-4">
+      <p className="text-fg-muted">{t.rich('refundText', { amount: formatCurrency(order.total), b: bold })}</p>
+      <Field label={t('refundNote')} htmlFor="refund-note" required className="mt-4">
         <Textarea id="refund-note" data-autofocus value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} rows={2} />
       </Field>
     </Dialog>
@@ -206,27 +213,31 @@ export function CancelDialog({ order, busy, onConfirm, onClose }: {
   onConfirm: (reason: CancelReason, note: string) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations('orderDialogs');
+  const tc = useTranslations('common');
+  const labels = useOrderLabels();
   const [reason, setReason] = useState<CancelReason>('SOLD_OUT');
   const [note, setNote] = useState('');
-  const verb = order.status === 'PENDING' ? 'Reject' : 'Cancel';
+  const reject = order.status === 'PENDING';
   const needsNote = reason === 'OTHER' && !note.trim();
+  const action = reject ? t('rejectOrder') : t('cancelOrder');
   return (
     <Dialog
       open
       onClose={onClose}
-      title={`${verb} order ${formatOrderNumber(order)}`}
-      description="The customer sees the reason and your note."
+      title={`${action} ${formatOrderNumber(order)}`}
+      description={t('cancelDescription')}
       footer={
         <>
-          <Button variant="ghost" size="lg" onClick={onClose} data-autofocus>Back</Button>
+          <Button variant="ghost" size="lg" onClick={onClose} data-autofocus>{tc('back')}</Button>
           <Button variant="danger" size="lg" loading={busy} disabled={needsNote} onClick={() => onConfirm(reason, note.trim())}>
-            {`${verb} order`}
+            {action}
           </Button>
         </>
       }
     >
       <fieldset>
-        <legend className="mb-2 text-sm font-medium text-fg">Reason</legend>
+        <legend className="mb-2 text-sm font-medium text-fg">{t('reason')}</legend>
         <div className="grid gap-1.5 sm:grid-cols-2">
           {STAFF_REASONS.map((r) => (
             <label
@@ -237,16 +248,16 @@ export function CancelDialog({ order, busy, onConfirm, onClose }: {
               )}
             >
               <input type="radio" name="reason" checked={reason === r} onChange={() => setReason(r)} className={checkboxClasses} />
-              {CANCEL_REASON_LABELS[r]}
+              {labels.cancelReason(r)}
             </label>
           ))}
         </div>
       </fieldset>
       <Field
-        label="Note for the customer"
+        label={t('noteForCustomer')}
         htmlFor="cancel-note"
         required={reason === 'OTHER'}
-        hint={reason === 'OTHER' ? 'Required when the reason is "Other".' : 'Optional.'}
+        hint={reason === 'OTHER' ? t('noteRequired') : t('optional')}
         className="mt-4"
       >
         <Textarea id="cancel-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} rows={2} />

@@ -48,7 +48,7 @@ async function signIn(page: Page, username: string, password: string) {
   await page.locator('input[autocomplete="username"]').fill(username);
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/en$/);
 }
 
 async function addFirstItemAndCheckout(page: Page) {
@@ -72,7 +72,7 @@ test('customer orders for pickup, staff complete it, customer sees it completed'
   await page.locator('input[type="email"]').fill(`${username}@example.com`);
   await page.locator('input[type="password"]').fill('password123');
   await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/en$/);
 
   await addFirstItemAndCheckout(page);
 
@@ -139,7 +139,7 @@ test('customer pays by PromptPay QR, staff confirm the transfer', async ({ page,
   await page.locator('input[type="email"]').fill(`${username}@example.com`);
   await page.locator('input[type="password"]').fill('password123');
   await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/en$/);
 
   await addFirstItemAndCheckout(page);
   await page.getByRole('radio', { name: /PromptPay QR/ }).check();
@@ -178,7 +178,7 @@ test('customer can cancel while the order is still waiting; staff see why', asyn
   await page.locator('input[type="email"]').fill(`${username}@example.com`);
   await page.locator('input[type="password"]').fill('password123');
   await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/en$/);
 
   await addFirstItemAndCheckout(page);
   await page.getByLabel('Phone number').fill('0899999999');
@@ -242,7 +242,7 @@ test('customer orders a dish with options and a note; the kitchen sees both', as
     await page.locator('input[type="email"]').fill(`${username}@example.com`);
     await page.locator('input[type="password"]').fill('password123');
     await page.locator('button[type="submit"]').click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/en$/);
 
     await page.goto('/menu');
     await page.getByRole('button', { name: `Add ${dish}` }).click();
@@ -304,7 +304,7 @@ test('delivery to a pinned address, saved and picked again next time', async ({ 
   await page.locator('input[type="email"]').fill(`${username}@example.com`);
   await page.locator('input[type="password"]').fill('password123');
   await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/en$/);
 
   // --- First order: type the address, put the pin, save it as Home ---------
   await addFirstItemAndCheckout(page);
@@ -356,7 +356,7 @@ test('staff switch to busy and paused; customers see it and cannot order while p
   await page.locator('input[type="email"]').fill(`${username}@example.com`);
   await page.locator('input[type="password"]').fill('password123');
   await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/en$/);
 
   const staffContext = await browser.newContext();
   const staff = await staffContext.newPage();

@@ -5,6 +5,10 @@
 export const SITE_URL =
   process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:5173';
 
+export function serializeJsonLd(data: object): string {
+  return JSON.stringify(data).replace(/</g, '\\u003c');
+}
+
 export interface Restaurant {
   name: string;
   legalName: string;
@@ -72,7 +76,7 @@ export function buildOrgJsonLd(r: Restaurant) {
     })),
     sameAs: r.sameAs,
     acceptsReservations: 'False',
-    menu: `${SITE_URL}/menu`,
+    menu: `${SITE_URL}/en/menu`, // the main (English) menu; /th/menu is its Thai version
   };
 }
 

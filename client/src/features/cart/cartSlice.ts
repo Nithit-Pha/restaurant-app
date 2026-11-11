@@ -12,6 +12,7 @@ export interface CartItem {
   lineId: string; // the same dish with other options or another note is another line
   id: string; // menu item id
   name: string;
+  nameTh?: string | null;
   sellingPrice: number; // per unit, including the options (display estimate; the server prices it)
   costPrice: number;
   imageUrl?: string;
@@ -45,6 +46,7 @@ const cartSlice = createSlice({
           lineId: key,
           id: item.id,
           name: item.name,
+          nameTh: item.nameTh,
           // API prices are Decimal strings ("89.00"); convert before adding.
           sellingPrice: Number(item.sellingPrice) + options.reduce((s, o) => s + o.priceDelta, 0),
           costPrice: item.costPrice,

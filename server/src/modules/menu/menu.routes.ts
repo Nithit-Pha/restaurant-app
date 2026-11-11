@@ -15,9 +15,17 @@ const formBoolean = z.preprocess(
   z.boolean(),
 );
 
+// Optional Thai text: an empty field clears it (null), so the Thai site shows English.
+const optionalThai = (max: number) => z.preprocess(
+  (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+  z.string().trim().max(max).nullable().optional(),
+);
+
 const menuItemSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(1000).optional(),
+  nameTh: optionalThai(200),
+  descriptionTh: optionalThai(1000),
   category: z.string().trim().min(1).max(60),
   // Owner-only; ignored for staff. Missing = 0 ("cost missing" for the owner).
   costPrice: z.coerce.number().min(0).max(1_000_000).optional(),

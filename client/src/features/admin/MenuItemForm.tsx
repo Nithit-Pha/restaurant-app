@@ -1,6 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { apiErrorMessage } from '@/lib/localized';
 import { ImagePlus, UtensilsCrossed } from 'lucide-react';
 import { useCreateMenuItemMutation, useGetMeQuery, useUpdateMenuItemMutation, type MenuItem } from '../../api/apiSlice';
 import { Alert, Button, Dialog, Field, Input, Select, Textarea, useToast } from '../../components/ui';
@@ -14,6 +16,9 @@ const CATEGORIES = ['Appetizers', 'Mains', 'Drinks', 'Desserts'];
 
 /** Add or edit a menu item, in a dialog. */
 export default function MenuItemForm({ item, onDone }: Props) {
+  const t = useTranslations('menuForm');
+  const tc = useTranslations('common');
+  const locale = useLocale();
   const [create] = useCreateMenuItemMutation();
   const [update] = useUpdateMenuItemMutation();
   const toast = useToast();
@@ -25,6 +30,9 @@ export default function MenuItemForm({ item, onDone }: Props) {
   const [form, setForm] = useState({
     name: item?.name ?? '',
     description: item?.description ?? '',
+    // Optional Thai text; sent empty to clear it (the Thai site then shows English).
+    nameTh: item?.nameTh ?? '',
+    descriptionTh: item?.descriptionTh ?? '',
     category: item?.category ?? CATEGORIES[0],
     costPrice: item?.costPrice?.toString() ?? '',
     sellingPrice: item?.sellingPrice?.toString() ?? '',
@@ -47,6 +55,8 @@ export default function MenuItemForm({ item, onDone }: Props) {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
         if (k === 'costPrice' && (!isOwner || v === '')) return;
+        // A new item without Thai text leaves the fields out altogether.
+        if ((k === 'nameTh' || k === 'descriptionTh') && !item && v.trim() === '') return;
         fd.append(k, v);
       });
       if (fileRef.current?.files?.[0]) fd.append('image', fileRef.current.files[0]);
@@ -56,10 +66,10 @@ export default function MenuItemForm({ item, onDone }: Props) {
       } else {
         await create(fd).unwrap();
       }
-      toast({ title: item ? `${form.name} saved` : `${form.name} added to the menu` });
+      toast({ title: item ? t('saved', { name: form.name }) : t('added', { name: form.name }) });
       onDone();
     } catch (err) {
-      setError((err as { data?: { message?: string } })?.data?.message || 'Could not save the item. Check the values and try again.');
+      setError(apiErrorMessage(err, locale, t('saveFailed')));
     }
     setIsLoading(false);
   };
@@ -70,23 +80,23 @@ export default function MenuItemForm({ item, onDone }: Props) {
       onClose={onDone}
       size="lg"
       dismissOnBackdrop={false}
-      title={item ? `Edit ${item.name}` : 'New menu item'}
-      description="Customers see the name, description, price and photo."
+      title={item ? t('editTitle', { name: item.name }) : t('newTitle')}
+      description={t('description')}
       footer={
         <>
-          <Button variant="ghost" onClick={onDone}>Cancel</Button>
+          <Button variant="ghost" onClick={onDone}>{tc('cancel')}</Button>
           <Button type="submit" form="menu-item-form" loading={isLoading}>
-            Save
+            {tc('save')}
           </Button>
         </>
       }
     >
       <form id="menu-item-form" onSubmit={handleSubmit} className="grid gap-5 sm:grid-cols-[1fr_11rem]">
         <div className="space-y-4">
-          <Field label="Name" htmlFor="mi-name" required>
+          <Field label={t('name')} htmlFor="mi-name" required>
             <Input id="mi-name" data-autofocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           </Field>
-          <Field label="Description" htmlFor="mi-desc" hint="One or two lines: main ingredients, spice level.">
+          <Field label={t('descriptionField')} htmlFor="mi-desc" hint={t('descriptionHint')}>
             <Textarea
               id="mi-desc"
               rows={2}
@@ -95,13 +105,35 @@ export default function MenuItemForm({ item, onDone }: Props) {
               aria-describedby="mi-desc-hint"
             />
           </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={t('nameTh')} htmlFor="mi-name-th" hint={t('thaiHint')}>
+              <Input
+                id="mi-name-th"
+                lang="th"
+                value={form.nameTh}
+                maxLength={200}
+                onChange={(e) => setForm({ ...form, nameTh: e.target.value })}
+                aria-describedby="mi-name-th-hint"
+              />
+            </Field>
+            <Field label={t('descriptionTh')} htmlFor="mi-desc-th">
+              <Textarea
+                id="mi-desc-th"
+                lang="th"
+                rows={2}
+                value={form.descriptionTh}
+                maxLength={1000}
+                onChange={(e) => setForm({ ...form, descriptionTh: e.target.value })}
+              />
+            </Field>
+          </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Category" htmlFor="mi-cat">
+            <Field label={t('category')} htmlFor="mi-cat">
               <Select id="mi-cat" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
                 {categories.map((c) => <option key={c}>{c}</option>)}
               </Select>
             </Field>
-            <Field label="Selling price (฿)" htmlFor="mi-price" required>
+            <Field label={t('sellingPrice')} htmlFor="mi-price" required>
               <Input
                 id="mi-price"
                 type="number" step="0.01" min="0"
@@ -113,7 +145,7 @@ export default function MenuItemForm({ item, onDone }: Props) {
               />
             </Field>
             {isOwner && (
-              <Field label="Cost price (฿)" htmlFor="mi-cost" hint="Only you see this.">
+              <Field label={t('costPrice')} htmlFor="mi-cost" hint={t('costHint')}>
                 <Input
                   id="mi-cost"
                   type="number" step="0.01" min="0"
@@ -129,7 +161,7 @@ export default function MenuItemForm({ item, onDone }: Props) {
         </div>
 
         <div>
-          <p className="mb-1.5 text-sm font-medium text-fg">Photo</p>
+          <p className="mb-1.5 text-sm font-medium text-fg">{t('photo')}</p>
           <label className="group block cursor-pointer">
             <div className="flex aspect-square items-center justify-center overflow-hidden rounded-card border border-dashed border-line-strong bg-surface-muted text-fg-subtle transition-colors group-hover:border-accent">
               {preview ? (
@@ -140,7 +172,7 @@ export default function MenuItemForm({ item, onDone }: Props) {
             </div>
             <span className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-accent">
               <ImagePlus size={16} strokeWidth={1.75} aria-hidden />
-              {preview ? 'Change photo' : 'Add photo'}
+              {preview ? t('changePhoto') : t('addPhoto')}
             </span>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} className="sr-only" />
           </label>

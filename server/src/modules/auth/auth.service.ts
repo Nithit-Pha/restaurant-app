@@ -68,6 +68,11 @@ export async function refresh(token: string) {
 export async function getMe(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, username: true, email: true, role: true, phone: true, address: true, createdAt: true },
+    select: { id: true, name: true, username: true, email: true, role: true, phone: true, address: true, locale: true, createdAt: true },
   });
+}
+
+/** Remember the website language the user chose ("en" or "th"; checked by the route). */
+export async function setLocale(userId: string, locale: string) {
+  await prisma.user.update({ where: { id: userId }, data: { locale } });
 }

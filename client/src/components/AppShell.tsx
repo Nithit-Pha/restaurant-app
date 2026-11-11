@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
+import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import {
   ClipboardList, History, House, LogIn, LogOut, Menu as MenuIcon, NotebookPen, Receipt, Settings, ShoppingBag,
   UserPlus, UtensilsCrossed, Wallet, type LucideIcon,
@@ -18,7 +18,6 @@ import { cn, ICON_SM, ICON_STROKE } from './ui/cn';
 
 type Role = User['role'];
 const ROLE_RANK: Record<Role, number> = { CUSTOMER: 0, STAFF: 1, SUPER_ADMIN: 2 };
-const ROLE_LABEL: Record<Role, string> = { CUSTOMER: 'Customer', STAFF: 'Staff', SUPER_ADMIN: 'Super admin' };
 const hasMin = (role: Role | undefined, min: Role) => (role ? ROLE_RANK[role] >= ROLE_RANK[min] : false);
 
 interface NavItem {
@@ -54,6 +53,7 @@ function BrandMark({ name }: { name: string }) {
 }
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const t = useTranslations('nav');
   const active = isActive(pathname, item);
   const Icon = item.icon;
   return (
@@ -75,7 +75,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
       {item.badge != null && item.badge > 0 && (
         <span className="min-w-[1.25rem] rounded-full bg-warning-soft px-1.5 text-center text-xs font-medium leading-5 tabular-nums text-warning">
           {item.badge}
-          <span className="sr-only"> new</span>
+          <span className="sr-only"> {t('newSuffix')}</span>
         </span>
       )}
     </Link>
@@ -94,17 +94,18 @@ interface SidebarContentProps {
 }
 
 function SidebarContent({ restaurantName, pathname, groups, user, signedIn, cartCount, onCart, onSignOut }: SidebarContentProps) {
+  const t = useTranslations('nav');
   return (
     <div className="flex h-full flex-col">
       <Link href="/" className="flex h-16 shrink-0 items-center gap-3 px-5">
         <BrandMark name={restaurantName} />
         <span className="min-w-0">
           <span className="block truncate text-[15px] font-semibold leading-5 text-fg">{restaurantName}</span>
-          <span className="block text-xs text-fg-muted">Pickup &amp; delivery</span>
+          <span className="block text-xs text-fg-muted">{t('tagline')}</span>
         </span>
       </Link>
 
-      <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 pb-4 pt-2">
+      <nav aria-label={t('main')} className="flex-1 overflow-y-auto px-3 pb-4 pt-2">
         {groups.map((g) => (
           <div key={g.label} className="mb-5 last:mb-0">
             <p className="mb-1 px-3 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">{g.label}</p>
@@ -123,11 +124,11 @@ function SidebarContent({ restaurantName, pathname, groups, user, signedIn, cart
         <button
           type="button"
           onClick={onCart}
-          aria-label="Open cart"
+          aria-label={t('openCart')}
           className="flex h-10 w-full items-center gap-3 rounded-control px-3 text-sm text-fg transition-colors duration-150 hover:bg-surface-hover"
         >
           <ShoppingBag size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden className="text-fg-muted" />
-          <span className="flex-1 text-left font-medium">Cart</span>
+          <span className="flex-1 text-left font-medium">{t('cart')}</span>
           {cartCount > 0 && (
             <span className="min-w-[1.375rem] rounded-full bg-accent px-1.5 text-center text-xs font-semibold leading-[1.375rem] tabular-nums text-accent-fg">
               {cartCount}
@@ -145,9 +146,9 @@ function SidebarContent({ restaurantName, pathname, groups, user, signedIn, cart
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium text-fg">{user?.name ?? '…'}</span>
-              <span className="block text-xs text-fg-muted">{user ? ROLE_LABEL[user.role] : ' '}</span>
+              <span className="block text-xs text-fg-muted">{user ? t(`role.${user.role}`) : ' '}</span>
             </span>
-            <IconButton icon={LogOut} label="Sign out" size="sm" onClick={onSignOut} />
+            <IconButton icon={LogOut} label={t('signOut')} size="sm" onClick={onSignOut} />
           </div>
         ) : (
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -156,14 +157,14 @@ function SidebarContent({ restaurantName, pathname, groups, user, signedIn, cart
               className="inline-flex h-9 items-center justify-center gap-2 rounded-control bg-accent text-sm font-medium text-accent-fg transition-colors hover:bg-accent-hover"
             >
               <LogIn size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden />
-              Sign in
+              {t('signIn')}
             </Link>
             <Link
               href="/register"
               className="inline-flex h-9 items-center justify-center gap-2 rounded-control border border-line-strong/60 bg-surface text-sm font-medium text-fg transition-colors hover:bg-surface-hover"
             >
               <UserPlus size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden />
-              Register
+              {t('register')}
             </Link>
           </div>
         )}
@@ -175,6 +176,7 @@ function SidebarContent({ restaurantName, pathname, groups, user, signedIn, cart
 /* ------------------------------------------------------------------ shell -- */
 
 export default function AppShell({ restaurantName, children }: { restaurantName: string; children: ReactNode }) {
+  const t = useTranslations('nav');
   const dispatch = useAppDispatch();
   const router = useRouter();
   const pathname = usePathname() ?? '/';
@@ -193,30 +195,30 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
 
   const groups: NavGroup[] = [
     {
-      label: 'Order',
+      label: t('groupOrder'),
       items: [
-        { href: '/', label: 'Home', icon: House },
-        { href: '/menu', label: 'Menu', icon: UtensilsCrossed, prefix: true },
-        ...(token ? [{ href: '/orders', label: 'My orders', icon: Receipt, prefix: true }] : []),
+        { href: '/', label: t('home'), icon: House },
+        { href: '/menu', label: t('menu'), icon: UtensilsCrossed, prefix: true },
+        ...(token ? [{ href: '/orders', label: t('myOrders'), icon: Receipt, prefix: true }] : []),
       ],
     },
   ];
   if (isStaff) {
     groups.push({
-      label: 'Service',
+      label: t('groupService'),
       items: [
-        { href: '/admin/orders', label: 'Orders', icon: ClipboardList, prefix: true, badge: pending?.length },
-        { href: '/admin/menu', label: 'Menu management', icon: NotebookPen, prefix: true },
+        { href: '/admin/orders', label: t('orders'), icon: ClipboardList, prefix: true, badge: pending?.length },
+        { href: '/admin/menu', label: t('menuManagement'), icon: NotebookPen, prefix: true },
       ],
     });
   }
   if (hasMin(role, 'SUPER_ADMIN')) {
     groups.push({
-      label: 'Business',
+      label: t('groupBusiness'),
       items: [
-        { href: '/admin/finance', label: 'Finance', icon: Wallet, prefix: true },
-        { href: '/admin/audit-log', label: 'Audit log', icon: History, prefix: true },
-        { href: '/admin/settings', label: 'Settings', icon: Settings, prefix: true },
+        { href: '/admin/finance', label: t('finance'), icon: Wallet, prefix: true },
+        { href: '/admin/audit-log', label: t('auditLog'), icon: History, prefix: true },
+        { href: '/admin/settings', label: t('settings'), icon: Settings, prefix: true },
       ],
     });
   }
@@ -250,7 +252,7 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-control focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:shadow-raised"
       >
-        Skip to content
+        {t('skipToContent')}
       </a>
 
       {/* Desktop: fixed sidebar */}
@@ -258,15 +260,15 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
 
       {/* Phones and small tablets: slim top bar + drawer */}
       <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line bg-surface/95 px-2 backdrop-blur supports-[backdrop-filter]:bg-surface/85 lg:hidden">
-        <IconButton icon={MenuIcon} label="Open navigation" onClick={() => setMobileOpen(true)} />
+        <IconButton icon={MenuIcon} label={t('openNavigation')} onClick={() => setMobileOpen(true)} />
         <Link href="/" className="flex min-w-0 flex-1 items-center gap-2.5">
           <BrandMark name={restaurantName} />
           <span className="truncate text-[15px] font-semibold text-fg">{restaurantName}</span>
         </Link>
         <TopBarControls />
-        <IconButton icon={ShoppingBag} label="Open cart" count={cartCount} onClick={openCart} />
+        <IconButton icon={ShoppingBag} label={t('openCart')} count={cartCount} onClick={openCart} />
       </header>
-      <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} title="Navigation" side="left" width="max-w-[17rem]" bare>
+      <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} title={t('navigation')} side="left" width="max-w-[17rem]" bare>
         {content}
       </Drawer>
 

@@ -1,7 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation';
 import { Minus, Plus, ShoppingBag, Trash2, UtensilsCrossed } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import {
@@ -9,11 +10,13 @@ import {
   closeCart, removeItem, updateQuantity, setNote, type CartItem,
 } from './cartSlice';
 import { formatCurrency } from '../../lib/format';
+import { itemName } from '../../lib/localized';
 import { Button, Drawer, EmptyState, IconButton, Input, buttonClasses } from '../../components/ui';
 import LineDetails from '../orders/LineDetails';
 
 /** "Add a note" link under a cart line; opens a small input, saved on Enter or when leaving it. */
-function NoteEditor({ item }: { item: CartItem }) {
+function NoteEditor({ item, name }: { item: CartItem; name: string }) {
+  const t = useTranslations('cart');
   const dispatch = useAppDispatch();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(item.note);
@@ -29,7 +32,7 @@ function NoteEditor({ item }: { item: CartItem }) {
         className="-ml-2 h-7 px-2 text-xs"
         onClick={() => { setText(item.note); setEditing(true); }}
       >
-        {item.note ? 'Edit note' : 'Add a note'}
+        {item.note ? t('editNote') : t('addNote')}
       </Button>
     );
   }
@@ -38,8 +41,8 @@ function NoteEditor({ item }: { item: CartItem }) {
       autoFocus
       value={text}
       maxLength={200}
-      placeholder="e.g. no peanuts"
-      aria-label={`Note for ${item.name}`}
+      placeholder={t('notePlaceholder')}
+      aria-label={t('noteFor', { name })}
       onChange={(e) => setText(e.target.value)}
       onBlur={save}
       onKeyDown={(e) => {
@@ -52,6 +55,8 @@ function NoteEditor({ item }: { item: CartItem }) {
 }
 
 export default function CartDrawer() {
+  const t = useTranslations('cart');
+  const locale = useLocale();
   const dispatch = useAppDispatch();
   const items = useAppSelector(selectCartItems);
   const isOpen = useAppSelector(selectCartIsOpen);
@@ -64,39 +69,39 @@ export default function CartDrawer() {
     items.length > 0 ? (
       <div className="space-y-1.5 text-sm">
         <div className="flex justify-between text-fg-muted">
-          <span>Subtotal</span>
+          <span>{t('subtotal')}</span>
           <span className="tabular-nums">{formatCurrency(subtotal)}</span>
         </div>
         <div className="flex justify-between text-fg-muted">
-          <span>Tax (7%, included)</span>
+          <span>{t('taxIncluded')}</span>
           <span className="tabular-nums">{formatCurrency(taxAmount)}</span>
         </div>
         <div className="flex justify-between pt-1 text-base font-semibold text-fg">
-          <span>Total</span>
+          <span>{t('total')}</span>
           <span className="tabular-nums">{formatCurrency(total)}</span>
         </div>
         <Link href="/checkout" onClick={close} className={buttonClasses('primary', 'lg', 'mt-3 w-full')}>
-          Checkout
+          {t('checkout')}
         </Link>
       </div>
     ) : undefined;
 
   return (
-    <Drawer open={isOpen} onClose={close} title="Your cart" footer={footer}>
+    <Drawer open={isOpen} onClose={close} title={t('title')} footer={footer}>
       {items.length === 0 ? (
         <EmptyState
           icon={ShoppingBag}
-          title="Your cart is empty"
-          description="Add something from the menu to start an order."
+          title={t('emptyTitle')}
+          description={t('emptyDescription')}
           action={
             <Link href="/menu" onClick={close} className={buttonClasses('secondary')}>
-              Browse the menu
+              {t('browseMenu')}
             </Link>
           }
         />
       ) : (
         <ul className="divide-y divide-line">
-          {items.map((item) => (
+          {items.map((item) => ({ item, name: itemName(item, locale) })).map(({ item, name }) => (
             <li key={item.lineId} className="flex gap-3 px-4 py-3.5">
               <div className="h-14 w-14 shrink-0 overflow-hidden rounded-control bg-surface-muted">
                 {item.imageUrl ? (
@@ -109,20 +114,20 @@ export default function CartDrawer() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="truncate text-sm font-medium text-fg">{item.name}</p>
+                  <p className="truncate text-sm font-medium text-fg">{name}</p>
                   <p className="shrink-0 text-sm font-medium tabular-nums text-fg">
                     {formatCurrency(item.sellingPrice * item.quantity)}
                   </p>
                 </div>
-                <p className="text-xs tabular-nums text-fg-muted">{formatCurrency(item.sellingPrice)} each</p>
+                <p className="text-xs tabular-nums text-fg-muted">{t('each', { price: formatCurrency(item.sellingPrice) })}</p>
                 <LineDetails options={item.options} note={item.note} className="mt-0.5" />
-                <NoteEditor key={item.lineId} item={item} />
+                <NoteEditor key={item.lineId} item={item} name={name} />
                 <div className="mt-1 flex items-center justify-between">
                   <div className="inline-flex items-center rounded-control border border-line">
                     <IconButton
                       icon={Minus}
                       size="sm"
-                      label={`One less ${item.name}`}
+                      label={t('oneLess', { name })}
                       onClick={() => dispatch(updateQuantity({ lineId: item.lineId, quantity: item.quantity - 1 }))}
                     />
                     <span className="w-8 text-center text-sm font-medium tabular-nums text-fg" aria-live="polite">
@@ -131,14 +136,14 @@ export default function CartDrawer() {
                     <IconButton
                       icon={Plus}
                       size="sm"
-                      label={`One more ${item.name}`}
+                      label={t('oneMore', { name })}
                       onClick={() => dispatch(updateQuantity({ lineId: item.lineId, quantity: item.quantity + 1 }))}
                     />
                   </div>
                   <IconButton
                     icon={Trash2}
                     size="sm"
-                    label={`Remove ${item.name}`}
+                    label={t('remove', { name })}
                     onClick={() => dispatch(removeItem(item.lineId))}
                     className="hover:!bg-danger-soft hover:!text-danger"
                   />

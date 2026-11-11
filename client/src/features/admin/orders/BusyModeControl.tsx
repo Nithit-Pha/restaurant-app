@@ -1,20 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { apiErrorMessage } from '@/lib/localized';
 import { useGetOpenStatusQuery, useSetBusyModeMutation, type OrderingMode } from '../../../api/apiSlice';
 
 const EXTRA_PRESETS = [10, 15, 20, 30, 45, 60];
-const MODES: { mode: OrderingMode; label: string }[] = [
-  { mode: 'NORMAL', label: 'Normal' },
-  { mode: 'BUSY', label: 'Busy' },
-  { mode: 'PAUSED', label: 'Paused' },
-];
+const MODES: OrderingMode[] = ['NORMAL', 'BUSY', 'PAUSED'];
 
 /**
  * Staff control for a rush: Busy tells customers orders take longer,
  * Paused stops new online orders until switched back.
  */
 export default function BusyModeControl() {
+  const t = useTranslations('busyMode');
+  const locale = useLocale();
   const { data } = useGetOpenStatusQuery(undefined, { pollingInterval: 30_000 });
   const [setBusyMode, { isLoading }] = useSetBusyModeMutation();
   const [message, setMessage] = useState('');
@@ -32,7 +32,7 @@ export default function BusyModeControl() {
     try {
       await setBusyMode({ mode, ...(mode === 'BUSY' ? { extraMinutes: extraMinutes ?? extra } : {}), ...(pauseMessage !== undefined ? { pauseMessage } : {}) }).unwrap();
     } catch (err) {
-      setError((err as { data?: { message?: string } })?.data?.message || 'Could not change online ordering');
+      setError(apiErrorMessage(err, locale, t('changeFailed')));
     }
   };
 
@@ -44,9 +44,9 @@ export default function BusyModeControl() {
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="text-gray-600 dark:text-gray-400">Online orders:</span>
-      <div role="group" aria-label="Online ordering" className="inline-flex rounded-lg overflow-hidden border dark:border-gray-600">
-        {MODES.map(({ mode, label }) => (
+      <span className="text-gray-600 dark:text-gray-400">{t('label')}</span>
+      <div role="group" aria-label={t('groupLabel')} className="inline-flex rounded-lg overflow-hidden border dark:border-gray-600">
+        {MODES.map((mode) => (
           <button
             key={mode}
             type="button"
@@ -57,7 +57,7 @@ export default function BusyModeControl() {
               data.mode === mode ? tone[mode] : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
             }`}
           >
-            {label}
+            {t(`mode.${mode}`)}
           </button>
         ))}
       </div>
@@ -69,14 +69,14 @@ export default function BusyModeControl() {
             value={data.busyExtraMinutes}
             onChange={(e) => void change('BUSY', Number(e.target.value))}
             disabled={isLoading}
-            aria-label="Extra minutes while busy"
+            aria-label={t('extraMinutes')}
             className="border dark:border-gray-600 rounded px-1.5 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             {Array.from(new Set([...EXTRA_PRESETS, data.busyExtraMinutes])).sort((a, b) => a - b).map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
-          min
+          {t('min')}
         </label>
       )}
 
@@ -89,11 +89,11 @@ export default function BusyModeControl() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             maxLength={200}
-            aria-label="Message for customers while paused"
+            aria-label={t('pauseMessage')}
             className="w-64 max-w-full border dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           />
           <button type="submit" disabled={isLoading || message.trim() === data.pauseMessage} className="text-xs text-brand-600 hover:underline disabled:opacity-40">
-            Save message
+            {t('saveMessage')}
           </button>
         </form>
       )}

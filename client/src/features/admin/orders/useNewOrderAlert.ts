@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Order } from '../../../api/apiSlice';
 
 const SOUND_KEY = 'staff.newOrderSound';
@@ -22,6 +23,7 @@ function readSoundPref(): boolean {
  * page shows a "Sound on" button that also unlocks audio.
  */
 export function useNewOrderAlert(orders: Order[] | undefined) {
+  const t = useTranslations('staffOrders');
   const [soundOn, setSoundOn] = useState(true);
   const audioRef = useRef<AudioContext | null>(null);
   const seenRef = useRef<Set<string> | null>(null); // null until the first load
@@ -82,10 +84,10 @@ export function useNewOrderAlert(orders: Order[] | undefined) {
 
   // Tab title shows how many orders wait for a decision.
   useEffect(() => {
-    const base = 'Orders · Staff';
-    document.title = pendingCount > 0 ? `(${pendingCount}) New order${pendingCount > 1 ? 's' : ''} · ${base}` : base;
+    const base = t('tabTitle');
+    document.title = pendingCount > 0 ? `(${pendingCount}) ${t('tabNewOrders', { count: pendingCount })} · ${base}` : base;
     return () => { document.title = base; };
-  }, [pendingCount]);
+  }, [pendingCount, t]);
 
   return { soundOn, toggleSound, pendingCount };
 }

@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import { cn } from '../../components/ui';
 
 /**
@@ -11,13 +12,14 @@ export default function LineDetails({ options = [], note, className, strongNote 
   /** Make the note stand out (kitchen screen). */
   strongNote?: boolean;
 }) {
+  const t = useTranslations('order');
   if (options.length === 0 && !note) return null;
   return (
     <div className={cn('text-xs text-fg-muted', className)}>
       {options.length > 0 && <p>{options.map((o) => o.name).join(' · ')}</p>}
       {note && (
         <p className={cn(strongNote && 'font-medium text-warning')}>
-          Note: {note}
+          {t('note', { note })}
         </p>
       )}
     </div>

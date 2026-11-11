@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useTranslations } from 'next-intl';
 import { Home, LocateFixed, MapPin, Trash2 } from 'lucide-react';
 import { useDeleteAddressMutation, useGetAddressesQuery, useGetRestaurantQuery, type SavedAddress } from '../../api/apiSlice';
 import { Button, Field, IconButton, Input, Skeleton, checkboxClasses, cn, useToast } from '../../components/ui';
@@ -26,9 +27,13 @@ export interface DeliveryDraft {
   label: string;
 }
 
-export const emptyDelivery: DeliveryDraft = { savedId: null, text: '', note: '', pin: null, save: true, label: 'Home' };
+/** A fresh form; `label` is the suggested name for a saved address ("Home" / "บ้าน"). */
+export const emptyDelivery = (label = ''): DeliveryDraft => ({ savedId: null, text: '', note: '', pin: null, save: true, label });
 
-/** The address the order and the driver see: the text, plus the note if there is one. */
+/**
+ * The address the order and the driver see: the text, plus the note if there is one.
+ * "Note:" stays English: the kitchen and riders read the staff screens in one language.
+ */
 export function deliveryAddressText(d: DeliveryDraft): string {
   return d.note.trim() ? `${d.text.trim()} · Note: ${d.note.trim()}` : d.text.trim();
 }
@@ -45,6 +50,7 @@ interface Props {
 }
 
 export default function DeliveryForm({ value, onChange, focusKey, onUseLocation, locating, locationError }: Props) {
+  const t = useTranslations('delivery');
   const { data: saved = [] } = useGetAddressesQuery();
   const { data: restaurant } = useGetRestaurantQuery();
   const [deleteAddress] = useDeleteAddressMutation();
@@ -59,10 +65,10 @@ export default function DeliveryForm({ value, onChange, focusKey, onUseLocation,
   const remove = async (a: SavedAddress) => {
     try {
       await deleteAddress(a.id).unwrap();
-      toast({ title: `${a.label} was removed from your addresses` });
+      toast({ title: t('removed', { label: a.label }) });
       if (value.savedId === a.id) onChange({ ...value, savedId: null, save: false });
     } catch {
-      toast({ tone: 'error', title: `Could not remove ${a.label}`, description: 'Please try again.' });
+      toast({ tone: 'error', title: t('removeFailed', { label: a.label }), description: t('tryAgain') });
     }
   };
 
@@ -70,7 +76,7 @@ export default function DeliveryForm({ value, onChange, focusKey, onUseLocation,
     <div className="space-y-5">
       {saved.length > 0 && (
         <fieldset>
-          <legend className="mb-2 text-sm font-medium text-fg">Your addresses</legend>
+          <legend className="mb-2 text-sm font-medium text-fg">{t('yourAddresses')}</legend>
           <div className="space-y-2">
             {saved.map((a) => (
               <div
@@ -96,7 +102,7 @@ export default function DeliveryForm({ value, onChange, focusKey, onUseLocation,
                 <IconButton
                   icon={Trash2}
                   size="sm"
-                  label={`Remove ${a.label}`}
+                  label={t('remove', { label: a.label })}
                   onClick={() => remove(a)}
                   className="hover:!bg-danger-soft hover:!text-danger"
                 />
@@ -110,46 +116,46 @@ export default function DeliveryForm({ value, onChange, focusKey, onUseLocation,
                 type="radio"
                 name="saved-address"
                 checked={value.savedId === null}
-                onChange={() => onChange({ ...emptyDelivery, save: saved.length < MAX_ADDRESSES, label: '' })}
+                onChange={() => onChange({ ...emptyDelivery(), save: saved.length < MAX_ADDRESSES })}
                 className={checkboxClasses}
               />
-              <span className="font-medium text-fg">A new address</span>
+              <span className="font-medium text-fg">{t('newAddress')}</span>
             </label>
           </div>
         </fieldset>
       )}
 
-      <Field label="Delivery address" htmlFor="delivery-address" required>
+      <Field label={t('address')} htmlFor="delivery-address" required>
         <Input
           id="delivery-address"
           type="text"
           value={value.text}
           maxLength={300}
           onChange={(e) => set({ text: e.target.value })}
-          placeholder="House number, street, area"
+          placeholder={t('addressPlaceholder')}
           autoComplete="street-address"
         />
       </Field>
 
       <div className="space-y-2">
         <p className="text-sm font-medium text-fg">
-          Pin on the map<span className="ml-0.5 text-danger" aria-hidden>*</span>
+          {t('pinLabel')}<span className="ml-0.5 text-danger" aria-hidden>*</span>
         </p>
-        <DeliveryMap pin={value.pin} center={center} focusKey={focusKey} onChange={(pin) => set({ pin })} />
+        <DeliveryMap pin={value.pin} center={center} focusKey={focusKey} onChange={(pin) => set({ pin })} pinTitle={t('pinTitle')} />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Button variant="secondary" size="sm" icon={LocateFixed} onClick={onUseLocation} loading={locating}>
-            {locating ? 'Finding your location…' : 'Use my current location'}
+            {locating ? t('locating') : t('useLocation')}
           </Button>
           <span className={cn('inline-flex items-center gap-1.5 text-xs', value.pin ? 'text-fg-muted' : 'text-warning')}>
             <MapPin size={14} strokeWidth={1.75} aria-hidden />
-            {value.pin ? 'Pin placed. Drag it if it is not on your door.' : 'Tap the map where we should deliver.'}
+            {value.pin ? t('pinPlaced') : t('tapMap')}
           </span>
         </div>
-        <p className="text-xs text-fg-muted">The delivery fee is worked out from the pin.</p>
+        <p className="text-xs text-fg-muted">{t('feeFromPin')}</p>
         {locationError && <p className="text-sm text-danger" role="alert">{locationError}</p>}
       </div>
 
-      <Field label="Note for the driver" htmlFor="delivery-note" hint="Optional, e.g. blue gate, call when you arrive">
+      <Field label={t('driverNote')} htmlFor="delivery-note" hint={t('driverNoteHint')}>
         <Input id="delivery-note" value={value.note} maxLength={200} onChange={(e) => set({ note: e.target.value })} />
       </Field>
 
@@ -157,13 +163,13 @@ export default function DeliveryForm({ value, onChange, focusKey, onUseLocation,
         <div className="space-y-3">
           <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm text-fg">
             <input type="checkbox" checked={value.save} onChange={(e) => set({ save: e.target.checked })} className={checkboxClasses} />
-            Save this address for next time
+            {t('saveForNextTime')}
           </label>
           {value.save && (
-            <Field label="Name for this address" htmlFor="address-label" className="sm:max-w-xs">
+            <Field label={t('labelField')} htmlFor="address-label" className="sm:max-w-xs">
               <div className="relative">
                 <Home size={16} strokeWidth={1.75} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
-                <Input id="address-label" value={value.label} maxLength={40} placeholder="e.g. Home, Office" onChange={(e) => set({ label: e.target.value })} className="pl-9" />
+                <Input id="address-label" value={value.label} maxLength={40} placeholder={t('labelPlaceholder')} onChange={(e) => set({ label: e.target.value })} className="pl-9" />
               </div>
             </Field>
           )}

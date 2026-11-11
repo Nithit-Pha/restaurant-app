@@ -32,6 +32,15 @@ export async function refreshHandler(req: Request, res: Response, next: NextFunc
   }
 }
 
+export async function setLocaleHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    await authService.setLocale(req.user!.userId, req.body.locale);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function meHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const user = await authService.getMe(req.user!.userId);

@@ -1,16 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { MenuItem, ModifierGroup } from '../../api/apiSlice';
 import type { CartOption } from '../cart/cartSlice';
 import { formatCurrency } from '../../lib/format';
 import { Button, Dialog, Field, Textarea, checkboxClasses, cn } from '../../components/ui';
 
-/** "Required" / "Optional · up to 3" / "Choose 2" / "Choose 1–3". */
-export function ruleText(g: Pick<ModifierGroup, 'minSelect' | 'maxSelect'>): string {
-  if (g.minSelect === 0) return g.maxSelect === 1 ? 'Optional' : `Optional · up to ${g.maxSelect}`;
-  if (g.minSelect === g.maxSelect) return g.minSelect === 1 ? 'Required' : `Choose ${g.minSelect}`;
-  return `Choose ${g.minSelect}–${g.maxSelect}`;
+/** "Required" / "Optional · up to 3" / "Choose 2" / "Choose 1–3", in the page's language. */
+export function useRuleText() {
+  const t = useTranslations('options');
+  return (g: Pick<ModifierGroup, 'minSelect' | 'maxSelect'>): string => {
+    if (g.minSelect === 0) return g.maxSelect === 1 ? t('optional') : t('optionalUpTo', { max: g.maxSelect });
+    if (g.minSelect === g.maxSelect) return g.minSelect === 1 ? t('required') : t('chooseExactly', { count: g.minSelect });
+    return t('chooseRange', { min: g.minSelect, max: g.maxSelect });
+  };
 }
 
 /** "+฿20.00" / "−฿5.00" / "" for no price change. */
@@ -25,6 +29,8 @@ export default function ItemOptionsDialog({ item, onAdd, onClose }: {
   onAdd: (options: CartOption[], note: string) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations('options');
+  const ruleText = useRuleText();
   const groups = item.modifierGroups ?? [];
   // A required single choice starts on its first option.
   const [chosen, setChosen] = useState<Record<string, string[]>>(() =>
@@ -57,9 +63,9 @@ export default function ItemOptionsDialog({ item, onAdd, onClose }: {
       dismissOnBackdrop={false}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose}>{t('cancel')}</Button>
           <Button disabled={missing.length > 0} onClick={() => onAdd(options, note)}>
-            Add to cart · {formatCurrency(price)}
+            {t('addToCart', { price: formatCurrency(price) })}
           </Button>
         </>
       }
@@ -75,7 +81,7 @@ export default function ItemOptionsDialog({ item, onAdd, onClose }: {
                 <span className="font-medium text-fg">{g.name}</span>
                 <span className={cn('text-xs', missing.includes(g) ? 'font-medium text-danger' : 'text-fg-muted')}>{ruleText(g)}</span>
               </legend>
-              {g.modifiers.length === 0 && <p className="text-fg-muted">Not available right now.</p>}
+              {g.modifiers.length === 0 && <p className="text-fg-muted">{t('notAvailable')}</p>}
               <div className="space-y-1.5">
                 {g.modifiers.map((m) => {
                   const checked = chosen[g.id]?.includes(m.id) ?? false;
@@ -109,7 +115,7 @@ export default function ItemOptionsDialog({ item, onAdd, onClose }: {
           );
         })}
 
-        <Field label="Note for the kitchen" htmlFor={noteId} hint="Optional, e.g. no peanuts, less sweet">
+        <Field label={t('kitchenNote')} htmlFor={noteId} hint={t('kitchenNoteHint')}>
           <Textarea id={noteId} value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} rows={2} />
         </Field>
       </div>

@@ -1,20 +1,18 @@
 'use client';
 
-import { useGetOpenStatusQuery, type OpenStatus } from '../../api/apiSlice';
+import { useTranslations } from 'next-intl';
+import { useGetOpenStatusQuery } from '../../api/apiSlice';
 import { Alert } from '../../components/ui';
 
-/** "tomorrow at 11:00" / "today at 17:00" / "Monday at 11:00" */
-export function opensAtText(next: OpenStatus['nextOpening']): string {
-  if (!next) return '';
-  const when = next.inDays === 0 ? 'today' : next.inDays === 1 ? 'tomorrow' : next.dayOfWeek;
-  return `${when} at ${next.time}`;
-}
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+type Day = (typeof DAYS)[number];
 
 /**
  * Shown on the menu and at checkout while online ordering is closed
  * (opening hours, or paused by staff), and as a notice while the kitchen is busy.
  */
 export default function ClosedBanner({ className = '' }: { className?: string }) {
+  const t = useTranslations('closed');
   const { data } = useGetOpenStatusQuery(undefined, { pollingInterval: 60_000 });
   if (!data) return null;
 
@@ -22,8 +20,8 @@ export default function ClosedBanner({ className = '' }: { className?: string })
     if (data.mode !== 'BUSY') return null;
     return (
       <div role="status" className={className}>
-        <Alert tone="info" title={<>We&apos;re busy right now.</>}>
-          Orders take about {data.busyExtraMinutes} minutes longer than usual.
+        <Alert tone="info" title={t('busyTitle')}>
+          {t('busyText', { minutes: data.busyExtraMinutes })}
         </Alert>
       </div>
     );
@@ -32,19 +30,27 @@ export default function ClosedBanner({ className = '' }: { className?: string })
   if (data.closedReason === 'PAUSED') {
     return (
       <div role="status" className={className}>
-        <Alert tone="warning" title="Online ordering is paused.">
-          {data.pauseMessage} You can still browse the menu.
+        <Alert tone="warning" title={t('pausedTitle')}>
+          {data.pauseMessage} {t('browse')}
         </Alert>
       </div>
     );
   }
 
+  // "tomorrow at 11:00" / "today at 17:00" / "Monday at 11:00"
+  const next = data.nextOpening;
+  const when = !next
+    ? ''
+    : next.inDays === 0
+      ? t('today', { time: next.time })
+      : next.inDays === 1
+        ? t('tomorrow', { time: next.time })
+        : t('onDay', { day: DAYS.includes(next.dayOfWeek as Day) ? t(`days.${next.dayOfWeek as Day}`) : next.dayOfWeek, time: next.time });
+
   return (
     <div role="status" className={className}>
-      <Alert tone="warning" title={<>We&apos;re closed right now.</>}>
-        {data.nextOpening
-          ? <>Online ordering opens again {opensAtText(data.nextOpening)}. You can still browse the menu.</>
-          : <>Online ordering is paused. You can still browse the menu.</>}
+      <Alert tone="warning" title={t('closedTitle')}>
+        {next ? t('opensAgain', { when }) : t('pausedNoHours')} {t('browse')}
       </Alert>
     </div>
   );

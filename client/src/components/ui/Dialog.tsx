@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { cn } from './cn';
 import IconButton from './IconButton';
 import { useOverlay } from './useOverlay';
@@ -29,6 +30,7 @@ interface DialogProps {
 const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' };
 
 export function Dialog({ open, onClose, title, description, footer, size = 'md', dismissOnBackdrop = true, children }: DialogProps) {
+  const t = useTranslations('common');
   const ready = usePortalReady();
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -67,7 +69,7 @@ export function Dialog({ open, onClose, title, description, footer, size = 'md',
               </p>
             )}
           </div>
-          <IconButton icon={X} label="Close" size="sm" onClick={onClose} className="-mr-1 -mt-1" />
+          <IconButton icon={X} label={t('close')} size="sm" onClick={onClose} className="-mr-1 -mt-1" />
         </div>
         {children && <div className="overflow-y-auto px-5 py-3 text-sm text-fg">{children}</div>}
         {footer && <div className="flex flex-wrap items-center justify-end gap-2 px-5 pb-5 pt-3">{footer}</div>}
@@ -91,6 +93,7 @@ interface DrawerProps {
 }
 
 export function Drawer({ open, onClose, title, side = 'right', width = 'max-w-sm', footer, children, bare }: DrawerProps) {
+  const t = useTranslations('common');
   const ready = usePortalReady();
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -119,7 +122,7 @@ export function Drawer({ open, onClose, title, side = 'right', width = 'max-w-sm
             <h2 id={titleId} className="text-base font-semibold text-fg">
               {title}
             </h2>
-            <IconButton icon={X} label="Close" size="sm" onClick={onClose} />
+            <IconButton icon={X} label={t('close')} size="sm" onClick={onClose} />
           </div>
         )}
         <div className="flex-1 overflow-y-auto">{children}</div>

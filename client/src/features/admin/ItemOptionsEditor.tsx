@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { apiErrorMessage } from '@/lib/localized';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { useSetItemOptionsMutation, type MenuItem, type ModifierGroupInput } from '../../api/apiSlice';
-import { ruleText } from '../menu/ItemOptionsDialog';
+import { useRuleText } from '../menu/ItemOptionsDialog';
 import { Alert, Button, Card, Dialog, Field, IconButton, Input, Switch, useToast } from '../../components/ui';
 
 interface OptionDraft { key: string; id?: string; name: string; price: string; isAvailable: boolean }
@@ -25,18 +27,20 @@ function toDrafts(item: MenuItem): GroupDraft[] {
   }));
 }
 
+type Problem = 'noName' | 'badMin' | 'badMax' | 'minOverMax' | 'noOptions' | 'tooFewOptions' | 'optionName' | 'optionPrice';
+
 /** Same rules as the server (menu.routes.ts): returns the first problem, or null. */
-function problemOf(g: GroupDraft): string | null {
+function problemOf(g: GroupDraft): Problem | null {
   const min = Number(g.min);
   const max = Number(g.max);
-  if (!g.name.trim()) return 'Give the group a name, e.g. Size.';
-  if (!Number.isInteger(min) || min < 0 || min > 20) return 'Minimum must be a whole number from 0 to 20.';
-  if (!Number.isInteger(max) || max < 1 || max > 20) return 'Maximum must be a whole number from 1 to 20.';
-  if (min > max) return 'Minimum cannot be more than maximum.';
-  if (g.options.length === 0) return 'Add at least one option.';
-  if (min > g.options.length) return 'More choices required than there are options.';
-  if (g.options.some((o) => !o.name.trim())) return 'Every option needs a name.';
-  if (g.options.some((o) => o.price.trim() === '' || !Number.isFinite(Number(o.price)))) return 'Every price change must be a number (0 for none).';
+  if (!g.name.trim()) return 'noName';
+  if (!Number.isInteger(min) || min < 0 || min > 20) return 'badMin';
+  if (!Number.isInteger(max) || max < 1 || max > 20) return 'badMax';
+  if (min > max) return 'minOverMax';
+  if (g.options.length === 0) return 'noOptions';
+  if (min > g.options.length) return 'tooFewOptions';
+  if (g.options.some((o) => !o.name.trim())) return 'optionName';
+  if (g.options.some((o) => o.price.trim() === '' || !Number.isFinite(Number(o.price)))) return 'optionPrice';
   return null;
 }
 
@@ -50,6 +54,10 @@ function move<T>(list: T[], from: number, to: number): T[] {
 
 /** Edit an item's option groups (Size, Spice level, Extras) and their options. */
 export default function ItemOptionsEditor({ item, onDone }: { item: MenuItem; onDone: () => void }) {
+  const t = useTranslations('optionsEditor');
+  const tc = useTranslations('common');
+  const locale = useLocale();
+  const ruleText = useRuleText();
   const [groups, setGroups] = useState<GroupDraft[]>(() => toDrafts(item));
   const [showProblems, setShowProblems] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -76,12 +84,11 @@ export default function ItemOptionsEditor({ item, onDone }: { item: MenuItem; on
     }));
     try {
       await save({ id: item.id, groups: body }).unwrap();
-      toast({ title: `Options for ${item.name} saved` });
+      toast({ title: t('saved', { name: item.name }) });
       onDone();
     } catch (err) {
-      const msg = (err as { data?: { message?: string } })?.data?.message;
-      setServerError(msg || 'Could not save the options. Please try again.');
-      toast({ tone: 'error', title: `Could not save the options for ${item.name}` });
+      setServerError(apiErrorMessage(err, locale, t('saveFailed')));
+      toast({ tone: 'error', title: t('saveFailedFor', { name: item.name }) });
     }
   };
 
@@ -91,18 +98,18 @@ export default function ItemOptionsEditor({ item, onDone }: { item: MenuItem; on
       onClose={onDone}
       size="lg"
       dismissOnBackdrop={false}
-      title={`Options for ${item.name}`}
-      description="Choices customers make when they add this dish, e.g. Size or Extras. The price change is added to the dish price."
+      title={t('title', { name: item.name })}
+      description={t('description')}
       footer={
         <>
-          <Button variant="secondary" onClick={onDone}>Cancel</Button>
-          <Button loading={isLoading} onClick={handleSave}>Save options</Button>
+          <Button variant="secondary" onClick={onDone}>{tc('cancel')}</Button>
+          <Button loading={isLoading} onClick={handleSave}>{t('save')}</Button>
         </>
       }
     >
       <div className="space-y-4">
         {serverError && <Alert tone="danger">{serverError}</Alert>}
-        {groups.length === 0 && <p className="text-fg-muted">This dish has no options. Customers add it straight to the cart.</p>}
+        {groups.length === 0 && <p className="text-fg-muted">{t('none')}</p>}
 
         {groups.map((g, gi) => {
           const problem = showProblems ? problems[gi] : null;
@@ -111,29 +118,29 @@ export default function ItemOptionsEditor({ item, onDone }: { item: MenuItem; on
           return (
             <Card key={g.key} className="p-4">
               <div className="flex flex-wrap items-end gap-3">
-                <Field label="Group name" htmlFor={`${g.key}-name`} className="min-w-[12rem] flex-1">
-                  <Input id={`${g.key}-name`} value={g.name} maxLength={60} placeholder="e.g. Size" onChange={(e) => setGroup(g.key, { name: e.target.value })} />
+                <Field label={t('groupName')} htmlFor={`${g.key}-name`} className="min-w-[12rem] flex-1">
+                  <Input id={`${g.key}-name`} value={g.name} maxLength={60} placeholder={t('groupPlaceholder')} onChange={(e) => setGroup(g.key, { name: e.target.value })} />
                 </Field>
-                <Field label="At least" htmlFor={`${g.key}-min`} className="w-24">
+                <Field label={t('atLeast')} htmlFor={`${g.key}-min`} className="w-24">
                   <Input id={`${g.key}-min`} type="number" min={0} max={20} value={g.min} onChange={(e) => setGroup(g.key, { min: e.target.value })} />
                 </Field>
-                <Field label="At most" htmlFor={`${g.key}-max`} className="w-24">
+                <Field label={t('atMost')} htmlFor={`${g.key}-max`} className="w-24">
                   <Input id={`${g.key}-max`} type="number" min={1} max={20} value={g.max} onChange={(e) => setGroup(g.key, { max: e.target.value })} />
                 </Field>
                 <div className="flex gap-1 pb-1">
-                  <IconButton icon={ArrowUp} size="sm" label={`Move ${g.name || 'group'} up`} disabled={gi === 0} onClick={() => setGroups((gs) => move(gs, gi, gi - 1))} />
-                  <IconButton icon={ArrowDown} size="sm" label={`Move ${g.name || 'group'} down`} disabled={gi === groups.length - 1} onClick={() => setGroups((gs) => move(gs, gi, gi + 1))} />
+                  <IconButton icon={ArrowUp} size="sm" label={t('moveGroupUp', { name: g.name || t('group') })} disabled={gi === 0} onClick={() => setGroups((gs) => move(gs, gi, gi - 1))} />
+                  <IconButton icon={ArrowDown} size="sm" label={t('moveGroupDown', { name: g.name || t('group') })} disabled={gi === groups.length - 1} onClick={() => setGroups((gs) => move(gs, gi, gi + 1))} />
                   <IconButton
                     icon={Trash2}
                     size="sm"
-                    label={`Remove ${g.name || 'group'}`}
+                    label={t('removeGroup', { name: g.name || t('group') })}
                     onClick={() => setGroups((gs) => gs.filter((x) => x.key !== g.key))}
                     className="hover:!bg-danger-soft hover:!text-danger"
                   />
                 </div>
               </div>
               <p className="mt-1.5 text-xs text-fg-muted">
-                Customers see: {Number.isInteger(min) && Number.isInteger(max) && min <= max ? ruleText({ minSelect: min, maxSelect: max }) : '—'}
+                {t('customersSee', { rule: Number.isInteger(min) && Number.isInteger(max) && min <= max ? ruleText({ minSelect: min, maxSelect: max }) : '—' })}
               </p>
 
               <ul className="mt-3 space-y-2">
@@ -142,8 +149,8 @@ export default function ItemOptionsEditor({ item, onDone }: { item: MenuItem; on
                     <Input
                       value={o.name}
                       maxLength={60}
-                      placeholder="Option, e.g. Large"
-                      aria-label={`Option ${oi + 1} name`}
+                      placeholder={t('optionPlaceholder')}
+                      aria-label={t('optionName', { n: oi + 1 })}
                       onChange={(e) => setOption(g.key, o.key, { name: e.target.value })}
                       className="min-w-[10rem] flex-1"
                     />
@@ -151,17 +158,17 @@ export default function ItemOptionsEditor({ item, onDone }: { item: MenuItem; on
                       type="number"
                       step="0.01"
                       value={o.price}
-                      aria-label={`Option ${oi + 1} price change in baht`}
-                      title="Price change in baht (negative for a discount)"
+                      aria-label={t('optionPrice', { n: oi + 1 })}
+                      title={t('priceTitle')}
                       onChange={(e) => setOption(g.key, o.key, { price: e.target.value })}
                       className="w-28 text-right tabular-nums"
                     />
-                    <Switch checked={o.isAvailable} onChange={(on) => setOption(g.key, o.key, { isAvailable: on })} label={`Option ${oi + 1} available`} hideLabel />
-                    <IconButton icon={ArrowUp} size="sm" label={`Move option ${oi + 1} up`} disabled={oi === 0} onClick={() => setGroup(g.key, { options: move(g.options, oi, oi - 1) })} />
+                    <Switch checked={o.isAvailable} onChange={(on) => setOption(g.key, o.key, { isAvailable: on })} label={t('optionAvailable', { n: oi + 1 })} hideLabel />
+                    <IconButton icon={ArrowUp} size="sm" label={t('moveOptionUp', { n: oi + 1 })} disabled={oi === 0} onClick={() => setGroup(g.key, { options: move(g.options, oi, oi - 1) })} />
                     <IconButton
                       icon={Trash2}
                       size="sm"
-                      label={`Remove option ${oi + 1}`}
+                      label={t('removeOption', { n: oi + 1 })}
                       onClick={() => setGroup(g.key, { options: g.options.filter((x) => x.key !== o.key) })}
                       className="hover:!bg-danger-soft hover:!text-danger"
                     />
@@ -169,15 +176,15 @@ export default function ItemOptionsEditor({ item, onDone }: { item: MenuItem; on
                 ))}
               </ul>
               <Button variant="ghost" size="sm" icon={Plus} className="mt-2" onClick={() => setGroup(g.key, { options: [...g.options, newOption()] })}>
-                Add option
+                {t('addOption')}
               </Button>
-              {problem && <p className="mt-2 text-xs text-danger" role="alert">{problem}</p>}
+              {problem && <p className="mt-2 text-xs text-danger" role="alert">{t(`problem.${problem}`)}</p>}
             </Card>
           );
         })}
 
-        <Button variant="secondary" icon={Plus} onClick={() => setGroups((gs) => [...gs, newGroup()])}>Add option group</Button>
-        <p className="text-xs text-fg-muted">Turn an option off when it runs out; past orders keep their options either way.</p>
+        <Button variant="secondary" icon={Plus} onClick={() => setGroups((gs) => [...gs, newGroup()])}>{t('addGroup')}</Button>
+        <p className="text-xs text-fg-muted">{t('footnote')}</p>
       </div>
     </Dialog>
   );

@@ -1,5 +1,9 @@
 import type { MetadataRoute } from 'next';
 import { SITE_URL } from '../src/lib/site';
+import { locales } from '../src/i18n/routing';
+
+// Private pages, in every language (/en/checkout, /th/checkout, ...).
+const PRIVATE = ['/checkout', '/orders', '/admin', '/login', '/register', '/dev'];
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -7,7 +11,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/checkout', '/orders', '/admin', '/login', '/register', '/dev'],
+        disallow: locales.flatMap((l) => PRIVATE.map((p) => `/${l}${p}`)),
       },
       // AI crawlers — explicitly allowed so AI search engines can read and cite this site (plan §10.5)
       { userAgent: 'GPTBot', allow: '/' },

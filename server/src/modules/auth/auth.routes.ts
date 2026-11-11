@@ -23,5 +23,7 @@ router.post('/register', validate(registerSchema), ctrl.registerHandler);
 router.post('/login', validate(loginSchema), ctrl.loginHandler);
 router.post('/refresh', ctrl.refreshHandler);
 router.get('/me', authenticate, ctrl.meHandler);
+// The website language the user chose; the site switches to it after sign-in.
+router.put('/me/locale', authenticate, validate(z.object({ locale: z.enum(['en', 'th']) })), ctrl.setLocaleHandler);
 
 export default router;

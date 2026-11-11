@@ -1,11 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { apiErrorMessage } from '@/lib/localized';
 import { useGetPaymentSettingsQuery, useSetPaymentSettingsMutation } from '../../../api/apiSlice';
 import { Alert, Badge, Button, Card, CardBody, CardFooter, CardHeader, Field, Input } from '../../../components/ui';
 
 /** Owner: the PromptPay account customers pay into. Empty ID = PromptPay off. */
 export default function PaymentSettingsSection({ onSaved, id }: { onSaved: (msg: string) => void; id?: string }) {
+  const t = useTranslations('paymentSettings');
+  const locale = useLocale();
   const { data } = useGetPaymentSettingsQuery();
   const [save, { isLoading }] = useSetPaymentSettingsMutation();
   const [promptPayId, setPromptPayId] = useState('');
@@ -23,21 +27,21 @@ export default function PaymentSettingsSection({ onSaved, id }: { onSaved: (msg:
     setError('');
     try {
       const saved = await save({ promptPayId: promptPayId.trim(), promptPayName: promptPayName.trim() }).unwrap();
-      onSaved(saved.promptPayId ? 'PromptPay is on at checkout' : 'PromptPay is off; customers pay cash');
+      onSaved(saved.promptPayId ? t('nowOn') : t('nowOff'));
     } catch (err) {
-      setError((err as { data?: { message?: string } })?.data?.message || 'Could not save the payment settings');
+      setError(apiErrorMessage(err, locale, t('saveFailed')));
     }
   };
 
   return (
     <Card id={id} className="scroll-mt-6 lg:scroll-mt-20">
       <CardHeader
-        title="Payments"
-        description="Cash is always offered. Add a PromptPay ID to also offer a QR with the exact amount. Staff confirm each transfer in the bank app, then tap “Transfer received”."
-        actions={<Badge tone={data?.promptPayId ? 'success' : 'neutral'} dot>{data?.promptPayId ? 'PromptPay on' : 'Cash only'}</Badge>}
+        title={t('title')}
+        description={t('description')}
+        actions={<Badge tone={data?.promptPayId ? 'success' : 'neutral'} dot>{data?.promptPayId ? t('on') : t('cashOnly')}</Badge>}
       />
       <CardBody className="grid gap-4 sm:grid-cols-2">
-        <Field label="PromptPay ID" htmlFor="promptpay-id" hint="Mobile number or 13-digit tax ID. Leave empty to switch PromptPay off.">
+        <Field label={t('id')} htmlFor="promptpay-id" hint={t('idHint')}>
           <Input
             id="promptpay-id"
             inputMode="numeric"
@@ -48,7 +52,7 @@ export default function PaymentSettingsSection({ onSaved, id }: { onSaved: (msg:
             className="tabular-nums"
           />
         </Field>
-        <Field label="Account name" htmlFor="promptpay-name" hint="The name customers will see in their bank app.">
+        <Field label={t('name')} htmlFor="promptpay-name" hint={t('nameHint')}>
           <Input
             id="promptpay-name"
             value={promptPayName}
@@ -60,7 +64,7 @@ export default function PaymentSettingsSection({ onSaved, id }: { onSaved: (msg:
         {error && <Alert tone="danger" className="sm:col-span-2">{error}</Alert>}
       </CardBody>
       <CardFooter>
-        <Button onClick={submit} loading={isLoading}>Save payments</Button>
+        <Button onClick={submit} loading={isLoading}>{t('save')}</Button>
       </CardFooter>
     </Card>
   );

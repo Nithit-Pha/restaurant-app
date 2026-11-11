@@ -7,8 +7,9 @@ import { revalidatePath } from 'next/cache';
 // Note: lives at /revalidate (not /api/...) because next.config rewrites
 // /api/* to the Express backend.
 export async function POST() {
-  revalidatePath('/');
-  revalidatePath('/menu');
+  // Pages live under /en/... and /th/...: refresh the home and menu pages of both.
+  revalidatePath('/[locale]', 'page');
+  revalidatePath('/[locale]/menu', 'page');
   revalidatePath('/llms.txt');
   return NextResponse.json({ revalidated: true, now: Date.now() });
 }

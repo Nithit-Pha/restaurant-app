@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import QRCode from 'qrcode';
 import { CheckCircle2, Clock, Undo2 } from 'lucide-react';
 import { useGetPromptPayQrQuery, useReportPaymentSentMutation, type Order } from '../../api/apiSlice';
 import { formatCurrency } from '../../lib/format';
+import { apiErrorMessage } from '../../lib/localized';
 import { Alert, Button, Spinner } from '../../components/ui';
 
 /**
@@ -12,6 +14,8 @@ import { Alert, Button, Spinner } from '../../components/ui';
  * "I've transferred" so staff know to check their bank app.
  */
 export default function PromptPayPanel({ order }: { order: Order }) {
+  const t = useTranslations('promptPay');
+  const locale = useLocale();
   const waiting = order.paymentStatus === 'UNPAID' || order.paymentStatus === 'PENDING';
   const { data: qr, error } = useGetPromptPayQrQuery(order.id, { skip: !waiting || order.status === 'CANCELLED' });
   const [reportSent, { isLoading: sending, error: sendError }] = useReportPaymentSentMutation();
@@ -30,7 +34,7 @@ export default function PromptPayPanel({ order }: { order: Order }) {
     return (
       <p className="flex items-center gap-2 font-medium text-success">
         <CheckCircle2 size={18} strokeWidth={1.75} aria-hidden />
-        Payment received. Thank you!
+        {t('received')}
       </p>
     );
   }
@@ -38,23 +42,24 @@ export default function PromptPayPanel({ order }: { order: Order }) {
     return (
       <p className="flex items-center gap-2 font-medium text-fg">
         <Undo2 size={18} strokeWidth={1.75} aria-hidden />
-        Your payment was refunded.
+        {t('refunded')}
       </p>
     );
   }
   if (order.status === 'CANCELLED') {
-    return <p className="text-sm text-fg-muted">This order was cancelled, so there is nothing to pay.</p>;
+    return <p className="text-sm text-fg-muted">{t('cancelled')}</p>;
   }
 
-  const errorText = (e: unknown) => (e as { data?: { message?: string } } | undefined)?.data?.message;
-
   const steps = [
-    <>Open your banking app and scan this QR code (or save it and use “scan from image”).</>,
+    <>{t('stepScan')}</>,
     <>
-      Check the name shown is <span className="font-semibold text-fg">{qr?.promptPayName || 'the restaurant'}</span> and the
-      amount is <span className="tabular-nums">{formatCurrency(order.total)}</span>.
+      {t.rich('stepCheck', {
+        name: qr?.promptPayName || t('theRestaurant'),
+        amount: formatCurrency(order.total),
+        b: (chunks) => <span className="font-semibold text-fg">{chunks}</span>,
+      })}
     </>,
-    <>Confirm the transfer, then tap the button below.</>,
+    <>{t('stepConfirm')}</>,
   ];
 
   return (
@@ -62,15 +67,15 @@ export default function PromptPayPanel({ order }: { order: Order }) {
       {/* The QR stays on white in both themes so banking apps can read it. */}
       <div className="flex h-[248px] w-[248px] shrink-0 items-center justify-center rounded-card border border-line bg-white p-1">
         {image ? (
-          <img src={image} alt={`PromptPay QR code for ${formatCurrency(order.total)}`} width={240} height={240} />
-        ) : errorText(error) ? (
-          <span className="px-4 text-center text-sm text-danger">{errorText(error)}</span>
+          <img src={image} alt={t('qrAlt', { amount: formatCurrency(order.total) })} width={240} height={240} />
+        ) : error ? (
+          <span className="px-4 text-center text-sm text-danger">{apiErrorMessage(error, locale, t('qrFailed'))}</span>
         ) : (
-          <Spinner label="Loading QR code" />
+          <Spinner label={t('loadingQr')} />
         )}
       </div>
       <div className="w-full space-y-4 text-sm text-fg">
-        <p className="text-2xl font-semibold tabular-nums tracking-tight">Pay {formatCurrency(order.total)}</p>
+        <p className="text-2xl font-semibold tabular-nums tracking-tight">{t('pay', { amount: formatCurrency(order.total) })}</p>
         <ol className="space-y-2">
           {steps.map((step, i) => (
             <li key={i} className="flex gap-3">
@@ -84,14 +89,14 @@ export default function PromptPayPanel({ order }: { order: Order }) {
         {order.paymentStatus === 'PENDING' ? (
           <div className="flex items-center gap-2 rounded-card bg-warning-soft px-3 py-2.5 text-warning">
             <Clock size={16} strokeWidth={1.75} aria-hidden className="shrink-0" />
-            <span>Thanks! The restaurant is checking your transfer.</span>
+            <span>{t('checking')}</span>
           </div>
         ) : (
           <Button size="lg" onClick={() => { void reportSent(order.id); }} loading={sending} disabled={!qr}>
-            I&apos;ve transferred the money
+            {t('transferred')}
           </Button>
         )}
-        {errorText(sendError) && <Alert tone="danger">{errorText(sendError)}</Alert>}
+        {sendError && <Alert tone="danger">{apiErrorMessage(sendError, locale, t('confirmationFailed'))}</Alert>}
       </div>
     </div>
   );

@@ -55,6 +55,8 @@ model User {
   isActive     Boolean    @default(true)
   // Bumped to invalidate every token issued before (deactivate, log out everywhere).
   tokenVersion Int        @default(0)
+  // Website language the user last chose: "en" or "th".
+  locale     String     @default("en")
   orders     Order[]
   expenses   Expense[]
   auditLogs  AuditLog[]
@@ -87,6 +89,9 @@ model MenuItem {
   id           String      @id @default(uuid())
   name         String
   description  String?
+  // Optional Thai name and description; the Thai site falls back to English.
+  nameTh        String?
+  descriptionTh String?
   category     String
   costPrice    Decimal     @db.Decimal(10, 2)
   sellingPrice Decimal     @db.Decimal(10, 2)

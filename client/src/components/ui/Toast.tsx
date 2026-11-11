@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { cn, ICON_MD, ICON_STROKE } from './cn';
 
 type ToastTone = 'success' | 'error' | 'info';
@@ -30,6 +31,7 @@ const icons = { success: CheckCircle2, error: AlertCircle, info: Info };
 const iconColour = { success: 'text-success', error: 'text-danger', info: 'text-info' };
 
 function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) {
+  const t = useTranslations('common');
   const Icon = icons[item.tone];
   return (
     <div
@@ -44,7 +46,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
       <button
         type="button"
         onClick={onDismiss}
-        aria-label="Dismiss"
+        aria-label={t('dismiss')}
         className="rounded-control p-1 text-fg-subtle transition-colors hover:bg-surface-hover hover:text-fg"
       >
         <X size={16} strokeWidth={ICON_STROKE} aria-hidden />

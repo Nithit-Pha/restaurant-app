@@ -52,7 +52,9 @@ function FollowPin({ pin, focusKey }: { pin: Pin | null; focusKey: number }) {
   return null;
 }
 
-export default function DeliveryMap({ pin, center, focusKey, onChange }: {
+export default function DeliveryMap({ pin, center, focusKey, onChange, pinTitle }: {
+  /** Tooltip on the pin, in the page's language. */
+  pinTitle: string;
   pin: Pin | null;
   /** Where the map starts when there is no pin yet (the restaurant). */
   center: Pin;
@@ -77,7 +79,7 @@ export default function DeliveryMap({ pin, center, focusKey, onChange }: {
             position={[pin.lat, pin.lng]}
             icon={pinIcon}
             draggable
-            title="Your delivery pin. Drag it to your door."
+            title={pinTitle}
             eventHandlers={{
               dragend: (e) => {
                 const p = (e.target as L.Marker).getLatLng();

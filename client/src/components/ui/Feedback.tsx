@@ -1,24 +1,27 @@
 import type { ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, Loader2, type LucideIcon } from 'lucide-react';
 import { cn, ICON_MD, ICON_STROKE } from './cn';
 
 /* ---------------------------------------------------------------- Spinner -- */
 
-export function Spinner({ label = 'Loading', size = ICON_MD, className }: { label?: string; size?: number; className?: string }) {
+export function Spinner({ label, size = ICON_MD, className }: { label?: string; size?: number; className?: string }) {
+  const t = useTranslations('common');
   return (
     <span role="status" className={cn('inline-flex items-center gap-2 text-fg-muted', className)}>
       <Loader2 size={size} strokeWidth={ICON_STROKE} className="animate-spin" aria-hidden />
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">{label ?? t('loading')}</span>
     </span>
   );
 }
 
 /** Centered spinner with a line of text, for a whole section that is loading. */
-export function LoadingBlock({ label = 'Loading…', className }: { label?: string; className?: string }) {
+export function LoadingBlock({ label, className }: { label?: string; className?: string }) {
+  const t = useTranslations('common');
   return (
     <div role="status" className={cn('flex items-center justify-center gap-2 py-16 text-sm text-fg-muted', className)}>
       <Loader2 size={ICON_MD} strokeWidth={ICON_STROKE} className="animate-spin" aria-hidden />
-      {label}
+      {label ?? t('loadingDots')}
     </div>
   );
 }

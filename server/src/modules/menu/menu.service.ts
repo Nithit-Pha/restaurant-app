@@ -94,6 +94,8 @@ export async function getCategories() {
 export async function createMenuItem(data: {
   name: string;
   description?: string;
+  nameTh?: string | null;
+  descriptionTh?: string | null;
   category: string;
   costPrice: number;
   sellingPrice: number;
@@ -107,6 +109,8 @@ export async function updateMenuItem(
   data: Partial<{
     name: string;
     description: string;
+    nameTh: string | null;
+    descriptionTh: string | null;
     category: string;
     costPrice: number;
     sellingPrice: number;

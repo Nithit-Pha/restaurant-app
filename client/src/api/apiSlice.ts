@@ -93,6 +93,11 @@ export const apiSlice = createApi({
       query: () => '/auth/me',
       providesTags: ['User'],
     }),
+    // Remember the website language on the account (the site switches to it after sign-in).
+    setMyLocale: builder.mutation<void, 'en' | 'th'>({
+      query: (locale) => ({ url: '/auth/me/locale', method: 'PUT', body: { locale } }),
+      invalidatesTags: ['User'],
+    }),
 
     // Menu
     getMenuItems: builder.query<MenuItem[], { category?: string; available?: boolean }>({
@@ -303,6 +308,7 @@ export const {
   useLoginMutation,
   useRegisterMutation,
   useGetMeQuery,
+  useSetMyLocaleMutation,
   useSetBusyModeMutation,
   useGetSettingsQuery,
   useSetTaxRateMutation,
@@ -352,6 +358,7 @@ export interface User {
   role: 'CUSTOMER' | 'STAFF' | 'SUPER_ADMIN';
   phone?: string;
   address?: string;
+  locale?: 'en' | 'th'; // website language the user last chose
   createdAt: string;
 }
 
@@ -444,6 +451,8 @@ export interface MenuItem {
   id: string;
   name: string;
   description?: string;
+  nameTh?: string | null; // optional Thai; the Thai site falls back to English
+  descriptionTh?: string | null;
   category: string;
   costPrice: number;
   sellingPrice: number;
