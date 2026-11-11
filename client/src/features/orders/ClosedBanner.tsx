@@ -1,6 +1,7 @@
 'use client';
 
 import { useGetOpenStatusQuery, type OpenStatus } from '../../api/apiSlice';
+import { Alert } from '../../components/ui';
 
 /** "tomorrow at 11:00" / "today at 17:00" / "Monday at 11:00" */
 export function opensAtText(next: OpenStatus['nextOpening']): string {
@@ -14,11 +15,12 @@ export default function ClosedBanner({ className = '' }: { className?: string })
   const { data } = useGetOpenStatusQuery(undefined, { pollingInterval: 60_000 });
   if (!data || data.isOpen) return null;
   return (
-    <div role="status" className={`rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-700 px-4 py-3 text-sm text-amber-900 dark:text-amber-200 ${className}`}>
-      <span className="font-semibold">We&apos;re closed right now.</span>{' '}
-      {data.nextOpening
-        ? <>Online ordering opens again {opensAtText(data.nextOpening)}. You can still browse the menu.</>
-        : <>Online ordering is paused. You can still browse the menu.</>}
+    <div role="status" className={className}>
+      <Alert tone="warning" title={<>We&apos;re closed right now.</>}>
+        {data.nextOpening
+          ? <>Online ordering opens again {opensAtText(data.nextOpening)}. You can still browse the menu.</>
+          : <>Online ordering is paused. You can still browse the menu.</>}
+      </Alert>
     </div>
   );
 }

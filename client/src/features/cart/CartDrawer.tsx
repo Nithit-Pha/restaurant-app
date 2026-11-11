@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { X } from 'lucide-react';
+import { Minus, Plus, ShoppingBag, Trash2, UtensilsCrossed } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import {
   selectCartItems, selectCartIsOpen, selectSubtotal, selectTaxAmount, selectTotal,
   closeCart, removeItem, updateQuantity,
 } from './cartSlice';
 import { formatCurrency } from '../../lib/format';
+import { Drawer, EmptyState, IconButton, buttonClasses } from '../../components/ui';
 
 export default function CartDrawer() {
   const dispatch = useAppDispatch();
@@ -16,73 +17,94 @@ export default function CartDrawer() {
   const subtotal = useAppSelector(selectSubtotal);
   const taxAmount = useAppSelector(selectTaxAmount);
   const total = useAppSelector(selectTotal);
+  const close = () => dispatch(closeCart());
 
-  if (!isOpen) return null;
+  const footer =
+    items.length > 0 ? (
+      <div className="space-y-1.5 text-sm">
+        <div className="flex justify-between text-fg-muted">
+          <span>Subtotal</span>
+          <span className="tabular-nums">{formatCurrency(subtotal)}</span>
+        </div>
+        <div className="flex justify-between text-fg-muted">
+          <span>Tax (7%, included)</span>
+          <span className="tabular-nums">{formatCurrency(taxAmount)}</span>
+        </div>
+        <div className="flex justify-between pt-1 text-base font-semibold text-fg">
+          <span>Total</span>
+          <span className="tabular-nums">{formatCurrency(total)}</span>
+        </div>
+        <Link href="/checkout" onClick={close} className={buttonClasses('primary', 'lg', 'mt-3 w-full')}>
+          Checkout
+        </Link>
+      </div>
+    ) : undefined;
 
   return (
-    <>
-      <div className="fixed inset-0 bg-black/40 z-40" onClick={() => dispatch(closeCart())} />
-      <div className="fixed right-0 top-0 h-full w-full max-w-sm bg-white dark:bg-gray-800 z-50 shadow-xl flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Your Cart</h2>
-          <button onClick={() => dispatch(closeCart())} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white " aria-label="Close cart"><X size={20} strokeWidth={1.75} aria-hidden /></button>
-        </div>
-
-        {items.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-gray-500">Your cart is empty</div>
-        ) : (
-          <>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {items.map((item) => (
-                <div key={item.id} className="flex items-center gap-3">
-                  {item.imageUrl && (
-                    <img src={item.imageUrl} alt={item.name} className="w-12 h-12 object-cover rounded" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate text-gray-900 dark:text-white">{item.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatCurrency(item.sellingPrice)} each</p>
+    <Drawer open={isOpen} onClose={close} title="Your cart" footer={footer}>
+      {items.length === 0 ? (
+        <EmptyState
+          icon={ShoppingBag}
+          title="Your cart is empty"
+          description="Add something from the menu to start an order."
+          action={
+            <Link href="/menu" onClick={close} className={buttonClasses('secondary')}>
+              Browse the menu
+            </Link>
+          }
+        />
+      ) : (
+        <ul className="divide-y divide-line">
+          {items.map((item) => (
+            <li key={item.id} className="flex gap-3 px-4 py-3.5">
+              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-control bg-surface-muted">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-fg-subtle">
+                    <UtensilsCrossed size={18} strokeWidth={1.5} aria-hidden />
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => dispatch(updateQuantity({ id: item.id, quantity: item.quantity - 1 }))}
-                      className="w-6 h-6 rounded border dark:border-gray-600 text-sm font-bold hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300"
-                    >−</button>
-                    <span className="w-6 text-center text-sm dark:text-gray-200">{item.quantity}</span>
-                    <button
-                      onClick={() => dispatch(updateQuantity({ id: item.id, quantity: item.quantity + 1 }))}
-                      className="w-6 h-6 rounded border dark:border-gray-600 text-sm font-bold hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300"
-                    >+</button>
-                  </div>
-                  <button
-                    onClick={() => dispatch(removeItem(item.id))}
-                    className="text-red-400 hover:text-red-600 text-xs ml-1"
-                    aria-label={`Remove ${item.name}`}
-                  ><X size={16} strokeWidth={1.75} aria-hidden /></button>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate text-sm font-medium text-fg">{item.name}</p>
+                  <p className="shrink-0 text-sm font-medium tabular-nums text-fg">
+                    {formatCurrency(item.sellingPrice * item.quantity)}
+                  </p>
                 </div>
-              ))}
-            </div>
-
-            <div className="p-4 border-t dark:border-gray-700 space-y-2">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
+                <p className="text-xs tabular-nums text-fg-muted">{formatCurrency(item.sellingPrice)} each</p>
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="inline-flex items-center rounded-control border border-line">
+                    <IconButton
+                      icon={Minus}
+                      size="sm"
+                      label={`One less ${item.name}`}
+                      onClick={() => dispatch(updateQuantity({ id: item.id, quantity: item.quantity - 1 }))}
+                    />
+                    <span className="w-8 text-center text-sm font-medium tabular-nums text-fg" aria-live="polite">
+                      {item.quantity}
+                    </span>
+                    <IconButton
+                      icon={Plus}
+                      size="sm"
+                      label={`One more ${item.name}`}
+                      onClick={() => dispatch(updateQuantity({ id: item.id, quantity: item.quantity + 1 }))}
+                    />
+                  </div>
+                  <IconButton
+                    icon={Trash2}
+                    size="sm"
+                    label={`Remove ${item.name}`}
+                    onClick={() => dispatch(removeItem(item.id))}
+                    className="hover:!bg-danger-soft hover:!text-danger"
+                  />
+                </div>
               </div>
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                <span>Tax (7%)</span><span>{formatCurrency(taxAmount)}</span>
-              </div>
-              <div className="flex justify-between font-semibold text-gray-900 dark:text-white">
-                <span>Total</span><span>{formatCurrency(total)}</span>
-              </div>
-              <Link
-                href="/checkout"
-                onClick={() => dispatch(closeCart())}
-                className="block w-full text-center bg-brand-500 hover:bg-brand-600 text-white font-semibold py-2 rounded-md mt-2"
-              >
-                Checkout
-              </Link>
-            </div>
-          </>
-        )}
-      </div>
-    </>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Drawer>
   );
 }

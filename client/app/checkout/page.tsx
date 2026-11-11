@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Banknote, Bike, QrCode, ShoppingBag, Store, type LucideIcon } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../../src/app/hooks';
 import { selectCartItems, clearCart } from '../../src/features/cart/cartSlice';
 import {
@@ -17,6 +19,9 @@ import ClosedBanner from '../../src/features/orders/ClosedBanner';
 import DeliveryForm from '../../src/features/checkout/DeliveryForm';
 import { formatCurrency } from '../../src/lib/format';
 import { useRequireAuth } from '../../src/routes/useAuthGuard';
+import {
+  Alert, Button, Card, CardBody, CardHeader, EmptyState, Field, Input, PageContainer, PageHeader, buttonClasses, checkboxClasses, cn,
+} from '../../src/components/ui';
 
 /** A random UUID; crypto.randomUUID only exists on https/localhost. */
 function newUuid(): string {
@@ -36,6 +41,42 @@ const PHONE_RE = /^\+?[0-9][0-9 -]{7,18}$/;
 function errorMessage(err: unknown, fallback: string): string {
   const msg = (err as { data?: { message?: unknown } } | undefined)?.data?.message;
   return typeof msg === 'string' && msg ? msg : fallback;
+}
+
+
+/** A radio option shown as a selectable card (order type, payment). */
+function ChoiceCard({
+  name, checked, onChange, icon: Icon, title, description,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: () => void;
+  icon: LucideIcon;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <label
+      className={cn(
+        'flex cursor-pointer items-start gap-3 rounded-card border p-4 transition-colors duration-150',
+        checked ? 'border-accent bg-accent-soft/40 ring-1 ring-accent' : 'border-line bg-surface hover:border-line-strong',
+      )}
+    >
+      <input type="radio" name={name} checked={checked} onChange={onChange} className={cn(checkboxClasses, 'mt-2.5 shrink-0')} />
+      <span
+        className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-control',
+          checked ? 'bg-accent text-accent-fg' : 'bg-surface-muted text-fg-muted',
+        )}
+      >
+        <Icon size={18} strokeWidth={1.75} aria-hidden />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-fg">{title}</span>
+        {description && <span className="mt-0.5 block text-xs text-fg-muted">{description}</span>}
+      </span>
+    </label>
+  );
 }
 
 export default function CheckoutPage() {
@@ -135,9 +176,17 @@ export default function CheckoutPage() {
 
   if (items.length === 0) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <p className="text-gray-500 dark:text-gray-400">Your cart is empty.</p>
-      </div>
+      <PageContainer>
+        <PageHeader title="Checkout" />
+        <Card>
+          <EmptyState
+            icon={ShoppingBag}
+            title="Your cart is empty."
+            description="Add something from the menu, then come back here to order."
+            action={<Link href="/menu" className={buttonClasses('primary')}>Browse the menu</Link>}
+          />
+        </Card>
+      </PageContainer>
     );
   }
 
@@ -162,148 +211,162 @@ export default function CheckoutPage() {
     !!quote && !quoting && !isLoading && !isClosed && phoneValid &&
     (orderType === 'PICKUP' || !!deliveryAddress.trim());
 
+  const phoneError = phone && !phoneValid ? 'Please enter a valid phone number.' : undefined;
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Checkout</h1>
-      <ClosedBanner className="mb-4" />
+    <PageContainer>
+      <PageHeader title="Checkout" description="Check the details, then place your order." />
+      <ClosedBanner className="mb-5" />
 
-      {/* Order type */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 mb-4">
-        <p className="font-medium text-gray-700 dark:text-gray-300 mb-3">Order type</p>
-        <div className="flex gap-4">
-          {(['PICKUP', 'DELIVERY'] as const).map((type) => (
-            <label key={type} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                value={type}
-                checked={orderType === type}
-                onChange={() => setOrderType(type)}
-                className="accent-brand-500"
-              />
-              <span className="text-sm font-medium dark:text-gray-300">{type === 'PICKUP' ? 'Pickup' : 'Delivery'}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Contact phone */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 mb-4">
-        <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Phone number
-        </label>
-        <input
-          id="phone"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          value={phone}
-          onChange={(e) => { phoneTouched.current = true; setPhone(e.target.value); }}
-          placeholder="08x xxx xxxx"
-          className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        <p className={`text-xs mt-1 ${phone && !phoneValid ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}>
-          {phone && !phoneValid ? 'Please enter a valid phone number.' : 'So the restaurant can reach you about this order.'}
-        </p>
-      </div>
-
-      {/* Delivery address */}
-      {orderType === 'DELIVERY' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 mb-4">
-          <DeliveryForm
-            address={deliveryAddress}
-            onChange={setDeliveryAddress}
-            onUseLocation={shareLocation}
-            locating={locating}
-            located={!!coords}
-            locationError={locationError}
-          />
-        </div>
-      )}
-
-      {/* Payment */}
-      <fieldset className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 mb-4">
-        <legend className="float-left w-full font-medium text-gray-700 dark:text-gray-300 mb-3">Payment</legend>
-        <div className="space-y-2 clear-left">
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="payment"
-              checked={method === 'CASH'}
-              onChange={() => setPaymentMethod('CASH')}
-              className="accent-brand-500 mt-1"
-            />
-            <span className="text-sm dark:text-gray-300">
-              <span className="font-medium">{orderType === 'DELIVERY' ? 'Cash on delivery' : 'Cash at pickup'}</span>
-            </span>
-          </label>
-          {paymentOptions?.promptPay && (
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="payment"
-                checked={method === 'PROMPTPAY'}
-                onChange={() => setPaymentMethod('PROMPTPAY')}
-                className="accent-brand-500 mt-1"
-              />
-              <span className="text-sm dark:text-gray-300">
-                <span className="font-medium">PromptPay QR</span>
-                <span className="block text-xs text-gray-500 dark:text-gray-400">
-                  After you order, scan the QR code with your banking app.
-                </span>
-              </span>
-            </label>
-          )}
-        </div>
-      </fieldset>
-
-      {/* Order summary */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 mb-6">
-        <p className="font-medium text-gray-700 dark:text-gray-300 mb-3">Order summary</p>
-        {items.map((item) => (
-          <div key={item.id} className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
-            <span>{item.name} × {item.quantity}</span>
-            <span>{formatCurrency(item.sellingPrice * item.quantity)}</span>
-          </div>
-        ))}
-        <div className="border-t dark:border-gray-700 mt-3 pt-3 space-y-1 text-sm text-gray-600 dark:text-gray-400">
-          {quoting && !quote ? (
-            <p className="text-gray-400">Calculating…</p>
-          ) : quote ? (
-            <>
-              <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(quote.subtotal)}</span></div>
-              <div className="flex justify-between">
-                <span>Tax ({Math.round(Number(quote.taxRate) * 10000) / 100}%, included)</span>
-                <span>{formatCurrency(quote.taxAmount)}</span>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-5">
+          {/* Order type */}
+          <Card>
+            <CardHeader title="How would you like it?" />
+            <CardBody>
+              <div role="radiogroup" aria-label="Order type" className="grid gap-3 sm:grid-cols-2">
+                <ChoiceCard
+                  name="orderType"
+                  checked={orderType === 'PICKUP'}
+                  onChange={() => setOrderType('PICKUP')}
+                  icon={Store}
+                  title="Pickup"
+                  description="Collect it at the restaurant."
+                />
+                <ChoiceCard
+                  name="orderType"
+                  checked={orderType === 'DELIVERY'}
+                  onChange={() => setOrderType('DELIVERY')}
+                  icon={Bike}
+                  title="Delivery"
+                  description="We bring it to your door."
+                />
               </div>
+            </CardBody>
+          </Card>
+
+          {/* Contact + address */}
+          <Card>
+            <CardHeader title={orderType === 'DELIVERY' ? 'Contact and address' : 'Contact'} />
+            <CardBody className="space-y-5">
+              <Field
+                label="Phone number"
+                htmlFor="phone"
+                required
+                error={phoneError}
+                hint="So the restaurant can reach you about this order."
+              >
+                <Input
+                  id="phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={phone}
+                  onChange={(e) => { phoneTouched.current = true; setPhone(e.target.value); }}
+                  placeholder="08x xxx xxxx"
+                  aria-invalid={phoneError ? true : undefined}
+                  aria-describedby={phoneError ? 'phone-error' : 'phone-hint'}
+                  className="sm:max-w-xs"
+                />
+              </Field>
               {orderType === 'DELIVERY' && (
-                <div className="flex justify-between"><span>Delivery fee</span><span>{formatCurrency(quote.deliveryFee)}</span></div>
+                <DeliveryForm
+                  address={deliveryAddress}
+                  onChange={setDeliveryAddress}
+                  onUseLocation={shareLocation}
+                  locating={locating}
+                  located={!!coords}
+                  locationError={locationError}
+                />
               )}
-              <div className="flex justify-between font-semibold text-gray-900 dark:text-white text-base pt-1 border-t dark:border-gray-700">
-                <span>Total</span><span>{formatCurrency(quote.total)}</span>
-              </div>
-            </>
-          ) : null}
-          {quoteError && <p className="text-red-500">{quoteError}</p>}
+            </CardBody>
+          </Card>
+
+          {/* Payment */}
+          <Card>
+            <CardHeader title="Payment" />
+            <CardBody>
+              <fieldset>
+                <legend className="sr-only">Payment</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <ChoiceCard
+                    name="payment"
+                    checked={method === 'CASH'}
+                    onChange={() => setPaymentMethod('CASH')}
+                    icon={Banknote}
+                    title={orderType === 'DELIVERY' ? 'Cash on delivery' : 'Cash at pickup'}
+                  />
+                  {paymentOptions?.promptPay && (
+                    <ChoiceCard
+                      name="payment"
+                      checked={method === 'PROMPTPAY'}
+                      onChange={() => setPaymentMethod('PROMPTPAY')}
+                      icon={QrCode}
+                      title="PromptPay QR"
+                      description="After you order, scan the QR code with your banking app."
+                    />
+                  )}
+                </div>
+              </fieldset>
+            </CardBody>
+          </Card>
         </div>
+
+        {/* Order summary — stays in view on wide screens */}
+        <Card className="lg:sticky lg:top-6">
+          <CardHeader title="Order summary" />
+          <CardBody className="space-y-4">
+            <ul className="space-y-2 text-sm">
+              {items.map((item) => (
+                <li key={item.id} className="flex justify-between gap-3">
+                  <span className="text-fg">
+                    <span className="mr-1.5 font-medium tabular-nums">{item.quantity}×</span>
+                    {item.name}
+                  </span>
+                  <span className="tabular-nums text-fg-muted">{formatCurrency(item.sellingPrice * item.quantity)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="space-y-1.5 border-t border-line pt-3 text-sm text-fg-muted">
+              {quoting && !quote ? (
+                <p>Calculating…</p>
+              ) : quote ? (
+                <>
+                  <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{formatCurrency(quote.subtotal)}</span></div>
+                  <div className="flex justify-between">
+                    <span>Tax ({Math.round(Number(quote.taxRate) * 10000) / 100}%, included)</span>
+                    <span className="tabular-nums">{formatCurrency(quote.taxAmount)}</span>
+                  </div>
+                  {orderType === 'DELIVERY' && (
+                    <div className="flex justify-between"><span>Delivery fee</span><span className="tabular-nums">{formatCurrency(quote.deliveryFee)}</span></div>
+                  )}
+                  <div className="flex justify-between border-t border-line pt-2 text-base font-semibold text-fg">
+                    <span>Total</span><span className="tabular-nums">{formatCurrency(quote.total)}</span>
+                  </div>
+                </>
+              ) : null}
+              {quoteError && <p className="text-danger">{quoteError}</p>}
+            </div>
+
+            {error && <Alert tone="danger">{errorMessage(error, 'Failed to place order. Please try again.')}</Alert>}
+
+            <Button size="lg" fullWidth onClick={handleSubmit} disabled={!canSubmit} loading={isLoading}>
+              {isClosed
+                ? 'Ordering is closed right now'
+                : isLoading
+                ? 'Placing order…'
+                : quote && !quoting
+                  ? `Place order · ${formatCurrency(quote.total)}`
+                  : 'Calculating total…'}
+            </Button>
+            {!isClosed && (!phoneValid || (orderType === 'DELIVERY' && !deliveryAddress.trim())) && (
+              <p className="text-center text-xs text-fg-muted">
+                {!phoneValid ? 'Add your phone number to place the order.' : 'Add a delivery address to place the order.'}
+              </p>
+            )}
+          </CardBody>
+        </Card>
       </div>
-
-      {error && (
-        <p className="text-red-500 text-sm mb-3">{errorMessage(error, 'Failed to place order. Please try again.')}</p>
-      )}
-
-      <button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 rounded-lg disabled:opacity-50"
-      >
-        {isClosed
-          ? 'Ordering is closed right now'
-          : isLoading
-          ? 'Placing order…'
-          : quote && !quoting
-            ? `Place order · ${formatCurrency(quote.total)}`
-            : 'Calculating total…'}
-      </button>
-    </div>
+    </PageContainer>
   );
 }

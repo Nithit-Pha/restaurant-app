@@ -1,4 +1,5 @@
-import { MapPin } from 'lucide-react';
+import { LocateFixed, MapPin } from 'lucide-react';
+import { Button, Field, Input } from '../../components/ui';
 
 interface Props {
   address: string;
@@ -12,35 +13,25 @@ interface Props {
 
 export default function DeliveryForm({ address, onChange, onUseLocation, locating, located, locationError }: Props) {
   return (
-    <div>
-      <label htmlFor="delivery-address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-        Delivery address
-      </label>
-      <input
-        id="delivery-address"
-        type="text"
-        value={address}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Enter your full delivery address"
-        autoComplete="street-address"
-        className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-      />
+    <div className="space-y-4">
+      <Field label="Delivery address" htmlFor="delivery-address" required>
+        <Input
+          id="delivery-address"
+          type="text"
+          value={address}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="House number, street, area"
+          autoComplete="street-address"
+        />
+      </Field>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={onUseLocation}
-          disabled={locating}
-          className="inline-flex items-center gap-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-        >
-          <MapPin size={16} strokeWidth={1.75} aria-hidden />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Button variant="secondary" icon={located ? MapPin : LocateFixed} onClick={onUseLocation} loading={locating}>
           {locating ? 'Finding your location…' : located ? 'Location shared — update' : 'Use my current location'}
-        </button>
-        <span className="text-xs text-gray-500 dark:text-gray-400">
-          Used to work out the delivery fee and check we deliver to you.
-        </span>
+        </Button>
+        <span className="text-xs text-fg-muted">Used to work out the delivery fee and check we deliver to you.</span>
       </div>
-      {locationError && <p className="text-red-500 text-sm mt-2">{locationError}</p>}
+      {locationError && <p className="text-sm text-danger" role="alert">{locationError}</p>}
     </div>
   );
 }
