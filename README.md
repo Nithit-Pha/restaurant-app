@@ -53,7 +53,7 @@ The client is a single unified Next.js 14 app (App Router):
 - **Authenticated/interactive pages** (cart, checkout, orders, login/register, all `/admin/*`) are client components (`'use client'`) backed by Redux Toolkit + RTK Query, gated by `useRequireAuth()` / `useRequireRole()` route guards.
 - **SEO infrastructure**: `app/robots.ts`, `app/sitemap.ts`, and a dynamic `app/llms.txt` route (with AI-crawler allowlisting per the project plan §10.5) are generated automatically from live menu/category data.
 
-See `restaurant-app-plan.md` §10 for the full migration rationale and SEO strategy.
+See [`docs/restaurant-app-plan.md`](docs/restaurant-app-plan.md) §10 for the full migration rationale and SEO strategy.
 
 ## Order workflow (Phase 0)
 
