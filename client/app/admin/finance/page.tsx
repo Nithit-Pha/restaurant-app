@@ -1,10 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Plus, ReceiptText, RotateCw } from 'lucide-react';
 import { useGetDashboardQuery } from '../../../src/features/admin/finance/financeApi';
-import ExpenseModal from '../../../src/features/admin/finance/ExpenseModal';
+import ExpenseModal, { EXPENSE_CATEGORY_LABELS } from '../../../src/features/admin/finance/ExpenseModal';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
 import { bangkokDateISO, formatCurrency, TIME_ZONE } from '../../../src/lib/format';
+import {
+  Alert, Badge, Button, Card, CardHeader, ChipGroup, EmptyState, Input, PageContainer, PageHeader, Skeleton, Stat,
+  Table, TBody, TD, TH, THead, TR, cn,
+} from '../../../src/components/ui';
 
 // ---- date helpers ------------------------------------------------------
 // Calendar arithmetic on the Bangkok date, done in UTC so the device's own
@@ -27,6 +32,14 @@ function presetRange(preset: string): { startDate?: string; endDate?: string } {
   }
 }
 
+const PRESETS = [
+  { value: 'this_month', label: 'This month' },
+  { value: 'last_month', label: 'Last month' },
+  { value: 'last_30', label: 'Last 30 days' },
+  { value: 'ytd', label: 'Year to date' },
+  { value: 'custom', label: 'Custom' },
+];
+
 const money = formatCurrency;
 
 const fmtDate = (s: string) =>
@@ -37,32 +50,7 @@ const fmtDate = (s: string) =>
     timeZone: TIME_ZONE,
   });
 
-// ---- KPI card ----------------------------------------------------------
-function KpiCard({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent: 'green' | 'red' | 'indigo' | 'amber';
-}) {
-  const colors: Record<string, string> = {
-    green: 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-400',
-    red: 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400',
-    indigo: 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
-    amber: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
-  };
-  return (
-    <div className={`rounded-2xl border p-5 ${colors[accent]}`}>
-      <p className="text-sm font-medium opacity-80">{label}</p>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
-      {sub && <p className="mt-1 text-xs opacity-70">{sub}</p>}
-    </div>
-  );
-}
+const categoryLabel = (c: string) => EXPENSE_CATEGORY_LABELS[c] ?? c.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (x) => x.toUpperCase());
 
 export default function FinancialDashboard() {
   const { ready } = useRequireRole('SUPER_ADMIN');
@@ -81,144 +69,156 @@ export default function FinancialDashboard() {
   const { data, isLoading, isFetching, isError, refetch } = useGetDashboardQuery(range, { skip: !ready });
 
   const k = data?.kpis;
+  const byCategory = useMemo(
+    () => [...(data?.expensesByCategory ?? [])].filter((e) => e.amount > 0).sort((a, b) => b.amount - a.amount),
+    [data],
+  );
+  const maxCategory = byCategory[0]?.amount ?? 0;
 
   if (!ready) return null;
 
-  return (
-    <div className="mx-auto max-w-6xl p-6">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Financial Dashboard</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Revenue, costs, and profit — Super Admin only</p>
-        </div>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          + Add Expense
-        </button>
-      </div>
+  const rangeText = range.startDate && range.endDate ? `${fmtDate(range.startDate)} – ${fmtDate(range.endDate)}` : 'All time';
 
-      {/* Date filter */}
-      <div className="mb-6 flex flex-wrap items-center gap-2">
-        {[
-          ['this_month', 'This Month'],
-          ['last_month', 'Last Month'],
-          ['last_30', 'Last 30 Days'],
-          ['ytd', 'Year to Date'],
-          ['custom', 'Custom'],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setPreset(value)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              preset === value
-                ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+  return (
+    <PageContainer wide>
+      <PageHeader
+        eyebrow="Business"
+        title="Finance"
+        description={
+          <span className="tabular-nums">
+            Revenue, costs and profit · {rangeText}
+            {isFetching && !isLoading ? ' · refreshing…' : ''}
+          </span>
+        }
+        actions={<Button icon={Plus} onClick={() => setModalOpen(true)}>Add expense</Button>}
+      />
+
+      {/* Period */}
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <ChipGroup label="Period" value={preset} onChange={setPreset} options={PRESETS} />
         {preset === 'custom' && (
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="date"
+              aria-label="From"
               value={custom.startDate}
               max={custom.endDate}
               onChange={(e) => setCustom((c) => ({ ...c, startDate: e.target.value }))}
-              className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 text-sm"
+              className="!h-9 !w-auto"
             />
-            <span className="text-gray-400">to</span>
-            <input
+            <span className="text-sm text-fg-muted">to</span>
+            <Input
               type="date"
+              aria-label="To"
               value={custom.endDate}
               min={custom.startDate}
               max={bangkokDateISO()}
               onChange={(e) => setCustom((c) => ({ ...c, endDate: e.target.value }))}
-              className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 text-sm"
+              className="!h-9 !w-auto"
             />
           </div>
         )}
-        {isFetching && <span className="text-sm text-gray-400">Refreshing…</span>}
       </div>
 
-      {/* States */}
       {isError && (
-        <div className="mb-6 flex items-center justify-between rounded-lg bg-red-50 dark:bg-red-900/30 px-4 py-3 text-sm text-red-700 dark:text-red-400">
-          <span>Could not load financial data.</span>
-          <button onClick={() => refetch()} className="font-medium underline">Retry</button>
-        </div>
+        <Alert
+          tone="danger"
+          className="mb-6"
+          action={<Button variant="secondary" size="sm" icon={RotateCw} onClick={() => refetch()}>Retry</Button>}
+        >
+          Could not load financial data.
+        </Alert>
       )}
 
-      {/* KPI cards */}
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Summary figures */}
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {isLoading || !k ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-28 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-700" />
-          ))
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[6.5rem] rounded-card" />)
         ) : (
           <>
-            <KpiCard label="Total Revenue" value={money(k.totalRevenue)} sub={`${k.orderCount} completed, paid orders`} accent="indigo" />
-            <KpiCard label="COGS (Food Cost)" value={money(k.totalCOGS)} sub={`Gross margin ${k.grossMarginPct}%`} accent="amber" />
-            <KpiCard label="Operating Expenses" value={money(k.totalOperatingExpenses)} sub={`${k.expenseCount} expenses`} accent="red" />
-            <KpiCard label="Net Profit" value={money(k.netProfit)} sub={`Gross profit ${money(k.grossProfit)}`} accent={k.netProfit >= 0 ? 'green' : 'red'} />
+            <Stat label="Revenue" value={money(k.totalRevenue)} note={`${k.orderCount} completed, paid orders`} />
+            <Stat label="Food cost (COGS)" value={money(k.totalCOGS)} note={`Gross margin ${k.grossMarginPct}%`} />
+            <Stat label="Operating expenses" value={money(k.totalOperatingExpenses)} note={`${k.expenseCount} expenses`} />
+            <Stat
+              label="Net profit"
+              value={<span className={k.netProfit >= 0 ? 'text-success' : 'text-danger'}>{money(k.netProfit)}</span>}
+              note={`Gross profit ${money(k.grossProfit)}`}
+              className={cn(k.netProfit < 0 && 'border-danger/40')}
+            />
           </>
         )}
       </div>
 
-      {/* Transaction history */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700">
-        <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-5 py-3">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Transaction History</h2>
-        </div>
-        <div className="overflow-x-auto bg-white dark:bg-gray-800">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700 text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                <th className="px-5 py-3 font-medium">Date</th>
-                <th className="px-5 py-3 font-medium">Type</th>
-                <th className="px-5 py-3 font-medium">Detail</th>
-                <th className="px-5 py-3 font-medium">Category</th>
-                <th className="px-5 py-3 text-right font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!isLoading && data?.transactions.length === 0 && (
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        {/* Transactions */}
+        <Card className="overflow-hidden">
+          <CardHeader title="Transactions" description="Paid orders and expenses in this period." />
+          {!isLoading && data?.transactions.length === 0 ? (
+            <EmptyState icon={ReceiptText} title="No transactions in this period." />
+          ) : (
+            <Table>
+              <THead>
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center text-gray-400">No transactions in this period.</td>
+                  <TH>Date</TH>
+                  <TH>Type</TH>
+                  <TH>Detail</TH>
+                  <TH className="hidden md:table-cell">Category</TH>
+                  <TH numeric>Amount</TH>
                 </tr>
-              )}
-              {data?.transactions.map((t) => (
-                <tr
-                  key={`${t.kind}-${t.id}`}
-                  className="border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                >
-                  <td className="px-5 py-3 text-gray-600 dark:text-gray-400">{fmtDate(t.date)}</td>
-                  <td className="px-5 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      t.kind === 'ORDER'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                        : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
-                    }`}>
-                      {t.kind === 'ORDER' ? 'Revenue' : 'Expense'}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-gray-800 dark:text-gray-200">{t.label}</td>
-                  <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{t.category.replace('_', ' ')}</td>
-                  <td className={`px-5 py-3 text-right font-medium ${t.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {t.amount >= 0 ? '+' : '−'}
-                    {money(Math.abs(t.amount))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </THead>
+              <TBody>
+                {data?.transactions.map((t) => (
+                  <TR key={`${t.kind}-${t.id}`} className="hover:bg-surface-hover">
+                    <TD muted className="whitespace-nowrap tabular-nums">{fmtDate(t.date)}</TD>
+                    <TD>
+                      <Badge tone={t.kind === 'ORDER' ? 'success' : 'danger'}>{t.kind === 'ORDER' ? 'Revenue' : 'Expense'}</Badge>
+                    </TD>
+                    <TD className="max-w-xs truncate">{t.label}</TD>
+                    <TD muted className="hidden md:table-cell">{categoryLabel(t.category)}</TD>
+                    <TD numeric className={cn('font-medium', t.amount >= 0 ? 'text-success' : 'text-danger')}>
+                      {t.amount >= 0 ? '+' : '−'}
+                      {money(Math.abs(t.amount))}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          )}
+        </Card>
+
+        {/* Where the money went */}
+        <Card>
+          <CardHeader title="Expenses by category" />
+          <div className="px-5 py-4">
+            {isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8" />)}
+              </div>
+            ) : byCategory.length === 0 ? (
+              <p className="py-4 text-center text-sm text-fg-muted">No expenses in this period.</p>
+            ) : (
+              <ul className="space-y-3.5">
+                {byCategory.map((e) => (
+                  <li key={e.category}>
+                    <div className="flex justify-between gap-3 text-sm">
+                      <span className="text-fg">{categoryLabel(e.category)}</span>
+                      <span className="tabular-nums text-fg-muted">{money(e.amount)}</span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 rounded-full bg-surface-muted">
+                      <div
+                        className="h-full rounded-full bg-fg-muted/60"
+                        style={{ width: `${Math.max(2, (e.amount / maxCategory) * 100)}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
       </div>
 
       <ExpenseModal open={modalOpen} onClose={() => setModalOpen(false)} />
-    </div>
+    </PageContainer>
   );
 }

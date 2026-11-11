@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useGetPaymentSettingsQuery, useSetPaymentSettingsMutation } from '../../../api/apiSlice';
-
-const inputCls = 'w-full border rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white';
-const labelCls = 'block text-xs text-gray-500 dark:text-gray-400 mb-1';
+import { Alert, Badge, Button, Card, CardBody, CardFooter, CardHeader, Field, Input } from '../../../components/ui';
 
 /** Owner: the PromptPay account customers pay into. Empty ID = PromptPay off. */
-export default function PaymentSettingsSection({ onSaved }: { onSaved: (msg: string) => void }) {
+export default function PaymentSettingsSection({ onSaved, id }: { onSaved: (msg: string) => void; id?: string }) {
   const { data } = useGetPaymentSettingsQuery();
   const [save, { isLoading }] = useSetPaymentSettingsMutation();
   const [promptPayId, setPromptPayId] = useState('');
@@ -32,39 +30,38 @@ export default function PaymentSettingsSection({ onSaved }: { onSaved: (msg: str
   };
 
   return (
-    <section className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-5">
-      <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-1">Payments</h2>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-        Cash is always offered. Add a PromptPay ID to also offer a PromptPay QR with the exact amount.
-        Staff confirm each transfer in the bank app, then tap “Transfer received”.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
-        <div>
-          <label htmlFor="promptpay-id" className={labelCls}>PromptPay ID (mobile number or 13-digit tax ID)</label>
-          <input
+    <Card id={id} className="scroll-mt-6">
+      <CardHeader
+        title="Payments"
+        description="Cash is always offered. Add a PromptPay ID to also offer a QR with the exact amount. Staff confirm each transfer in the bank app, then tap “Transfer received”."
+        actions={<Badge tone={data?.promptPayId ? 'success' : 'neutral'} dot>{data?.promptPayId ? 'PromptPay on' : 'Cash only'}</Badge>}
+      />
+      <CardBody className="grid gap-4 sm:grid-cols-2">
+        <Field label="PromptPay ID" htmlFor="promptpay-id" hint="Mobile number or 13-digit tax ID. Leave empty to switch PromptPay off.">
+          <Input
             id="promptpay-id"
             inputMode="numeric"
             value={promptPayId}
             onChange={(e) => setPromptPayId(e.target.value)}
-            placeholder="08x xxx xxxx — leave empty to switch off"
-            className={inputCls}
+            placeholder="08x xxx xxxx"
+            aria-describedby="promptpay-id-hint"
+            className="tabular-nums"
           />
-        </div>
-        <div>
-          <label htmlFor="promptpay-name" className={labelCls}>Account name customers will see in their bank app</label>
-          <input
+        </Field>
+        <Field label="Account name" htmlFor="promptpay-name" hint="The name customers will see in their bank app.">
+          <Input
             id="promptpay-name"
             value={promptPayName}
             onChange={(e) => setPromptPayName(e.target.value)}
             maxLength={100}
-            className={inputCls}
+            aria-describedby="promptpay-name-hint"
           />
-        </div>
-      </div>
-      {error && <p className="text-red-500 text-xs mb-2">{error}</p>}
-      <button onClick={submit} disabled={isLoading} className="bg-brand-500 hover:bg-brand-600 text-white text-sm px-4 py-1.5 rounded disabled:opacity-50">
-        Save
-      </button>
-    </section>
+        </Field>
+        {error && <Alert tone="danger" className="sm:col-span-2">{error}</Alert>}
+      </CardBody>
+      <CardFooter>
+        <Button onClick={submit} loading={isLoading}>Save payments</Button>
+      </CardFooter>
+    </Card>
   );
 }
