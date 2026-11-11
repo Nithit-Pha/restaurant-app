@@ -8,6 +8,7 @@ import { useCancelMyOrderMutation, useGetOrderQuery, type Order, type OrderStatu
 import OrderStatusBadge from '../../../src/features/orders/OrderStatusBadge';
 import PaymentBadge, { paymentMethodText } from '../../../src/features/orders/PaymentBadge';
 import PromptPayPanel from '../../../src/features/orders/PromptPayPanel';
+import LineDetails from '../../../src/features/orders/LineDetails';
 import {
   CANCEL_REASON_LABELS,
   formatClock,
@@ -229,6 +230,7 @@ export default function OrderDetailPage() {
                     <span className="text-fg">
                       <span className="mr-1.5 font-medium tabular-nums">{item.quantity}×</span>
                       {item.nameSnapshot}
+                      <LineDetails options={item.modifiers} note={item.note} className="ml-6" />
                     </span>
                     <span className="tabular-nums text-fg-muted">{formatCurrency(item.unitPrice * item.quantity)}</span>
                   </li>

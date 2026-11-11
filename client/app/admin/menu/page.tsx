@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Pencil, Plus, Search, Trash2, UtensilsCrossed } from 'lucide-react';
+import { ListChecks, Pencil, Plus, Search, Trash2, UtensilsCrossed } from 'lucide-react';
 import { useGetMenuItemsQuery, useDeleteMenuItemMutation, useToggleAvailabilityMutation, type MenuItem } from '../../../src/api/apiSlice';
 import MenuItemForm from '../../../src/features/admin/MenuItemForm';
+import ItemOptionsEditor from '../../../src/features/admin/ItemOptionsEditor';
 import { formatCurrency } from '../../../src/lib/format';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
 import {
@@ -21,6 +22,7 @@ export default function AdminMenuPage() {
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [removing, setRemoving] = useState<MenuItem | null>(null);
+  const [optionsFor, setOptionsFor] = useState<MenuItem | null>(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
 
@@ -134,6 +136,11 @@ export default function AdminMenuPage() {
                         <div className="min-w-0">
                           <p className={cn('truncate font-medium', item.isAvailable ? 'text-fg' : 'text-fg-muted')}>{item.name}</p>
                           {item.description && <p className="max-w-xs truncate text-xs text-fg-muted">{item.description}</p>}
+                          {!!item.modifierGroups?.length && (
+                            <p className="max-w-xs truncate text-xs text-fg-muted">
+                              Options: {item.modifierGroups.map((g) => g.name).join(', ')}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </TD>
@@ -165,6 +172,7 @@ export default function AdminMenuPage() {
                     </TD>
                     <TD numeric>
                       <div className="flex justify-end gap-1">
+                        <IconButton icon={ListChecks} label={`Options for ${item.name}`} size="sm" onClick={() => setOptionsFor(item)} />
                         <IconButton icon={Pencil} label={`Edit ${item.name}`} size="sm" onClick={() => setEditing(item)} />
                         <IconButton
                           icon={Trash2}
@@ -190,6 +198,8 @@ export default function AdminMenuPage() {
           onDone={() => { setCreating(false); setEditing(null); }}
         />
       )}
+
+      {optionsFor && <ItemOptionsEditor key={optionsFor.id} item={optionsFor} onDone={() => setOptionsFor(null)} />}
 
       <Dialog
         open={!!removing}

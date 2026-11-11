@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { Plus, UtensilsCrossed } from 'lucide-react';
 import type { MenuItem } from '../../api/apiSlice';
 import { useAppDispatch } from '../../app/hooks';
-import { addItem, openCart } from '../cart/cartSlice';
+import { addItem, openCart, type CartOption } from '../cart/cartSlice';
 import { CURRENCY, formatCurrency } from '../../lib/format';
 import { Button } from '../../components/ui';
+import ItemOptionsDialog from './ItemOptionsDialog';
 
 interface Props {
   item: MenuItem;
@@ -16,11 +18,14 @@ interface Props {
 // price, not an empty shell.
 export default function MenuItemCard({ item }: Props) {
   const dispatch = useAppDispatch();
+  const [choosing, setChoosing] = useState(false);
 
-  const handleAdd = () => {
-    dispatch(addItem(item));
+  const add = (options: CartOption[] = [], note = '') => {
+    dispatch(addItem({ item, options, note }));
     dispatch(openCart());
   };
+  // Items with options open the options dialog first.
+  const handleAdd = () => (item.modifierGroups?.length ? setChoosing(true) : add());
 
   return (
     <article
@@ -53,6 +58,16 @@ export default function MenuItemCard({ item }: Props) {
           </Button>
         </div>
       </div>
+      {choosing && (
+        <ItemOptionsDialog
+          item={item}
+          onClose={() => setChoosing(false)}
+          onAdd={(options, note) => {
+            setChoosing(false);
+            add(options, note);
+          }}
+        />
+      )}
     </article>
   );
 }

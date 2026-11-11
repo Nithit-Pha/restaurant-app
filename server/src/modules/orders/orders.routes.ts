@@ -11,6 +11,8 @@ const router = Router();
 const cartItemSchema = z.object({
   menuItemId: z.string().uuid(),
   quantity: z.number().int().positive(),
+  modifierIds: z.array(z.string().uuid()).max(50).default([]),
+  note: z.string().trim().max(200).optional(), // for the kitchen, e.g. "no peanuts"
 });
 
 const checkoutSchema = z.object({

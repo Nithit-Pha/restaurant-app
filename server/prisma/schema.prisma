@@ -74,10 +74,39 @@ model MenuItem {
   imageUrl     String?
   isAvailable  Boolean     @default(true)
   orderItems   OrderItem[]
+  modifierGroups ModifierGroup[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
   @@index([category])
+}
+
+// A choice on a menu item, e.g. "Size" (pick exactly 1) or "Extras" (up to 3).
+model ModifierGroup {
+  id         String     @id @default(uuid())
+  menuItem   MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  menuItemId String
+  name       String
+  minSelect  Int        @default(0) // 0 = optional, 1+ = required
+  maxSelect  Int        @default(1)
+  sortOrder  Int        @default(0)
+  modifiers  Modifier[]
+
+  @@index([menuItemId])
+}
+
+// One option in a group, e.g. "Large" (+20) or "No peanuts" (+0).
+model Modifier {
+  id          String        @id @default(uuid())
+  group       ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId     String
+  name        String
+  priceDelta  Decimal       @default(0) @db.Decimal(10, 2) // added to the item price (can be negative)
+  isAvailable Boolean       @default(true)
+  sortOrder   Int           @default(0)
+  orderItemModifiers OrderItemModifier[]
+
+  @@index([groupId])
 }
 
 model Order {
@@ -181,9 +210,27 @@ model OrderItem {
   menuItem     MenuItem @relation(fields: [menuItemId], references: [id])
   menuItemId   String
   nameSnapshot String
-  unitPrice    Decimal  @db.Decimal(10, 2)
+  unitPrice    Decimal  @db.Decimal(10, 2) // item price + chosen options
   unitCost     Decimal  @db.Decimal(10, 2)
   quantity     Int
+  note         String?  // e.g. "no peanuts", for the kitchen
+  modifiers    OrderItemModifier[]
+}
+
+// The options chosen on an order line, copied at order time so later menu
+// edits never change past orders.
+model OrderItemModifier {
+  id          String    @id @default(uuid())
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  orderItemId String
+  modifier    Modifier? @relation(fields: [modifierId], references: [id], onDelete: SetNull)
+  modifierId  String?
+  groupName   String
+  name        String
+  priceDelta  Decimal   @db.Decimal(10, 2)
+  position    Int       @default(0) // display order
+
+  @@index([orderItemId])
 }
 
 // Key-value store for Super Admin configurable settings

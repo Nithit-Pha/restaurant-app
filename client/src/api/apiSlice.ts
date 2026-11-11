@@ -136,6 +136,12 @@ export const apiSlice = createApi({
       invalidatesTags: ['MenuItem'],
       onQueryStarted: revalidateOnSuccess,
     }),
+    // Replaces the item's option groups (sent in display order).
+    setItemOptions: builder.mutation<MenuItem, { id: string; groups: ModifierGroupInput[] }>({
+      query: ({ id, groups }) => ({ url: `/menu/${id}/options`, method: 'PUT', body: { groups } }),
+      invalidatesTags: ['MenuItem'],
+      onQueryStarted: revalidateOnSuccess,
+    }),
 
     // Orders
     quoteOrder: builder.mutation<PricingResult, CheckoutInput>({
@@ -303,6 +309,7 @@ export const {
   useUpdateMenuItemMutation,
   useToggleAvailabilityMutation,
   useDeleteMenuItemMutation,
+  useSetItemOptionsMutation,
   useQuoteOrderMutation,
   usePlaceOrderMutation,
   useGetMyOrdersQuery,
@@ -426,15 +433,50 @@ export interface MenuItem {
   imageUrl?: string;
   isAvailable: boolean;
   createdAt: string;
+  modifierGroups?: ModifierGroup[]; // in display order
+}
+
+/** One option, e.g. "Large" (+20). Prices arrive as strings (Decimal). */
+export interface Modifier {
+  id: string;
+  name: string;
+  priceDelta: number | string;
+  isAvailable: boolean;
+}
+
+/** A choice on a menu item, e.g. "Size": pick between minSelect and maxSelect options. */
+export interface ModifierGroup {
+  id: string;
+  name: string;
+  minSelect: number;
+  maxSelect: number;
+  modifiers: Modifier[];
+}
+
+export interface ModifierGroupInput {
+  id?: string;
+  name: string;
+  minSelect: number;
+  maxSelect: number;
+  modifiers: { id?: string; name: string; priceDelta: number; isAvailable: boolean }[];
+}
+
+export interface OrderItemModifier {
+  id: string;
+  groupName: string;
+  name: string;
+  priceDelta: number | string;
 }
 
 export interface OrderItem {
   id: string;
   menuItemId: string;
   nameSnapshot: string;
-  unitPrice: number;
+  unitPrice: number; // includes the options
   unitCost: number;
   quantity: number;
+  note?: string | null;
+  modifiers?: OrderItemModifier[];
 }
 
 export type OrderStatus = 'PENDING' | 'PREPARING' | 'READY' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED';
@@ -523,7 +565,7 @@ export interface PricingResult {
 }
 
 export interface CheckoutInput {
-  items: { menuItemId: string; quantity: number }[];
+  items: { menuItemId: string; quantity: number; modifierIds: string[]; note?: string }[];
   type: 'PICKUP' | 'DELIVERY';
   deliveryAddress?: string;
   deliveryLat?: number;

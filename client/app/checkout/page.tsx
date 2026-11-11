@@ -16,6 +16,7 @@ import {
   type PricingResult,
 } from '../../src/api/apiSlice';
 import ClosedBanner from '../../src/features/orders/ClosedBanner';
+import LineDetails from '../../src/features/orders/LineDetails';
 import DeliveryForm from '../../src/features/checkout/DeliveryForm';
 import { formatCurrency } from '../../src/lib/format';
 import { useRequireAuth } from '../../src/routes/useAuthGuard';
@@ -117,7 +118,12 @@ export default function CheckoutPage() {
   const [quoting, setQuoting] = useState(false);
 
   const cartLines = useMemo(
-    () => items.map((i) => ({ menuItemId: i.id, quantity: i.quantity })),
+    () => items.map((i) => ({
+      menuItemId: i.id,
+      quantity: i.quantity,
+      modifierIds: i.options.map((o) => o.id),
+      ...(i.note ? { note: i.note } : {}),
+    })),
     [items],
   );
   const cartKey = JSON.stringify(cartLines);
@@ -318,10 +324,11 @@ export default function CheckoutPage() {
           <CardBody className="space-y-4">
             <ul className="space-y-2 text-sm">
               {items.map((item) => (
-                <li key={item.id} className="flex justify-between gap-3">
+                <li key={item.lineId} className="flex justify-between gap-3">
                   <span className="text-fg">
                     <span className="mr-1.5 font-medium tabular-nums">{item.quantity}×</span>
                     {item.name}
+                    <LineDetails options={item.options} note={item.note} className="ml-6" />
                   </span>
                   <span className="tabular-nums text-fg-muted">{formatCurrency(item.sellingPrice * item.quantity)}</span>
                 </li>

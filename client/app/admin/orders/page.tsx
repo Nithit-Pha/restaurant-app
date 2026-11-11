@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from 'react';
 import {
-  Bell, BellOff, Bike, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, Store,
+  Bell, BellOff, Bike, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, StickyNote, Store,
 } from 'lucide-react';
 import {
   useGetAdminOrdersQuery,
@@ -30,6 +30,7 @@ import {
 import { AcceptDialog, CancelDialog, CompleteCashDialog, MarkPaidDialog, RefundDialog } from '../../../src/features/admin/orders/OrderDialogs';
 import { useNewOrderAlert } from '../../../src/features/admin/orders/useNewOrderAlert';
 import BusyModeControl from '../../../src/features/admin/orders/BusyModeControl';
+import LineDetails from '../../../src/features/orders/LineDetails';
 import { bangkokDateISO, formatCurrency } from '../../../src/lib/format';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
 import {
@@ -107,6 +108,7 @@ function OrderDetail({ order, isOwner, onRefund }: { order: Order; isOwner: bool
               <span>
                 <span className="mr-1.5 inline-block min-w-[1.75rem] font-semibold tabular-nums">{i.quantity}×</span>
                 {i.nameSnapshot}
+                <LineDetails options={i.modifiers} note={i.note} strongNote className="ml-[2.125rem] text-sm" />
               </span>
               <span className="tabular-nums text-fg-muted">{formatCurrency(i.unitPrice * i.quantity)}</span>
             </li>
@@ -488,6 +490,12 @@ export default function AdminOrdersPage() {
                             )}
                           </span>
                           <span className="truncate">{order.user?.name ?? '—'}</span>
+                          {order.items.some((i) => i.note) && (
+                            <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-warning" title="This order has a note for the kitchen">
+                              <StickyNote size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden />
+                              Note
+                            </span>
+                          )}
                         </span>
                       </TD>
                       <TD muted className="hidden whitespace-nowrap min-[1400px]:table-cell">

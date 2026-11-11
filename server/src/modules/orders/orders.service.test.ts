@@ -314,6 +314,47 @@ describe('cancelByCustomer', () => {
   });
 });
 
+describe('placeOrder — options and notes', () => {
+  const BURGER_WITH_OPTIONS = {
+    ...MENU[0],
+    modifierGroups: [
+      {
+        id: 'g-size', name: 'Size', minSelect: 1, maxSelect: 1,
+        modifiers: [
+          { id: 'm-reg', name: 'Regular', priceDelta: '0.00', isAvailable: true },
+          { id: 'm-lg', name: 'Large', priceDelta: '3.50', isAvailable: true },
+        ],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    prismaMock.menuItem.findMany.mockResolvedValue([BURGER_WITH_OPTIONS]);
+  });
+
+  it('prices the chosen options into the line and stores them with the note', async () => {
+    await placeOrder('user-1', {
+      type: 'PICKUP',
+      items: [{ menuItemId: 'burger', quantity: 2, modifierIds: ['m-lg'], note: '  no onions ' }],
+    });
+    const data = txOrderCreate.mock.calls[0][0].data;
+    const line = data.items.create[0];
+    expect(line.unitPrice).toBe(15.5); // 12 + 3.50
+    expect(line.unitCost).toBe(4.5); // options do not change the cost
+    expect(line.note).toBe('no onions');
+    expect(line.modifiers.create).toEqual([
+      { modifierId: 'm-lg', groupName: 'Size', name: 'Large', priceDelta: 3.5, position: 0 },
+    ]);
+    expect(data.total).toBe(31); // 2 × 15.50
+  });
+
+  it('refuses a line that skips a required option (400)', async () => {
+    await expect(placeOrder('user-1', { type: 'PICKUP', items: [{ menuItemId: 'burger', quantity: 1 }] }))
+      .rejects.toMatchObject({ statusCode: 400, message: 'Please choose Size for Burger.' });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
 describe('placeOrder — payment method', () => {
   const pickup = { type: 'PICKUP' as const, items: [{ menuItemId: 'burger', quantity: 1 }] };
 

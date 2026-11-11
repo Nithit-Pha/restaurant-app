@@ -201,6 +201,101 @@ test('customer can cancel while the order is still waiting; staff see why', asyn
   await staffContext.close();
 });
 
+test('customer orders a dish with options and a note; the kitchen sees both', async ({ page, browser, baseURL }) => {
+  // A dish of its own, so the other tests (which add the first dish) are not affected.
+  const auth = { authorization: `Bearer ${adminToken}` };
+  const dish = `E2E Khao Pad ${Date.now()}`;
+  const created = await api.post('/api/menu', { data: { name: dish, category: 'E2E', sellingPrice: 60, costPrice: 20 }, headers: auth });
+  expect(created.ok(), 'create dish').toBeTruthy();
+  const dishId = (await created.json()).id as string;
+  try {
+    const options = await api.put(`/api/menu/${dishId}/options`, {
+      headers: auth,
+      data: {
+        groups: [
+          { name: 'Size', minSelect: 1, maxSelect: 1, modifiers: [
+            { name: 'Regular', priceDelta: 0, isAvailable: true },
+            { name: 'Large', priceDelta: 20, isAvailable: true },
+          ] },
+          { name: 'Extras', minSelect: 0, maxSelect: 2, modifiers: [
+            { name: 'Fried egg', priceDelta: 10, isAvailable: true },
+            { name: 'Extra pork', priceDelta: 25, isAvailable: true },
+            { name: 'Crispy garlic', priceDelta: 5, isAvailable: true },
+          ] },
+        ],
+      },
+    });
+    expect(options.ok(), 'set options').toBeTruthy();
+    // A group with min > options is refused by the server.
+    const bad = await api.put(`/api/menu/${dishId}/options`, {
+      headers: auth,
+      data: { groups: [{ name: 'Size', minSelect: 2, maxSelect: 2, modifiers: [{ name: 'Only', priceDelta: 0, isAvailable: true }] }] },
+    });
+    expect(bad.status()).toBe(400);
+    await page.request.post(`${baseURL}/revalidate`); // the public menu is cached
+
+    // --- Customer picks options and writes a note --------------------------
+    const username = `e2e-opt-${Date.now()}`;
+    await page.goto('/register');
+    await page.locator('form input').first().fill('E2E Options');
+    await page.locator('input[autocomplete="username"]').fill(username);
+    await page.locator('input[type="email"]').fill(`${username}@example.com`);
+    await page.locator('input[type="password"]').fill('password123');
+    await page.locator('button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/$/);
+
+    await page.goto('/menu');
+    await page.getByRole('button', { name: `Add ${dish}` }).click();
+    const dialog = page.getByRole('dialog', { name: dish });
+    await expect(dialog.getByRole('radio', { name: /Regular/ })).toBeChecked(); // a required choice starts on its first option
+    await dialog.getByRole('radio', { name: /Large/ }).check();
+    await dialog.getByRole('checkbox', { name: /Fried egg/ }).check();
+    await dialog.getByRole('checkbox', { name: /Extra pork/ }).check();
+    await expect(dialog.getByRole('checkbox', { name: /Crispy garlic/ })).toBeDisabled(); // at most 2 extras
+    await dialog.getByRole('checkbox', { name: /Extra pork/ }).uncheck();
+    await dialog.getByLabel('Note for the kitchen').fill('No chili please');
+    await dialog.getByRole('button', { name: /Add to cart · ฿90/ }).click(); // 60 + 20 + 10
+
+    // The cart line shows the options and the note.
+    const checkout = page.getByRole('link', { name: 'Checkout' });
+    if (!(await checkout.isVisible())) await page.getByRole('button', { name: 'Open cart' }).click();
+    await expect(page.getByText('Large · Fried egg')).toBeVisible();
+    await expect(page.getByText('Note: No chili please')).toBeVisible();
+    await checkout.click();
+    await expect(page).toHaveURL(/\/checkout/);
+    await page.getByLabel('Phone number').fill('0833333333');
+    await page.getByRole('button', { name: /Place order · ฿90/ }).click();
+    await expect(page).toHaveURL(/\/orders\/[0-9a-f-]{36}$/);
+    const orderNumber = (await page.getByRole('heading', { level: 1 }).textContent())!.replace('Order ', '').trim();
+    await expect(page.getByText('Large · Fried egg')).toBeVisible();
+    await expect(page.getByText('Note: No chili please')).toBeVisible();
+
+    // --- The kitchen sees the note on the row, and the details inside ------
+    const staffContext = await browser.newContext();
+    const staff = await staffContext.newPage();
+    await signIn(staff, STAFF.username, STAFF.password);
+    await staff.goto('/admin/orders');
+    const row = staff.locator('tr', { hasText: orderNumber });
+    await expect(row.getByText('Note', { exact: true })).toBeVisible();
+    await row.click();
+    await expect(staff.getByText('Large · Fried egg')).toBeVisible();
+    await expect(staff.getByText('Note: No chili please')).toBeVisible();
+
+    // The options editor shows the dish's groups.
+    await staff.goto('/admin/menu');
+    await staff.getByRole('button', { name: `Options for ${dish}` }).click();
+    const editor = staff.getByRole('dialog', { name: `Options for ${dish}` });
+    await expect(editor.getByLabel('Group name').first()).toHaveValue('Size');
+    await expect(editor.getByLabel('Group name').nth(1)).toHaveValue('Extras');
+    await editor.getByRole('button', { name: 'Cancel' }).click();
+    await staffContext.close();
+  } finally {
+    // It has an order now, so this hides it rather than deleting it.
+    await api.delete(`/api/menu/${dishId}`, { headers: auth });
+    await page.request.post(`${baseURL}/revalidate`);
+  }
+});
+
 test('staff switch to busy and paused; customers see it and cannot order while paused', async ({ page, browser }) => {
   const username = `e2e-busy-${Date.now()}`;
   await page.goto('/register');

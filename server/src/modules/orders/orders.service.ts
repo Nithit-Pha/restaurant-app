@@ -7,6 +7,7 @@ import { getSetting, getRestaurantProfile, getOpenStatus, getPaymentSettings } f
 import { planTransition, type CancelReason, type OrderStatus, type OrderType } from './orderStateMachine';
 import { planPayment, type PaymentAction, type PaymentMethod, type PaymentStatus } from './paymentState';
 import { buildPromptPayPayload } from '../../utils/promptpay';
+import { priceLine } from './lineOptions';
 
 // Distance assumed when the customer shares no location and no max delivery
 // distance is configured.
@@ -15,7 +16,12 @@ const DEFAULT_DELIVERY_KM = 5;
 interface CartItemInput {
   menuItemId: string;
   quantity: number;
+  modifierIds?: string[]; // chosen options
+  note?: string; // e.g. "no peanuts"
 }
+
+// Order lines always come with their chosen options, in display order.
+const itemsInclude = { include: { modifiers: { orderBy: { position: 'asc' as const } } } };
 
 interface CheckoutInput {
   items: CartItemInput[];
@@ -50,20 +56,43 @@ async function nextOrderNumber(tx: Prisma.TransactionClient, day: string): Promi
   return Number(rows[0].value);
 }
 
-/** Look up the cart's menu items and snapshot their current price and cost. */
+/**
+ * Look up the cart's menu items and snapshot their current price and cost.
+ * Options are priced and checked here (lineOptions.ts); their price is part
+ * of the line's unit price. Options do not change the cost.
+ */
 async function buildLines(items: CartItemInput[]) {
   const menuItems = await prisma.menuItem.findMany({
     where: { id: { in: items.map((i) => i.menuItemId) }, isAvailable: true },
+    include: {
+      modifierGroups: {
+        orderBy: { sortOrder: 'asc' },
+        include: { modifiers: { orderBy: { sortOrder: 'asc' } } },
+      },
+    },
   });
   return items.map((item) => {
     const mi = menuItems.find((m) => m.id === item.menuItemId);
     if (!mi) throw badRequest('One or more items are unavailable');
+    const { unitPrice, options } = priceLine(
+      {
+        name: mi.name,
+        sellingPrice: Number(mi.sellingPrice),
+        modifierGroups: (mi.modifierGroups ?? []).map((g) => ({
+          ...g,
+          modifiers: g.modifiers.map((m) => ({ ...m, priceDelta: Number(m.priceDelta) })),
+        })),
+      },
+      item.modifierIds ?? [],
+    );
     return {
       menuItemId: mi.id,
       nameSnapshot: mi.name,
-      unitPrice: Number(mi.sellingPrice),
+      unitPrice,
       unitCost: Number(mi.costPrice),
       quantity: item.quantity,
+      note: item.note?.trim() || null,
+      options,
     };
   });
 }
@@ -162,11 +191,13 @@ export async function placeOrder(userId: string, input: PlaceOrderInput) {
               unitPrice: l.unitPrice,
               unitCost: l.unitCost,
               quantity: l.quantity,
+              note: l.note,
+              ...(l.options.length ? { modifiers: { create: l.options } } : {}),
             })),
           },
           statusHistory: { create: { toStatus: 'PENDING', actorId: userId } },
         },
-        include: { items: true },
+        include: { items: itemsInclude },
       });
     });
     return { order, created: true };
@@ -181,7 +212,7 @@ export async function placeOrder(userId: string, input: PlaceOrderInput) {
 }
 
 async function findByIdempotencyKey(key: string, userId: string) {
-  const existing = await prisma.order.findUnique({ where: { idempotencyKey: key }, include: { items: true } });
+  const existing = await prisma.order.findUnique({ where: { idempotencyKey: key }, include: { items: itemsInclude } });
   if (existing && existing.userId !== userId) {
     throw httpError(409, 'This checkout key belongs to another order. Please reload the page and try again.');
   }
@@ -191,7 +222,7 @@ async function findByIdempotencyKey(key: string, userId: string) {
 export async function getUserOrders(userId: string) {
   return prisma.order.findMany({
     where: { userId },
-    include: { items: true },
+    include: { items: itemsInclude },
     orderBy: { createdAt: 'desc' },
   });
 }
@@ -213,7 +244,7 @@ const paymentsInclude = {
 export async function getOrderById(id: string, userId?: string, withHistory = false) {
   return prisma.order.findFirst({
     where: { id, ...(userId ? { userId } : {}) },
-    include: { items: true, ...(withHistory ? { statusHistory: historyInclude, payments: paymentsInclude } : {}) },
+    include: { items: itemsInclude, ...(withHistory ? { statusHistory: historyInclude, payments: paymentsInclude } : {}) },
   });
 }
 
@@ -233,7 +264,7 @@ export async function getAllOrders({ status, date, limit = 200 }: AdminOrderFilt
     },
     include: {
       user: { select: { id: true, name: true, username: true, email: true, phone: true } },
-      items: true,
+      items: itemsInclude,
       statusHistory: historyInclude,
       payments: paymentsInclude,
     },
@@ -278,7 +309,7 @@ export async function changeOrderStatus(id: string, change: StatusChange) {
         note: change.cancelNote?.trim() || null,
       },
     });
-    const updated = await tx.order.findUnique({ where: { id }, include: { items: true } });
+    const updated = await tx.order.findUnique({ where: { id }, include: { items: itemsInclude } });
     return { from: order.status as OrderStatus, order: updated! };
   });
 }
@@ -341,7 +372,7 @@ export async function changePayment(id: string, action: PaymentAction, change: P
     }
     const updated = await tx.order.findUnique({
       where: { id },
-      include: { items: true, ...(change.customerId ? {} : { payments: paymentsInclude }) },
+      include: { items: itemsInclude, ...(change.customerId ? {} : { payments: paymentsInclude }) },
     });
     return { from, to, order: updated! };
   });

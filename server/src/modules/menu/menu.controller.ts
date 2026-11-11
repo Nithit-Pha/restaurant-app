@@ -26,7 +26,7 @@ export async function getItem(req: Request, res: Response, next: NextFunction) {
   try {
     const isStaff = hasMinRole(req.user?.role ?? '', 'STAFF');
     const isSuperAdmin = hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN');
-    const item = await menuService.getMenuItem(req.params.id);
+    const item = await menuService.getMenuItem(req.params.id, !isStaff);
     // Hidden items are invisible to the public, same as in the list.
     if (!item || (!item.isAvailable && !isStaff)) { res.status(404).json({ message: 'Item not found' }); return; }
     res.json(stripCost(item, isSuperAdmin));
@@ -60,6 +60,20 @@ export async function updateItem(req: Request, res: Response, next: NextFunction
     const item = await menuService.updateMenuItem(req.params.id, data);
     audit({ actorId: req.user!.userId, action: 'UPDATE', entityType: 'MENU_ITEM', entityId: item.id, metadata: { name: item.name } });
     res.json(stripCost(item, isSuperAdmin));
+  } catch (err) { next(err); }
+}
+
+export async function putOptions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const item = await menuService.setItemOptions(req.params.id, req.body.groups);
+    audit({
+      actorId: req.user!.userId,
+      action: 'UPDATE',
+      entityType: 'MENU_ITEM',
+      entityId: req.params.id,
+      metadata: { options: req.body.groups.map((g: { name: string; modifiers: unknown[] }) => `${g.name} (${g.modifiers.length})`) },
+    });
+    res.json(stripCost(item!, hasMinRole(req.user?.role ?? '', 'SUPER_ADMIN')));
   } catch (err) { next(err); }
 }
 
