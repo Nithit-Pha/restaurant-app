@@ -28,11 +28,12 @@ export const updateExpenseSchema = createExpenseSchema.partial().refine(
   { message: 'at least one field must be provided' },
 );
 
-/** Query schema for the dashboard date range. */
+/** Query schema for the dashboard date range: business days in the restaurant's time zone. */
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD');
 export const dashboardQuerySchema = z
   .object({
-    startDate: z.coerce.date().optional(),
-    endDate: z.coerce.date().optional(),
+    startDate: ymd.optional(),
+    endDate: ymd.optional(),
   })
   .refine(
     (q) => !q.startDate || !q.endDate || q.startDate <= q.endDate,

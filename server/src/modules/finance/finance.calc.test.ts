@@ -128,20 +128,33 @@ describe('mergeTransactions', () => {
 });
 
 describe('resolveRange', () => {
-  it('defaults to the current calendar month', () => {
-    const now = new Date(2026, 5, 15); // June 15 2026
-    const { start, end } = resolveRange(undefined, undefined, now);
-    expect(start.getFullYear()).toBe(2026);
-    expect(start.getMonth()).toBe(5);
-    expect(start.getDate()).toBe(1);
-    expect(end.getMonth()).toBe(5);
-    expect(end.getDate()).toBe(30); // June has 30 days
+  const TZ = 'Asia/Bangkok'; // UTC+7, no DST
+
+  it('defaults to the current calendar month in the business time zone', () => {
+    const now = new Date('2026-06-15T05:00:00Z');
+    const { start, end } = resolveRange(undefined, undefined, TZ, now);
+    expect(start.toISOString()).toBe('2026-05-31T17:00:00.000Z'); // 1 Jun 00:00 Bangkok
+    expect(end.toISOString()).toBe('2026-06-30T16:59:59.999Z'); // 30 Jun 23:59:59.999 Bangkok
   });
 
-  it('extends endDate to end-of-day so the boundary day is inclusive', () => {
-    const end = resolveRange(new Date(2026, 5, 1), new Date(2026, 5, 10)).end;
-    expect(end.getHours()).toBe(23);
-    expect(end.getMinutes()).toBe(59);
-    expect(end.getDate()).toBe(10);
+  it('uses the Bangkok month even when UTC is still in the previous month', () => {
+    const now = new Date('2026-06-30T18:00:00Z'); // 1 Jul 01:00 in Bangkok
+    const { start, end } = resolveRange(undefined, undefined, TZ, now);
+    expect(start.toISOString()).toBe('2026-06-30T17:00:00.000Z');
+    expect(end.toISOString()).toBe('2026-07-31T16:59:59.999Z');
+  });
+
+  it('covers whole Bangkok days, both ends inclusive', () => {
+    const { start, end } = resolveRange('2026-06-01', '2026-06-10', TZ);
+    expect(start.toISOString()).toBe('2026-05-31T17:00:00.000Z');
+    expect(end.toISOString()).toBe('2026-06-10T16:59:59.999Z');
+  });
+
+  it('counts an order at 02:00 Bangkok on the 2nd as the 2nd, not the 1st', () => {
+    const order = new Date('2026-06-01T19:00:00Z'); // 2 Jun 02:00 Bangkok
+    const day1 = resolveRange('2026-06-01', '2026-06-01', TZ);
+    const day2 = resolveRange('2026-06-02', '2026-06-02', TZ);
+    expect(order >= day1.start && order <= day1.end).toBe(false);
+    expect(order >= day2.start && order <= day2.end).toBe(true);
   });
 });

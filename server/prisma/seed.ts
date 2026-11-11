@@ -31,11 +31,11 @@ async function main() {
     console.log('Super Admin created:', user.username);
   }
 
-  // Seed default settings
+  // Seed default settings (money in THB)
   const defaults = {
     TAX_RATE: '0.07',
-    DELIVERY_BASE_FEE: '3.99',
-    DELIVERY_FEE_PER_KM: '1.00',
+    DELIVERY_BASE_FEE: '30',
+    DELIVERY_FEE_PER_KM: '10',
     DELIVERY_FREE_KM: '3',
   };
   for (const [key, value] of Object.entries(defaults)) {
@@ -47,14 +47,14 @@ async function main() {
   }
   console.log('Default settings seeded');
 
-  // Seed sample menu items
+  // Seed sample menu items (prices in THB)
   const menuItems = [
-    { name: 'Spring Rolls', description: 'Crispy vegetable spring rolls with sweet chili dipping sauce', category: 'Appetizers', costPrice: 2.5, sellingPrice: 7.99 },
-    { name: 'Grilled Chicken Burger', description: 'Juicy grilled chicken breast with lettuce, tomato, and aioli', category: 'Mains', costPrice: 5.0, sellingPrice: 14.99 },
-    { name: 'Margherita Pizza', description: 'Classic tomato, mozzarella, and fresh basil', category: 'Mains', costPrice: 4.5, sellingPrice: 13.99 },
-    { name: 'Caesar Salad', description: 'Romaine lettuce, parmesan, croutons, Caesar dressing', category: 'Appetizers', costPrice: 2.0, sellingPrice: 9.99 },
-    { name: 'Lemonade', description: 'Fresh-squeezed lemonade with mint', category: 'Drinks', costPrice: 0.5, sellingPrice: 3.99 },
-    { name: 'Chocolate Lava Cake', description: 'Warm chocolate cake with a molten center, served with vanilla ice cream', category: 'Desserts', costPrice: 1.5, sellingPrice: 6.99 },
+    { name: 'Spring Rolls', description: 'Crispy vegetable spring rolls with sweet chili dipping sauce', category: 'Appetizers', costPrice: 30, sellingPrice: 89 },
+    { name: 'Grilled Chicken Burger', description: 'Juicy grilled chicken breast with lettuce, tomato, and aioli', category: 'Mains', costPrice: 70, sellingPrice: 189 },
+    { name: 'Margherita Pizza', description: 'Classic tomato, mozzarella, and fresh basil', category: 'Mains', costPrice: 85, sellingPrice: 249 },
+    { name: 'Caesar Salad', description: 'Romaine lettuce, parmesan, croutons, Caesar dressing', category: 'Appetizers', costPrice: 40, sellingPrice: 129 },
+    { name: 'Lemonade', description: 'Fresh-squeezed lemonade with mint', category: 'Drinks', costPrice: 12, sellingPrice: 59 },
+    { name: 'Chocolate Lava Cake', description: 'Warm chocolate cake with a molten center, served with vanilla ice cream', category: 'Desserts', costPrice: 35, sellingPrice: 119 },
   ];
 
   // Name is not unique in the schema, so look it up first: running the seed
