@@ -1,7 +1,9 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
-import { Bell, BellOff } from 'lucide-react';
+import {
+  Bell, BellOff, Bike, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, Store,
+} from 'lucide-react';
 import {
   useGetAdminOrdersQuery,
   useGetMeQuery,
@@ -10,6 +12,7 @@ import {
   useUpdateOrderStatusMutation,
   type CancelReason,
   type Order,
+  type OrderStatus,
   type StatusChangeInput,
 } from '../../../src/api/apiSlice';
 import OrderStatusBadge from '../../../src/features/orders/OrderStatusBadge';
@@ -27,8 +30,17 @@ import { AcceptDialog, CancelDialog, CompleteCashDialog, MarkPaidDialog, RefundD
 import { useNewOrderAlert } from '../../../src/features/admin/orders/useNewOrderAlert';
 import { bangkokDateISO, formatCurrency } from '../../../src/lib/format';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
+import {
+  Alert, Button, Card, ChipGroup, EmptyState, IconButton, LoadingBlock, PageContainer, PageHeader, Table, TBody, TD, TH, THead,
+  cn, ICON_SM, ICON_STROKE, useToast,
+} from '../../../src/components/ui';
 
-const STATUSES = ['', 'PENDING', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'] as const;
+type StatusFilter = '' | OrderStatus;
+const STATUS_ORDER: OrderStatus[] = ['PENDING', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
+
+// After how many minutes a new (unaccepted) order is shown in amber, then red.
+const WAIT_WARN_MIN = 5;
+const WAIT_ALERT_MIN = 10;
 
 // --- date helpers (Bangkok business day, YYYY-MM-DD) ---
 const todayISO = () => bangkokDateISO();
@@ -66,75 +78,114 @@ function minutesSince(iso: string): number {
 const canMarkPaid = (o: Order) =>
   (o.paymentStatus === 'UNPAID' || o.paymentStatus === 'PENDING') && !(o.status === 'CANCELLED' && o.paymentStatus === 'UNPAID');
 
+/** Toast text after a forward step, e.g. "#014 accepted". */
+const FORWARD_DONE: Record<string, string> = {
+  PREPARING: 'accepted',
+  READY: 'is ready',
+  OUT_FOR_DELIVERY: 'is out for delivery',
+  DELIVERED: 'completed',
+};
+
+/* ------------------------------------------------------------------ parts -- */
+
+function DetailLabel({ children }: { children: React.ReactNode }) {
+  return <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">{children}</dt>;
+}
+
 function OrderDetail({ order, isOwner, onRefund }: { order: Order; isOwner: boolean; onRefund: () => void }) {
   const phone = order.customerPhone || order.user?.phone;
   const map = order.type === 'DELIVERY' ? mapsUrl(order) : null;
   return (
-    <div className="grid gap-4 sm:grid-cols-2 px-4 py-4 bg-gray-50 dark:bg-gray-900/40 text-sm">
-      <div>
-        <p className="font-semibold text-gray-900 dark:text-white mb-2">Items</p>
-        <ul className="space-y-1">
+    <div className="grid gap-6 border-t border-line bg-surface-muted/40 px-5 py-5 text-sm md:grid-cols-3">
+      <section aria-label="Items">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-muted">Items</p>
+        <ul className="space-y-1.5">
           {order.items.map((i) => (
-            <li key={i.id} className="flex justify-between gap-3 text-gray-800 dark:text-gray-200">
+            <li key={i.id} className="flex justify-between gap-3 text-fg">
               <span>
-                <span className="font-semibold">{i.quantity}×</span> {i.nameSnapshot}
+                <span className="mr-1.5 inline-block min-w-[1.75rem] font-semibold tabular-nums">{i.quantity}×</span>
+                {i.nameSnapshot}
               </span>
-              <span className="text-gray-500 dark:text-gray-400">{formatCurrency(i.unitPrice * i.quantity)}</span>
+              <span className="tabular-nums text-fg-muted">{formatCurrency(i.unitPrice * i.quantity)}</span>
             </li>
           ))}
         </ul>
-        <p className="mt-2 pt-2 border-t dark:border-gray-700 flex justify-between font-semibold text-gray-900 dark:text-white">
+        <p className="mt-3 flex justify-between border-t border-line pt-2 font-semibold text-fg">
           <span>Total{order.deliveryFee > 0 ? ' (incl. delivery)' : ''}</span>
-          <span>{formatCurrency(order.total)}</span>
+          <span className="tabular-nums">{formatCurrency(order.total)}</span>
         </p>
-      </div>
-      <div className="space-y-2 text-gray-700 dark:text-gray-300">
-        <p>
-          <span className="text-gray-500 dark:text-gray-400">Customer:</span> {order.user?.name ?? '—'}
-        </p>
-        <p>
-          <span className="text-gray-500 dark:text-gray-400">Phone:</span>{' '}
-          {phone ? <a href={`tel:${phone.replace(/[\s-]/g, '')}`} className="text-brand-600 hover:underline">{phone}</a> : '—'}
-        </p>
-        {order.type === 'DELIVERY' && (
-          <p>
-            <span className="text-gray-500 dark:text-gray-400">Address:</span> {order.deliveryAddress || '—'}
-            {map && (
-              <>
-                {' '}
-                <a href={map} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline whitespace-nowrap">
-                  Open map ↗
-                </a>
-              </>
+      </section>
+
+      <dl className="space-y-3">
+        <div>
+          <DetailLabel>Customer</DetailLabel>
+          <dd className="mt-0.5 text-fg">{order.user?.name ?? '—'}</dd>
+        </div>
+        <div>
+          <DetailLabel>Phone</DetailLabel>
+          <dd className="mt-0.5">
+            {phone ? (
+              <a href={`tel:${phone.replace(/[\s-]/g, '')}`} className="font-medium text-accent underline-offset-2 hover:underline">
+                {phone}
+              </a>
+            ) : (
+              '—'
             )}
-          </p>
+          </dd>
+        </div>
+        {order.type === 'DELIVERY' && (
+          <div>
+            <DetailLabel>Address</DetailLabel>
+            <dd className="mt-0.5 text-fg">
+              {order.deliveryAddress || '—'}
+              {map && (
+                <a
+                  href={map}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 flex w-fit items-center gap-1 font-medium text-accent underline-offset-2 hover:underline"
+                >
+                  Open map
+                  <ExternalLink size={14} strokeWidth={ICON_STROKE} aria-hidden />
+                </a>
+              )}
+            </dd>
+          </div>
         )}
         {order.estimatedReadyAt && !isFinal(order.status) && (
-          <p>
-            <span className="text-gray-500 dark:text-gray-400">Promised ready:</span> {formatClock(order.estimatedReadyAt)}
-          </p>
+          <div>
+            <DetailLabel>Promised ready</DetailLabel>
+            <dd className="mt-0.5 tabular-nums text-fg">{formatClock(order.estimatedReadyAt)}</dd>
+          </div>
         )}
         {order.status === 'CANCELLED' && order.cancelReason && (
-          <p className="text-red-600 dark:text-red-400">
-            Cancelled: {CANCEL_REASON_LABELS[order.cancelReason]}
-            {order.cancelNote ? ` — ${order.cancelNote}` : ''}
-          </p>
+          <div>
+            <DetailLabel>Reason</DetailLabel>
+            <dd className="mt-0.5 text-danger">
+              {CANCEL_REASON_LABELS[order.cancelReason]}
+              {order.cancelNote ? ` — ${order.cancelNote}` : ''}
+            </dd>
+          </div>
         )}
+      </dl>
+
+      <div className="space-y-4">
         <div>
-          <p>
-            <span className="text-gray-500 dark:text-gray-400">Payment:</span> <PaymentBadge order={order} />
+          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-muted">Payment</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <PaymentBadge order={order} />
             {isOwner && order.paymentStatus === 'PAID' && (
-              <button type="button" onClick={onRefund} className="ml-2 text-xs text-red-600 dark:text-red-400 hover:underline">
+              <Button variant="ghost" size="sm" className="!text-danger" onClick={onRefund}>
                 Record refund
-              </button>
+              </Button>
             )}
-          </p>
+          </div>
           {order.payments && order.payments.length > 0 && (
-            <ul className="mt-1 space-y-0.5 text-xs">
+            <ul className="mt-2 space-y-0.5 text-xs text-fg-muted">
               {order.payments.map((p, idx) => (
                 <li key={idx}>
                   <span className="tabular-nums">{formatClock(p.createdAt)}</span> · {p.status === 'PAID' ? 'Paid' : 'Refunded'}{' '}
-                  {formatCurrency(p.amount)}
+                  <span className="tabular-nums">{formatCurrency(p.amount)}</span>
                   {p.confirmedBy ? ` · ${p.confirmedBy.name}` : ''}
                   {p.providerRef ? ` · ref ${p.providerRef}` : ''}
                   {p.note ? ` · ${p.note}` : ''}
@@ -145,11 +196,12 @@ function OrderDetail({ order, isOwner, onRefund }: { order: Order; isOwner: bool
         </div>
         {order.statusHistory && order.statusHistory.length > 0 && (
           <div>
-            <p className="text-gray-500 dark:text-gray-400 mb-1">History</p>
-            <ol className="space-y-0.5 text-xs">
+            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-muted">History</p>
+            <ol className="relative space-y-2 border-l border-line pl-4 text-xs">
               {order.statusHistory.map((h, idx) => (
-                <li key={idx}>
-                  <span className="tabular-nums">{formatClock(h.createdAt)}</span> · {shortStatusLabel(h.toStatus, order.type)}
+                <li key={idx} className="relative text-fg-muted">
+                  <span className="absolute -left-[1.3rem] top-1 h-2 w-2 rounded-full border-2 border-surface bg-line-strong" aria-hidden />
+                  <span className="tabular-nums text-fg">{formatClock(h.createdAt)}</span> · {shortStatusLabel(h.toStatus, order.type)}
                   {h.actor ? ` · ${h.actor.name}` : ''}
                 </li>
               ))}
@@ -161,12 +213,83 @@ function OrderDetail({ order, isOwner, onRefund }: { order: Order; isOwner: bool
   );
 }
 
+/** Time hint under the status: how long a new order has waited, or when a cooking order is due. */
+function TimingHint({ order }: { order: Order }) {
+  if (order.status === 'PENDING') {
+    const waiting = minutesSince(order.createdAt);
+    if (waiting < WAIT_WARN_MIN) return null;
+    return (
+      <span className={cn('mt-1 block text-xs font-medium tabular-nums', waiting >= WAIT_ALERT_MIN ? 'text-danger' : 'text-warning')}>
+        waiting {waiting} min
+      </span>
+    );
+  }
+  if (order.status === 'PREPARING' && order.estimatedReadyAt) {
+    const due = new Date(order.estimatedReadyAt).getTime();
+    if (due < Date.now()) {
+      return <span className="mt-1 block text-xs font-medium text-danger">late · due {formatClock(order.estimatedReadyAt)}</span>;
+    }
+    return <span className="mt-1 block text-xs tabular-nums text-fg-muted">due {formatClock(order.estimatedReadyAt)}</span>;
+  }
+  return null;
+}
+
+function DayStepper({ day, setDay }: { day: string; setDay: (fn: (d: string) => string) => void }) {
+  const today = todayISO();
+  const label = day ? (day === today ? 'Today' : ddmmyyyy(day)) : 'All dates';
+  return (
+    <div className="flex items-center gap-1">
+      <IconButton icon={ChevronLeft} label="Previous day" variant="secondary" onClick={() => setDay((d) => (d ? shiftDay(d, -1) : today))} />
+      <div className="relative">
+        <span className="inline-flex h-9 min-w-[8.5rem] cursor-pointer select-none items-center justify-center gap-2 rounded-control border border-line-strong/60 bg-surface px-3 text-sm font-medium text-fg">
+          <CalendarDays size={ICON_SM} strokeWidth={ICON_STROKE} className="text-fg-muted" aria-hidden />
+          {label}
+        </span>
+        <input
+          type="date"
+          value={day}
+          max={today}
+          onChange={(e) => setDay(() => e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          aria-label="Pick a date"
+        />
+      </div>
+      <IconButton
+        icon={ChevronRight}
+        label="Next day"
+        variant="secondary"
+        disabled={day === today}
+        onClick={() => setDay((d) => (d ? shiftDay(d, 1) : today))}
+      />
+      {day !== today && (
+        <Button variant="ghost" size="sm" onClick={() => setDay(() => today)}>
+          Today
+        </Button>
+      )}
+      {day && (
+        <Button variant="ghost" size="sm" onClick={() => setDay(() => '')}>
+          All dates
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------- page -- */
+
 export default function AdminOrdersPage() {
   const { ready } = useRequireRole('STAFF');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [day, setDay] = useState(todayISO); // '' = all dates
+  const toast = useToast();
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>('');
+  const [day, setDayState] = useState(todayISO); // '' = all dates
+  const setDay = (fn: (d: string) => string) => setDayState(fn);
+
+  // For one day, load every order and filter here, so the chips can show counts
+  // and the new-order chime hears new orders whichever chip is selected. For
+  // "All dates" the server filters, to keep the list small.
+  const serverStatus = day ? undefined : filterStatus || undefined;
   const { data: orders, isLoading, isFetching, fulfilledTimeStamp } = useGetAdminOrdersQuery(
-    { status: filterStatus || undefined, date: day || undefined },
+    { status: serverStatus, date: day || undefined },
     { pollingInterval: 15000, skip: !ready },
   );
   const [updateStatus, { isLoading: savingStatus }] = useUpdateOrderStatusMutation();
@@ -184,25 +307,30 @@ export default function AdminOrdersPage() {
   const [actionError, setActionError] = useState('');
   const { soundOn, toggleSound, pendingCount } = useNewOrderAlert(orders);
 
-  const list = useMemo(() => orders ?? [], [orders]);
+  const all = useMemo(() => orders ?? [], [orders]);
+  const list = useMemo(
+    () => (day && filterStatus ? all.filter((o) => o.status === filterStatus) : all),
+    [all, day, filterStatus],
+  );
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const o of list) c[o.status] = (c[o.status] ?? 0) + 1;
+    const c: Partial<Record<OrderStatus, number>> = {};
+    for (const o of all) c[o.status] = (c[o.status] ?? 0) + 1;
     return c;
-  }, [list]);
+  }, [all]);
 
-  const attempt = async (action: () => Promise<unknown>) => {
+  const attempt = async (action: () => Promise<unknown>, success?: string) => {
     setActionError('');
     try {
       await action();
+      if (success) toast({ title: success });
       return true;
     } catch (err) {
       setActionError(errorMessage(err));
       return false;
     }
   };
-  const run = (change: StatusChangeInput) => attempt(() => updateStatus(change).unwrap());
+  const run = (change: StatusChangeInput, success?: string) => attempt(() => updateStatus(change).unwrap(), success);
 
   const forward = (order: Order) => {
     const next = nextForwardStatus(order);
@@ -210,215 +338,209 @@ export default function AdminOrdersPage() {
     if (next === 'PREPARING') setAccepting(order); // accepting asks for a prep time
     // Completing an unpaid cash order asks whether the cash was collected.
     else if (next === 'DELIVERED' && order.paymentMethod === 'CASH' && order.paymentStatus === 'UNPAID') setCompleting(order);
-    else void run({ id: order.id, status: next as StatusChangeInput['status'] });
+    else void run({ id: order.id, status: next as StatusChangeInput['status'] }, `${formatOrderNumber(order)} ${FORWARD_DONE[next]}`);
   };
 
   if (!ready) return null;
 
+  const dayText = day ? (day === todayISO() ? 'Today' : ddmmyyyy(day)) : 'All dates';
+  const updated = fulfilledTimeStamp ? formatClock(new Date(fulfilledTimeStamp).toISOString()) : null;
+
+  const chipOptions = [
+    { value: '' as StatusFilter, label: 'All', count: day ? all.length : undefined },
+    ...STATUS_ORDER.map((s) => ({
+      value: s as StatusFilter,
+      label: shortStatusLabel(s),
+      count: day ? counts[s] ?? 0 : undefined,
+      emphasis: s === 'PENDING',
+    })),
+  ];
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Orders</h1>
-          {pendingCount > 0 && (
-            <span className="rounded-full bg-yellow-400 text-yellow-950 text-xs font-bold px-2.5 py-1">
-              {pendingCount} new
-            </span>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={toggleSound}
-            aria-pressed={soundOn}
-            className="inline-flex items-center gap-1.5 text-xs rounded border dark:border-gray-600 px-2.5 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            title="Chime when a new order arrives"
-          >
-            {soundOn ? <Bell size={14} strokeWidth={1.75} aria-hidden /> : <BellOff size={14} strokeWidth={1.75} aria-hidden />}
-            {soundOn ? 'Sound on' : 'Sound off'}
-          </button>
-
-          {/* Date stepper: ‹ DD/MM/YYYY ›  (filtered on the server) */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setDay((d) => (d ? shiftDay(d, -1) : todayISO()))}
-              aria-label="Previous day"
-              className="w-8 h-8 flex items-center justify-center rounded border dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              ‹
-            </button>
-            <div className="relative">
-              <span className="inline-block min-w-[7rem] text-center border dark:border-gray-600 rounded px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer select-none">
-                {day ? (day === todayISO() ? 'Today' : ddmmyyyy(day)) : 'All dates'}
+    <PageContainer wide>
+      <PageHeader
+        eyebrow="Service"
+        title={
+          <span className="inline-flex items-center gap-3">
+            Orders
+            {pendingCount > 0 && (
+              <span className="rounded-full bg-warning-soft px-2.5 py-0.5 text-sm font-medium tabular-nums text-warning">
+                {pendingCount} new
               </span>
-              <input
-                type="date"
-                value={day}
-                max={todayISO()}
-                onChange={(e) => setDay(e.target.value)}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                aria-label="Pick a date"
-              />
-            </div>
-            <button
-              onClick={() => setDay((d) => (d ? shiftDay(d, 1) : todayISO()))}
-              disabled={day === todayISO()}
-              aria-label="Next day"
-              className="w-8 h-8 flex items-center justify-center rounded border dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40"
+            )}
+          </span>
+        }
+        description={
+          <span className="tabular-nums">
+            {dayText}
+            {updated && ` · updated ${updated}`}
+            {isFetching && !isLoading ? ' · refreshing…' : ''}
+          </span>
+        }
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              icon={soundOn ? Bell : BellOff}
+              onClick={toggleSound}
+              aria-pressed={soundOn}
+              title="Chime when a new order arrives"
             >
-              ›
-            </button>
-            {day !== todayISO() && (
-              <button onClick={() => setDay(todayISO())} className="ml-1 text-xs text-brand-600 hover:underline">
-                Today
-              </button>
-            )}
-            {day && (
-              <button onClick={() => setDay('')} className="ml-1 text-xs text-brand-600 hover:underline">
-                All dates
-              </button>
-            )}
-          </div>
+              {soundOn ? 'Sound on' : 'Sound off'}
+            </Button>
+            <DayStepper day={day} setDay={setDay} />
+          </>
+        }
+      />
 
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            aria-label="Filter by status"
-            className="border dark:border-gray-600 rounded px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>{s ? shortStatusLabel(s) : 'All statuses'}</option>
-            ))}
-          </select>
-        </div>
+      {/* Stays in view while scrolling a long list. */}
+      <div className="sticky top-14 z-20 -mx-4 mb-4 border-b border-line/70 bg-canvas/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-canvas/85 sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-8 lg:px-8">
+        <ChipGroup label="Filter by status" value={filterStatus} onChange={setFilterStatus} options={chipOptions} />
       </div>
 
-      {/* Status counts for the selected day */}
-      {!filterStatus && list.length > 0 && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          {(['PENDING', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'] as const)
-            .filter((s) => counts[s])
-            .map((s) => `${shortStatusLabel(s)}: ${counts[s]}`)
-            .join(' · ')}
-          {fulfilledTimeStamp && (
-            <span className="ml-2">· updated {formatClock(new Date(fulfilledTimeStamp).toISOString())}{isFetching ? ' …' : ''}</span>
-          )}
-        </p>
-      )}
-
       {actionError && (
-        <div role="alert" className="mb-3 rounded border border-red-300 bg-red-50 dark:bg-red-900/30 dark:border-red-800 px-3 py-2 text-sm text-red-700 dark:text-red-300 flex justify-between gap-3">
-          <span>{actionError}</span>
-          <button onClick={() => setActionError('')} aria-label="Dismiss" className="font-bold">×</button>
-        </div>
+        <Alert
+          tone="danger"
+          className="mb-4"
+          action={<Button variant="ghost" size="sm" onClick={() => setActionError('')}>Dismiss</Button>}
+        >
+          {actionError}
+        </Alert>
       )}
 
-      {isLoading ? (
-        <div className="text-center text-gray-400 py-12">Loading…</div>
-      ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
+      <Card className="overflow-hidden">
+        {isLoading ? (
+          <LoadingBlock label="Loading orders…" />
+        ) : list.length === 0 ? (
+          <EmptyState
+            icon={ClipboardList}
+            title={
+              filterStatus
+                ? `No ${shortStatusLabel(filterStatus).toLowerCase()} orders`
+                : `No orders${day ? (day === todayISO() ? ' today' : ` on ${ddmmyyyy(day)}`) : ''} yet`
+            }
+            description={day === todayISO() ? 'New orders appear here automatically.' : undefined}
+          />
+        ) : (
+          <Table>
+            <THead>
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Order</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Time</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Customer</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Type</th>
-                <th className="px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Total</th>
-                <th className="px-4 py-3 text-center font-medium text-gray-700 dark:text-gray-300">Status</th>
-                <th className="px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Action</th>
+                <TH className="w-28">Order</TH>
+                <TH className="hidden min-[1400px]:table-cell">Time</TH>
+                <TH>Customer</TH>
+                <TH className="hidden min-[1400px]:table-cell">Type</TH>
+                <TH numeric>Total</TH>
+                <TH>Status</TH>
+                <TH numeric>Action</TH>
               </tr>
-            </thead>
-            <tbody className="divide-y dark:divide-gray-700">
-              {list.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400">
-                    No orders{day ? (day === todayISO() ? ' today' : ` on ${ddmmyyyy(day)}`) : ''} yet.
-                  </td>
-                </tr>
-              ) : (
-                list.map((order) => {
-                  const open = expanded === order.id;
-                  const waiting = order.status === 'PENDING' ? minutesSince(order.createdAt) : null;
-                  const late =
-                    order.status === 'PREPARING' && order.estimatedReadyAt && new Date(order.estimatedReadyAt).getTime() < Date.now();
-                  return (
-                    <Fragment key={order.id}>
-                      <tr
-                        className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${order.status === 'PENDING' ? 'bg-yellow-50/60 dark:bg-yellow-900/10' : ''}`}
-                        onClick={() => setExpanded(open ? null : order.id)}
-                        aria-expanded={open}
-                      >
-                        <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white whitespace-nowrap">
-                          <span className="text-gray-400 mr-1">{open ? '▾' : '▸'}</span>
+            </THead>
+            <TBody>
+              {list.map((order) => {
+                const open = expanded === order.id;
+                const isNew = order.status === 'PENDING';
+                const transferToCheck = order.paymentStatus === 'PENDING';
+                return (
+                  <Fragment key={order.id}>
+                    <tr
+                      className={cn(
+                        'cursor-pointer transition-colors duration-100 hover:bg-surface-hover',
+                        isNew && 'bg-warning-soft/35 shadow-[inset_3px_0_0_rgb(var(--warning))]',
+                        open && 'bg-surface-hover',
+                      )}
+                      onClick={() => setExpanded(open ? null : order.id)}
+                      aria-expanded={open}
+                    >
+                      <TD className="whitespace-nowrap font-semibold tabular-nums">
+                        <span className="inline-flex items-center gap-1.5">
+                          <ChevronRight
+                            size={ICON_SM}
+                            strokeWidth={ICON_STROKE}
+                            aria-hidden
+                            className={cn('text-fg-subtle transition-transform duration-150', open && 'rotate-90')}
+                          />
                           {formatOrderNumber(order)}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap tabular-nums">
+                        </span>
+                        {/* Narrower screens: time sits under the number instead of its own column. */}
+                        <span className="ml-[1.375rem] block text-xs font-normal text-fg-muted min-[1400px]:hidden">
                           {formatClock(order.createdAt)}
-                          {!day && <span className="block text-xs">{ddmmyyyy(bangkokDateISO(new Date(order.createdAt)))}</span>}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{order.user?.name ?? '—'}</td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{order.type === 'DELIVERY' ? 'Delivery' : 'Pickup'}</td>
-                        <td className="px-4 py-3 text-right font-semibold dark:text-white whitespace-nowrap">
-                          {formatCurrency(order.total)}
-                          <span className="block mt-0.5 font-normal"><PaymentBadge order={order} /></span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <OrderStatusBadge status={order.status} type={order.type} short />
-                          {waiting != null && waiting >= 5 && (
-                            <span className="block text-xs text-amber-600 mt-0.5">waiting {waiting} min</span>
+                        </span>
+                      </TD>
+                      <TD muted className="hidden whitespace-nowrap tabular-nums min-[1400px]:table-cell">
+                        {formatClock(order.createdAt)}
+                        {!day && <span className="block text-xs">{ddmmyyyy(bangkokDateISO(new Date(order.createdAt)))}</span>}
+                      </TD>
+                      <TD className="max-w-[12rem]">
+                        <span className="flex items-center gap-2">
+                          <span className="text-fg-subtle min-[1400px]:hidden" title={order.type === 'DELIVERY' ? 'Delivery' : 'Pickup'}>
+                            {order.type === 'DELIVERY' ? (
+                              <Bike size={ICON_SM} strokeWidth={ICON_STROKE} aria-label="Delivery" />
+                            ) : (
+                              <Store size={ICON_SM} strokeWidth={ICON_STROKE} aria-label="Pickup" />
+                            )}
+                          </span>
+                          <span className="truncate">{order.user?.name ?? '—'}</span>
+                        </span>
+                      </TD>
+                      <TD muted className="hidden whitespace-nowrap min-[1400px]:table-cell">
+                        <span className="inline-flex items-center gap-1.5">
+                          {order.type === 'DELIVERY' ? (
+                            <Bike size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden />
+                          ) : (
+                            <Store size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden />
                           )}
-                          {late && <span className="block text-xs text-red-600 mt-0.5">late</span>}
-                        </td>
-                        <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          {nextForwardStatus(order) && (
-                            <button
-                              onClick={() => forward(order)}
-                              disabled={saving}
-                              className="min-h-[36px] px-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold disabled:opacity-50"
-                            >
-                              {forwardActionLabel(order)}
-                            </button>
+                          {order.type === 'DELIVERY' ? 'Delivery' : 'Pickup'}
+                        </span>
+                      </TD>
+                      <TD numeric className="py-2.5">
+                        <span className="font-semibold">{formatCurrency(order.total)}</span>
+                        <span className="mt-1 block">
+                          <PaymentBadge order={order} />
+                        </span>
+                      </TD>
+                      <TD className="py-2.5">
+                        <OrderStatusBadge status={order.status} type={order.type} short />
+                        <TimingHint order={order} />
+                      </TD>
+                      <TD className="whitespace-nowrap py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                        {/* Next step on top when stacked (tablets), in one row on wide screens. */}
+                        <div className="flex flex-col-reverse items-end gap-1.5 xl:flex-row xl:items-center xl:justify-end xl:gap-2">
+                          {!isFinal(order.status) && (
+                            <Button variant="ghost" size="sm" className="!text-danger hover:!bg-danger-soft" onClick={() => setCancelling(order)}>
+                              {isNew ? 'Reject' : 'Cancel'}
+                            </Button>
                           )}
                           {canMarkPaid(order) && (
-                            <button
-                              onClick={() => setPaying(order)}
+                            <Button
+                              variant="secondary"
                               disabled={saving}
-                              className={`ml-2 min-h-[36px] px-3 rounded-lg text-xs font-semibold disabled:opacity-50 ${
-                                order.paymentStatus === 'PENDING'
-                                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                                  : 'border border-green-600 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30'
-                              }`}
+                              onClick={() => setPaying(order)}
+                              className={cn(transferToCheck && '!border-warning !text-warning')}
                             >
-                              {order.paymentStatus === 'PENDING' ? 'Check transfer' : 'Mark paid'}
-                            </button>
+                              {transferToCheck ? 'Check transfer' : 'Mark paid'}
+                            </Button>
                           )}
-                          {!isFinal(order.status) && (
-                            <button
-                              onClick={() => setCancelling(order)}
-                              className="ml-2 text-xs text-red-600 dark:text-red-400 hover:underline"
-                            >
-                              {order.status === 'PENDING' ? 'Reject' : 'Cancel'}
-                            </button>
+                          {nextForwardStatus(order) && (
+                            <Button disabled={saving} onClick={() => forward(order)} className="min-w-[7.5rem]">
+                              {forwardActionLabel(order)}
+                            </Button>
                           )}
+                        </div>
+                      </TD>
+                    </tr>
+                    {open && (
+                      <tr>
+                        <td colSpan={7} className="p-0">
+                          <OrderDetail order={order} isOwner={isOwner} onRefund={() => setRefunding(order)} />
                         </td>
                       </tr>
-                      {open && (
-                        <tr>
-                          <td colSpan={7} className="p-0">
-                            <OrderDetail order={order} isOwner={isOwner} onRefund={() => setRefunding(order)} />
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    )}
+                  </Fragment>
+                );
+              })}
+            </TBody>
+          </Table>
+        )}
+      </Card>
 
       {accepting && (
         <AcceptDialog
@@ -426,7 +548,10 @@ export default function AdminOrdersPage() {
           busy={saving}
           onClose={() => setAccepting(null)}
           onConfirm={async (prepMinutes) => {
-            await run({ id: accepting.id, status: 'PREPARING', prepMinutes });
+            await run(
+              { id: accepting.id, status: 'PREPARING', prepMinutes },
+              `${formatOrderNumber(accepting)} accepted · ready in ${prepMinutes} min`,
+            );
             setAccepting(null); // close either way so an error message is visible
           }}
         />
@@ -437,7 +562,10 @@ export default function AdminOrdersPage() {
           busy={saving}
           onClose={() => setCancelling(null)}
           onConfirm={async (cancelReason: CancelReason, cancelNote: string) => {
-            await run({ id: cancelling.id, status: 'CANCELLED', cancelReason, cancelNote: cancelNote || undefined });
+            await run(
+              { id: cancelling.id, status: 'CANCELLED', cancelReason, cancelNote: cancelNote || undefined },
+              `${formatOrderNumber(cancelling)} ${cancelling.status === 'PENDING' ? 'rejected' : 'cancelled'}`,
+            );
             setCancelling(null);
           }}
         />
@@ -448,10 +576,12 @@ export default function AdminOrdersPage() {
           busy={saving}
           onClose={() => setCompleting(null)}
           onConfirm={async (cashReceived) => {
-            const ok = await run({ id: completing.id, status: 'DELIVERED' });
+            const ok = await run({ id: completing.id, status: 'DELIVERED' }, cashReceived ? undefined : `${formatOrderNumber(completing)} completed`);
             // Two calls: if the payment one fails, the order is still completed
             // and "Mark paid" stays on the row with the error shown above.
-            if (ok && cashReceived) await attempt(() => markPaid({ id: completing.id }).unwrap());
+            if (ok && cashReceived) {
+              await attempt(() => markPaid({ id: completing.id }).unwrap(), `${formatOrderNumber(completing)} completed · cash received`);
+            }
             setCompleting(null);
           }}
         />
@@ -462,7 +592,10 @@ export default function AdminOrdersPage() {
           busy={saving}
           onClose={() => setPaying(null)}
           onConfirm={async (providerRef) => {
-            await attempt(() => markPaid({ id: paying.id, providerRef: providerRef || undefined }).unwrap());
+            await attempt(
+              () => markPaid({ id: paying.id, providerRef: providerRef || undefined }).unwrap(),
+              `Payment recorded for ${formatOrderNumber(paying)}`,
+            );
             setPaying(null);
           }}
         />
@@ -473,11 +606,11 @@ export default function AdminOrdersPage() {
           busy={saving}
           onClose={() => setRefunding(null)}
           onConfirm={async (note) => {
-            await attempt(() => refund({ id: refunding.id, note }).unwrap());
+            await attempt(() => refund({ id: refunding.id, note }).unwrap(), `Refund recorded for ${formatOrderNumber(refunding)}`);
             setRefunding(null);
           }}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }
