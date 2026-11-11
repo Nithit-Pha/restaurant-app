@@ -126,6 +126,49 @@ export function MarkPaidDialog({ order, busy, onConfirm, onClose }: {
   );
 }
 
+/**
+ * Completing an unpaid cash order (picked up / delivered): record the cash in
+ * the same step, so a busy counter does not forget it.
+ */
+export function CompleteCashDialog({ order, busy, onConfirm, onClose }: {
+  order: Order;
+  busy: boolean;
+  onConfirm: (cashReceived: boolean) => void;
+  onClose: () => void;
+}) {
+  const [received, setReceived] = useState(true);
+  const done = order.type === 'DELIVERY' ? 'Delivered' : 'Picked up';
+  return (
+    <Dialog title={`${done} · ${formatOrderNumber(order)}`} onClose={onClose}>
+      <label className="flex items-start gap-3 text-sm text-gray-800 dark:text-gray-200 mb-5 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={received}
+          onChange={(e) => setReceived(e.target.checked)}
+          className="mt-0.5 w-5 h-5 accent-green-600"
+        />
+        <span>
+          Cash received: <span className="font-semibold">{formatCurrency(order.total)}</span>
+          <span className="block text-xs text-gray-500 dark:text-gray-400">Untick if the customer has not paid yet.</span>
+        </span>
+      </label>
+      <div className="flex gap-2 justify-end">
+        <button type="button" onClick={onClose} className="min-h-[44px] px-4 rounded-lg border dark:border-gray-600 text-sm dark:text-gray-300">
+          Back
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onConfirm(received)}
+          className="min-h-[44px] px-4 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold disabled:opacity-50"
+        >
+          {busy ? 'Saving…' : received ? `${done} · cash received` : `${done} · not paid yet`}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Owner only: the money was given back to the customer. */
 export function RefundDialog({ order, busy, onConfirm, onClose }: {
   order: Order;

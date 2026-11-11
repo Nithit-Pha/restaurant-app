@@ -22,7 +22,7 @@ import {
   nextForwardStatus,
   shortStatusLabel,
 } from '../../../src/features/orders/orderDisplay';
-import { AcceptDialog, CancelDialog, MarkPaidDialog, RefundDialog } from '../../../src/features/admin/orders/OrderDialogs';
+import { AcceptDialog, CancelDialog, CompleteCashDialog, MarkPaidDialog, RefundDialog } from '../../../src/features/admin/orders/OrderDialogs';
 import { useNewOrderAlert } from '../../../src/features/admin/orders/useNewOrderAlert';
 import { bangkokDateISO, formatCurrency } from '../../../src/lib/format';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
@@ -178,6 +178,7 @@ export default function AdminOrdersPage() {
   const [accepting, setAccepting] = useState<Order | null>(null);
   const [cancelling, setCancelling] = useState<Order | null>(null);
   const [paying, setPaying] = useState<Order | null>(null);
+  const [completing, setCompleting] = useState<Order | null>(null);
   const [refunding, setRefunding] = useState<Order | null>(null);
   const [actionError, setActionError] = useState('');
   const { soundOn, toggleSound, pendingCount } = useNewOrderAlert(orders);
@@ -206,6 +207,8 @@ export default function AdminOrdersPage() {
     const next = nextForwardStatus(order);
     if (!next) return;
     if (next === 'PREPARING') setAccepting(order); // accepting asks for a prep time
+    // Completing an unpaid cash order asks whether the cash was collected.
+    else if (next === 'DELIVERED' && order.paymentMethod === 'CASH' && order.paymentStatus === 'UNPAID') setCompleting(order);
     else void run({ id: order.id, status: next as StatusChangeInput['status'] });
   };
 
@@ -434,6 +437,20 @@ export default function AdminOrdersPage() {
           onConfirm={async (cancelReason: CancelReason, cancelNote: string) => {
             await run({ id: cancelling.id, status: 'CANCELLED', cancelReason, cancelNote: cancelNote || undefined });
             setCancelling(null);
+          }}
+        />
+      )}
+      {completing && (
+        <CompleteCashDialog
+          order={completing}
+          busy={saving}
+          onClose={() => setCompleting(null)}
+          onConfirm={async (cashReceived) => {
+            const ok = await run({ id: completing.id, status: 'DELIVERED' });
+            // Two calls: if the payment one fails, the order is still completed
+            // and "Mark paid" stays on the row with the error shown above.
+            if (ok && cashReceived) await attempt(() => markPaid({ id: completing.id }).unwrap());
+            setCompleting(null);
           }}
         />
       )}

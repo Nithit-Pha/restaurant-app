@@ -113,14 +113,13 @@ test('customer orders for pickup, staff complete it, customer sees it completed'
 
   await row.getByRole('button', { name: 'Mark ready' }).click();
   await expect(row.getByText('Ready', { exact: true })).toBeVisible();
+  // Completing an unpaid cash order asks for the cash in the same step (ticked by default).
+  await expect(row.getByText('Cash · Unpaid')).toBeVisible();
   await row.getByRole('button', { name: 'Picked up' }).click();
+  await expect(staff.getByRole('checkbox', { name: /Cash received/ })).toBeChecked();
+  await staff.getByRole('button', { name: 'Picked up · cash received' }).click();
   await expect(row.getByText('Completed')).toBeVisible();
   await expect(row.getByRole('button', { name: /Accept|Mark ready|Picked up/ })).toHaveCount(0);
-
-  // Cash collected at the counter.
-  await expect(row.getByText('Cash · Unpaid')).toBeVisible();
-  await row.getByRole('button', { name: 'Mark paid' }).click();
-  await staff.getByRole('button', { name: 'Cash received' }).click();
   await expect(row.getByText('Cash · Paid')).toBeVisible();
   await expect(row.getByRole('button', { name: 'Mark paid' })).toHaveCount(0);
   await staffContext.close();
