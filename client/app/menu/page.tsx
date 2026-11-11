@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
+import { UtensilsCrossed } from 'lucide-react';
 import { getCategories, getMenuItems, getRestaurant } from '../../src/lib/api/server';
 import { SITE_URL } from '../../src/lib/site';
 import { CURRENCY } from '../../src/lib/format';
 import MenuItemCard from '../../src/features/menu/MenuItemCard';
 import CategoryTabs from '../../src/features/menu/CategoryTabs';
 import ClosedBanner from '../../src/features/orders/ClosedBanner';
+import { EmptyState, PageContainer, PageHeader } from '../../src/components/ui';
 
 export const revalidate = 300; // ISR: re-fetch the menu at most every 5 minutes
 
@@ -58,26 +60,32 @@ export default async function MenuPage({ searchParams }: PageProps) {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <PageContainer wide>
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(menuJsonLd) }}
       />
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">
-        {category ? `${category}` : 'Our Menu'}
-      </h1>
-      <ClosedBanner className="mb-6" />
+      <PageHeader
+        title={category ? `${category}` : 'Our Menu'}
+        description={`Order for pickup or delivery from ${r.name}.`}
+      />
+      <ClosedBanner className="mb-5" />
       <CategoryTabs categories={categories} active={category} />
       {items.length === 0 ? (
-        <p className="text-gray-500 dark:text-gray-400 mt-8 text-center">No items in this category.</p>
+        <EmptyState
+          icon={UtensilsCrossed}
+          title="No items in this category."
+          description="Try another category, or look at the whole menu."
+          className="mt-6"
+        />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {items.map((item) => (
             <MenuItemCard key={item.id} item={item} />
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

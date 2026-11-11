@@ -2,7 +2,8 @@
 
 import { useState, FormEvent } from 'react';
 import { useAddExpenseMutation, NewExpense } from './financeApi';
-import { bangkokDateISO } from '../../../lib/format';
+import { bangkokDateISO, formatCurrency } from '../../../lib/format';
+import { Alert, Button, Dialog, Field, Input, Select, Textarea, useToast } from '../../../components/ui';
 
 const CATEGORIES = [
   'RENT',
@@ -12,6 +13,16 @@ const CATEGORIES = [
   'MARKETING',
   'MISCELLANEOUS',
 ] as const;
+
+/** Readable names for the expense categories stored in the database. */
+export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
+  RENT: 'Rent',
+  LABOR: 'Labor',
+  UTILITIES: 'Utilities',
+  FOOD_SUPPLY: 'Food supply',
+  MARKETING: 'Marketing',
+  MISCELLANEOUS: 'Miscellaneous',
+};
 
 interface Props {
   open: boolean;
@@ -26,10 +37,9 @@ interface Errors {
 
 const todayISO = () => bangkokDateISO();
 
-const fieldCls = 'w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white';
-
 export default function ExpenseModal({ open, onClose }: Props) {
   const [addExpense, { isLoading }] = useAddExpenseMutation();
+  const toast = useToast();
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<string>('FOOD_SUPPLY');
   const [date, setDate] = useState(todayISO());
@@ -83,117 +93,69 @@ export default function ExpenseModal({ open, onClose }: Props) {
 
     try {
       await addExpense(payload).unwrap();
+      toast({ title: 'Expense saved', description: `${EXPENSE_CATEGORY_LABELS[category]} · ${formatCurrency(Number(amount))}` });
       reset();
       onClose();
-    } catch (err: any) {
-      setServerError(err?.data?.error || 'Failed to save expense. Please try again.');
+    } catch (err) {
+      setServerError((err as { data?: { error?: string } })?.data?.error || 'Failed to save expense. Please try again.');
     }
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
+    <Dialog
+      open
+      onClose={onClose}
+      dismissOnBackdrop={false}
+      title="Add expense"
+      description="Rent, wages, ingredients and other costs. Used for the profit figures."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="expense-form" loading={isLoading}>Save expense</Button>
+        </>
+      }
     >
-      <div
-        className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Expense</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" aria-label="Close">✕</button>
+      <form id="expense-form" onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {serverError && <Alert tone="danger">{serverError}</Alert>}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Amount (฿)" htmlFor="exp-amount" required error={errors.amount}>
+            <Input
+              id="exp-amount"
+              data-autofocus
+              type="number"
+              step="0.01"
+              min="0.01"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              className="tabular-nums"
+              aria-invalid={errors.amount ? true : undefined}
+              aria-describedby={errors.amount ? 'exp-amount-error' : undefined}
+            />
+          </Field>
+          <Field label="Date" htmlFor="exp-date" error={errors.date}>
+            <Input id="exp-date" type="date" value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} />
+          </Field>
         </div>
-
-        {serverError && (
-          <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/30 px-3 py-2 text-sm text-red-700 dark:text-red-400">
-            {serverError}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          {/* Amount */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Amount <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">฿</span>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className={`${fieldCls} pl-7 ${
-                  errors.amount ? 'border-red-400 focus:ring-red-200' : 'focus:ring-indigo-200'
-                }`}
-                placeholder="0.00"
-              />
-            </div>
-            {errors.amount && <p className="mt-1 text-xs text-red-600">{errors.amount}</p>}
-          </div>
-
-          {/* Category */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Category <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className={`${fieldCls} focus:ring-indigo-200`}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c.replace('_', ' ')}</option>
-              ))}
-            </select>
-            {errors.category && <p className="mt-1 text-xs text-red-600">{errors.category}</p>}
-          </div>
-
-          {/* Date */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Date</label>
-            <input
-              type="date"
-              value={date}
-              max={todayISO()}
-              onChange={(e) => setDate(e.target.value)}
-              className={`${fieldCls} focus:ring-indigo-200`}
-            />
-            {errors.date && <p className="mt-1 text-xs text-red-600">{errors.date}</p>}
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              maxLength={500}
-              className={`${fieldCls} resize-none focus:ring-indigo-200`}
-              placeholder="Optional note…"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {isLoading ? 'Saving…' : 'Save Expense'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <Field label="Category" htmlFor="exp-category" required error={errors.category}>
+          <Select id="exp-category" value={category} onChange={(e) => setCategory(e.target.value)}>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>{EXPENSE_CATEGORY_LABELS[c]}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Note" htmlFor="exp-note">
+          <Textarea
+            id="exp-note"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            maxLength={500}
+            placeholder="Optional, e.g. supplier or invoice number"
+          />
+        </Field>
+      </form>
+    </Dialog>
   );
 }

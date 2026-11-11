@@ -7,7 +7,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/checkout', '/orders', '/admin', '/login', '/register'],
+        disallow: ['/checkout', '/orders', '/admin', '/login', '/register', '/dev'],
       },
       // AI crawlers — explicitly allowed so AI search engines can read and cite this site (plan §10.5)
       { userAgent: 'GPTBot', allow: '/' },

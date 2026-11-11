@@ -5,6 +5,7 @@ import { Provider, useDispatch } from 'react-redux';
 import { makeStore, type AppStore, type AppDispatch } from '../app/store';
 import { hydrateFromStorage } from '../features/auth/authSlice';
 import { ThemeProvider } from '../context/ThemeContext';
+import { ToastProvider } from './ui/Toast';
 
 function AuthHydrator({ children }: { children: React.ReactNode }) {
   const dispatch = useDispatch<AppDispatch>();
@@ -30,7 +31,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <Provider store={ref.current}>
       <ThemeProvider>
-        <AuthHydrator>{children}</AuthHydrator>
+        <ToastProvider>
+          <AuthHydrator>{children}</AuthHydrator>
+        </ToastProvider>
       </ThemeProvider>
     </Provider>
   );

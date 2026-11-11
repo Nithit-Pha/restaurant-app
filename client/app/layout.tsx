@@ -1,10 +1,16 @@
 import type { Metadata } from 'next';
 import Providers from '../src/components/Providers';
-import Navbar from '../src/components/Navbar';
-import ThemeToggle from '../src/components/ThemeToggle';
+import AppShell from '../src/components/AppShell';
 import CartDrawer from '../src/features/cart/CartDrawer';
 import { buildOrgJsonLd, SITE_URL } from '../src/lib/site';
 import { getRestaurant } from '../src/lib/api/server';
+// IBM Plex Sans (Latin) + IBM Plex Sans Thai, self-hosted so it works offline.
+import '@fontsource/ibm-plex-sans/400.css';
+import '@fontsource/ibm-plex-sans/500.css';
+import '@fontsource/ibm-plex-sans/600.css';
+import '@fontsource/ibm-plex-sans-thai/thai-400.css';
+import '@fontsource/ibm-plex-sans-thai/thai-500.css';
+import '@fontsource/ibm-plex-sans-thai/thai-600.css';
 import './globals.css';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -66,10 +72,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body suppressHydrationWarning>
         <Providers>
-          <Navbar />
-          <ThemeToggle />
+          <AppShell restaurantName={restaurant.name}>{children}</AppShell>
           <CartDrawer />
-          {children}
         </Providers>
       </body>
     </html>
