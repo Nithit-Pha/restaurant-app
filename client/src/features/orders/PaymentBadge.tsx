@@ -1,4 +1,5 @@
 import type { Order, PaymentMethod, PaymentStatus } from '../../api/apiSlice';
+import Badge, { type Tone } from '../../components/ui/Badge';
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   CASH: 'Cash',
@@ -12,11 +13,11 @@ const STATUS_LABELS: Record<PaymentStatus, string> = {
   REFUNDED: 'Refunded',
 };
 
-const STATUS_STYLES: Record<PaymentStatus, string> = {
-  UNPAID: 'bg-gray-100 text-gray-700',
-  PENDING: 'bg-amber-100 text-amber-800',
-  PAID: 'bg-green-100 text-green-800',
-  REFUNDED: 'bg-red-100 text-red-800',
+const STATUS_TONE: Record<PaymentStatus, Tone> = {
+  UNPAID: 'neutral',
+  PENDING: 'warning',
+  PAID: 'success',
+  REFUNDED: 'danger',
 };
 
 /** "Cash on delivery" / "Cash at pickup" / "PromptPay" for the customer. */
@@ -31,9 +32,9 @@ export default function PaymentBadge({ order, withMethod = true }: {
   withMethod?: boolean;
 }) {
   return (
-    <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${STATUS_STYLES[order.paymentStatus]}`}>
+    <Badge tone={STATUS_TONE[order.paymentStatus]}>
       {withMethod ? `${PAYMENT_METHOD_LABELS[order.paymentMethod]} · ` : ''}
       {STATUS_LABELS[order.paymentStatus]}
-    </span>
+    </Badge>
   );
 }

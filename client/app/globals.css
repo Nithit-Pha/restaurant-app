@@ -2,8 +2,112 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — see docs/2026-11-11-ui-redesign.md.
+ * Values are RGB channels so Tailwind can add opacity (bg-accent/10).
+ * Light: warm ivory, warm gray, muted olive. Dark: graphite with the same hues.
+ */
 @layer base {
+  :root {
+    --canvas: 246 243 236;          /* #F6F3EC */
+    --surface: 252 250 246;         /* #FCFAF6 */
+    --surface-muted: 238 234 225;   /* #EEEAE1 */
+    --surface-hover: 233 228 218;   /* #E9E4DA */
+    --line: 226 220 208;            /* #E2DCD0 */
+    --line-strong: 149 140 126;     /* #958C7E */
+    --fg: 43 41 37;                 /* #2B2925 */
+    --fg-muted: 107 101 91;         /* #6B655B */
+    --fg-subtle: 133 126 114;       /* #857E72 */
+    --accent: 92 107 60;            /* #5C6B3C */
+    --accent-hover: 77 90 50;       /* #4D5A32 */
+    --accent-soft: 230 233 218;     /* #E6E9DA */
+    --accent-fg: 255 255 255;
+    --success: 53 107 75;           /* #356B4B */
+    --success-soft: 220 235 225;
+    --warning: 143 91 16;           /* #8F5B10 */
+    --warning-soft: 245 232 207;
+    --danger: 166 61 50;            /* #A63D32 */
+    --danger-hover: 142 50 41;
+    --danger-soft: 245 222 218;
+    --info: 70 97 127;              /* #46617F */
+    --info-soft: 223 230 238;
+    --neutral: 95 89 80;            /* #5F5950 */
+    --neutral-soft: 234 230 221;
+    --shadow: 60 45 25;
+    --focus: 92 107 60;
+    color-scheme: light;
+  }
+
+  .dark {
+    --canvas: 27 26 23;             /* #1B1A17 */
+    --surface: 36 34 31;            /* #24221F */
+    --surface-muted: 44 42 38;      /* #2C2A26 */
+    --surface-hover: 49 46 42;      /* #312E2A */
+    --line: 58 54 49;               /* #3A3631 */
+    --line-strong: 119 113 102;     /* #777166 */
+    --fg: 236 231 222;              /* #ECE7DE */
+    --fg-muted: 168 161 150;        /* #A8A196 */
+    --fg-subtle: 140 133 121;       /* #8C8579 */
+    --accent: 169 181 126;          /* #A9B57E */
+    --accent-hover: 184 195 142;    /* #B8C38E */
+    --accent-soft: 51 58 39;        /* #333A27 */
+    --accent-fg: 27 26 23;
+    --success: 134 196 156;
+    --success-soft: 34 54 42;
+    --warning: 224 174 94;
+    --warning-soft: 58 47 28;
+    --danger: 232 144 127;
+    --danger-hover: 240 165 150;
+    --danger-soft: 61 37 34;
+    --info: 152 178 209;
+    --info-soft: 36 48 64;
+    --neutral: 189 182 170;
+    --neutral-soft: 52 49 44;
+    --shadow: 0 0 0;
+    --focus: 169 181 126;
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
-    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200;
+    @apply bg-canvas text-fg font-sans antialiased;
+    font-feature-settings: 'kern';
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.22);
+  }
+
+  /* One visible, consistent keyboard focus ring everywhere. */
+  :focus-visible {
+    outline: 2px solid rgb(var(--focus));
+    outline-offset: 2px;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(var(--fg-subtle));
+    opacity: 1;
+  }
+
+  /* Smooth theme switch without animating every hover. */
+  .theme-transition,
+  .theme-transition * {
+    transition: background-color 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
