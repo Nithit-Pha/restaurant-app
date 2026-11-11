@@ -313,7 +313,7 @@ export default function CheckoutPage() {
         </div>
 
         {/* Order summary — stays in view on wide screens */}
-        <Card className="lg:sticky lg:top-6">
+        <Card className="lg:sticky lg:top-[4.5rem]">
           <CardHeader title="Order summary" />
           <CardBody className="space-y-4">
             <ul className="space-y-2 text-sm">

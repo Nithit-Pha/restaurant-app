@@ -30,7 +30,7 @@ export default function PaymentSettingsSection({ onSaved, id }: { onSaved: (msg:
   };
 
   return (
-    <Card id={id} className="scroll-mt-6">
+    <Card id={id} className="scroll-mt-6 lg:scroll-mt-20">
       <CardHeader
         title="Payments"
         description="Cash is always offered. Add a PromptPay ID to also offer a QR with the exact amount. Staff confirm each transfer in the bank app, then tap “Transfer received”."

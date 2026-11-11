@@ -394,7 +394,7 @@ export default function AdminOrdersPage() {
       />
 
       {/* Stays in view while scrolling a long list. */}
-      <div className="sticky top-14 z-20 -mx-4 mb-4 border-b border-line/70 bg-canvas/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-canvas/85 sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-8 lg:px-8">
+      <div className="sticky top-14 z-20 -mx-4 mb-4 border-b border-line/70 bg-canvas/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-canvas/85 sm:-mx-6 sm:px-6 lg:top-12 lg:-mx-8 lg:px-8">
         <ChipGroup label="Filter by status" value={filterStatus} onChange={setFilterStatus} options={chipOptions} />
       </div>
 

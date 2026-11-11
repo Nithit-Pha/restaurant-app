@@ -235,7 +235,7 @@ export default function SettingsPage() {
 
       <div className="grid items-start gap-8 lg:grid-cols-[11rem_minmax(0,1fr)]">
         {/* In-page index */}
-        <nav aria-label="Settings sections" className="hidden lg:sticky lg:top-8 lg:block">
+        <nav aria-label="Settings sections" className="hidden lg:sticky lg:top-20 lg:block">
           <ul className="space-y-0.5 border-l border-line">
             {SECTIONS.map((s) => (
               <li key={s.id}>
@@ -252,7 +252,7 @@ export default function SettingsPage() {
 
         <div className="max-w-3xl space-y-6">
           {/* Restaurant profile */}
-          <Card id="profile" className="scroll-mt-6">
+          <Card id="profile" className="scroll-mt-6 lg:scroll-mt-20">
             <CardHeader title="Restaurant profile" description="Shown on your public site and used for Google and AI search listings." />
             {profile ? (
               <>
@@ -358,7 +358,7 @@ export default function SettingsPage() {
           </Card>
 
           {/* Online ordering */}
-          <Card id="ordering" className="scroll-mt-6">
+          <Card id="ordering" className="scroll-mt-6 lg:scroll-mt-20">
             <CardHeader title="Online ordering" />
             <CardBody>
               <div className="flex items-start justify-between gap-6">
@@ -388,7 +388,7 @@ export default function SettingsPage() {
           <PaymentSettingsSection id="payments" onSaved={saved} />
 
           {/* Tax */}
-          <Card id="tax" className="scroll-mt-6">
+          <Card id="tax" className="scroll-mt-6 lg:scroll-mt-20">
             <CardHeader title="Tax" description="VAT included in menu prices. Shown on the customer's receipt." />
             <CardBody>
               <Field label="VAT rate (%)" htmlFor="tax-rate">
@@ -407,7 +407,7 @@ export default function SettingsPage() {
           </Card>
 
           {/* Delivery */}
-          <Card id="delivery" className="scroll-mt-6">
+          <Card id="delivery" className="scroll-mt-6 lg:scroll-mt-20">
             <CardHeader title="Delivery fees" description="The fee is worked out from the distance between the restaurant and the customer." />
             <CardBody className="grid gap-4 sm:grid-cols-2">
               {[
@@ -434,7 +434,7 @@ export default function SettingsPage() {
           </Card>
 
           {/* Staff */}
-          <Card id="staff" className="scroll-mt-6 overflow-hidden">
+          <Card id="staff" className="scroll-mt-6 lg:scroll-mt-20 overflow-hidden">
             <CardHeader
               title="Staff accounts"
               description="People who can work the orders screen. Accounts are deactivated, never deleted."

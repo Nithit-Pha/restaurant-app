@@ -4,14 +4,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  ClipboardList, History, House, LogIn, LogOut, Menu as MenuIcon, Moon, NotebookPen, Receipt, Settings, ShoppingBag, Sun,
+  ClipboardList, History, House, LogIn, LogOut, Menu as MenuIcon, NotebookPen, Receipt, Settings, ShoppingBag,
   UserPlus, UtensilsCrossed, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
 import { selectCartCount, toggleCart } from '../features/cart/cartSlice';
 import { useGetAdminOrdersQuery, useGetMeQuery, type User } from '../api/apiSlice';
-import { useTheme } from '../context/ThemeContext';
+import TopBarControls from './TopBarControls';
 import { Drawer } from './ui/Dialog';
 import IconButton from './ui/IconButton';
 import { cn, ICON_SM, ICON_STROKE } from './ui/cn';
@@ -94,9 +94,6 @@ interface SidebarContentProps {
 }
 
 function SidebarContent({ restaurantName, pathname, groups, user, signedIn, cartCount, onCart, onSignOut }: SidebarContentProps) {
-  const { theme, toggle } = useTheme();
-  const ThemeIcon = theme === 'dark' ? Sun : Moon;
-
   return (
     <div className="flex h-full flex-col">
       <Link href="/" className="flex h-16 shrink-0 items-center gap-3 px-5">
@@ -136,15 +133,6 @@ function SidebarContent({ restaurantName, pathname, groups, user, signedIn, cart
               {cartCount}
             </span>
           )}
-        </button>
-
-        <button
-          type="button"
-          onClick={toggle}
-          className="flex h-9 w-full items-center gap-3 rounded-control px-3 text-sm text-fg-muted transition-colors duration-150 hover:bg-surface-hover hover:text-fg"
-        >
-          <ThemeIcon size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden />
-          {theme === 'dark' ? 'Light theme' : 'Dark theme'}
         </button>
 
         {signedIn ? (
@@ -275,6 +263,7 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
           <BrandMark name={restaurantName} />
           <span className="truncate text-[15px] font-semibold text-fg">{restaurantName}</span>
         </Link>
+        <TopBarControls />
         <IconButton icon={ShoppingBag} label="Open cart" count={cartCount} onClick={openCart} />
       </header>
       <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} title="Navigation" side="left" width="max-w-[17rem]" bare>
@@ -282,6 +271,11 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
       </Drawer>
 
       <main id="main" className="min-h-screen lg:pl-64">
+        {/* Desktop: slim bar across the page area, corner controls on the right.
+            Page-level sticky elements sit below it (lg:top-12). */}
+        <div className="sticky top-0 z-30 hidden h-12 items-center justify-end border-b border-line bg-surface/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-surface/85 lg:flex lg:px-6">
+          <TopBarControls />
+        </div>
         {children}
       </main>
     </>
