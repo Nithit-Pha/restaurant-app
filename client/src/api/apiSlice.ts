@@ -80,7 +80,7 @@ const baseQueryWithReauth: BaseQueryFn<
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus', 'Address'],
+  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus', 'Address', 'Floor'],
   endpoints: (builder) => ({
     // Auth
     login: builder.mutation<AuthResponse, LoginInput>({
@@ -301,6 +301,28 @@ export const apiSlice = createApi({
       },
       providesTags: ['AuditLog' as any],
     }),
+
+    // Floor plan (dine-in). Staff read it; only the Super Admin changes it.
+    getFloor: builder.query<FloorZone[], void>({
+      query: () => '/tables/floor',
+      providesTags: ['Floor'],
+    }),
+    createZone: builder.mutation<FloorZone, ZoneInput>({
+      query: (body) => ({ url: '/tables/zones', method: 'POST', body }),
+      invalidatesTags: ['Floor'],
+    }),
+    updateZone: builder.mutation<FloorZone, { id: string } & Partial<ZoneInput>>({
+      query: ({ id, ...body }) => ({ url: `/tables/zones/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['Floor'],
+    }),
+    deleteZone: builder.mutation<void, string>({
+      query: (id) => ({ url: `/tables/zones/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Floor'],
+    }),
+    saveZoneLayout: builder.mutation<FloorZone, { id: string } & LayoutInput>({
+      query: ({ id, ...body }) => ({ url: `/tables/zones/${id}/layout`, method: 'PUT', body }),
+      invalidatesTags: ['Floor'],
+    }),
   }),
 });
 
@@ -347,6 +369,11 @@ export const {
   useGetPaymentOptionsQuery,
   useGetPaymentSettingsQuery,
   useSetPaymentSettingsMutation,
+  useGetFloorQuery,
+  useCreateZoneMutation,
+  useUpdateZoneMutation,
+  useDeleteZoneMutation,
+  useSaveZoneLayoutMutation,
 } = apiSlice;
 
 // --- Types ---
@@ -640,4 +667,67 @@ interface RegisterInput {
   username: string;
   email: string;
   password: string;
+}
+
+// --- Floor plan (dine-in) ---
+// Sizes and positions are grid cells. rotation is 0, 45, 90 or 135 degrees.
+
+export type TableShape = 'ROUND' | 'SQUARE' | 'RECT';
+export type TableStatus = 'FREE' | 'SEATED' | 'ORDERED' | 'SERVED' | 'BILL_REQUESTED' | 'CLEANING';
+export type DecorType = 'WALL' | 'BAR' | 'ENTRANCE' | 'PLANT' | 'KITCHEN';
+
+export interface DiningTable {
+  id: string;
+  zoneId: string;
+  label: string;
+  shape: TableShape;
+  seats: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  status: TableStatus;
+}
+
+export interface DecorItem {
+  type: DecorType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+}
+
+export interface FloorZone {
+  id: string;
+  name: string;
+  sortOrder: number;
+  width: number;
+  height: number;
+  decor: DecorItem[];
+  tables: DiningTable[];
+}
+
+export interface ZoneInput {
+  name: string;
+  width: number;
+  height: number;
+}
+
+export interface TableLayoutInput {
+  id?: string;
+  label: string;
+  shape: TableShape;
+  seats: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+}
+
+export interface LayoutInput {
+  tables: TableLayoutInput[];
+  decor: DecorItem[];
 }

@@ -303,3 +303,58 @@ model AuditLog {
   @@index([entityType])
   @@index([createdAt])
 }
+
+// ---------------------------------------------------------------- Dine-in --
+// The floor plan the owner draws: zones ("Indoor", "Terrace") with tables.
+// Sizes and positions are in grid cells, so layouts always line up.
+
+enum TableShape {
+  ROUND
+  SQUARE
+  RECT
+}
+
+// Live state of a table on the floor view (used from Step 1c on).
+enum TableStatus {
+  FREE
+  SEATED
+  ORDERED
+  SERVED
+  BILL_REQUESTED
+  CLEANING
+}
+
+model FloorZone {
+  id        String        @id @default(uuid())
+  name      String        // e.g. "Indoor", "Terrace", "2nd floor"
+  sortOrder Int           @default(0)
+  width     Int           // grid cells
+  height    Int
+  // Walls, bar, entrance, plants, kitchen door: [{ type, x, y, width, height, rotation }]
+  decor     Json          @default("[]")
+  tables    DiningTable[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model DiningTable {
+  id        String      @id @default(uuid())
+  zone      FloorZone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  zoneId    String
+  label     String      // "T1", unique among active tables (checked in the service)
+  shape     TableShape
+  seats     Int
+  x         Int         // top-left corner before rotation, grid cells
+  y         Int
+  width     Int
+  height    Int
+  rotation  Int         @default(0) // 0, 45, 90 or 135 degrees
+  // Secret part of the table's QR link; a new one can be made if a sticker is copied.
+  qrToken   String      @unique
+  isActive  Boolean     @default(true)
+  status    TableStatus @default(FREE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([zoneId])
+}

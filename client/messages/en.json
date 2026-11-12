@@ -88,6 +88,7 @@
     "myOrders": "My orders",
     "orders": "Orders",
     "menuManagement": "Menu management",
+    "floorPlan": "Floor plan",
     "finance": "Finance",
     "auditLog": "Audit log",
     "settings": "Settings",
@@ -739,14 +740,16 @@
       "MENU_ITEM": "Menu item",
       "ORDER": "Order",
       "EXPENSE": "Expense",
-      "SETTING": "Setting"
+      "SETTING": "Setting",
+      "TABLE_LAYOUT": "Floor plan"
     },
     "entityPlural": {
       "USER": "Users",
       "MENU_ITEM": "Menu items",
       "ORDER": "Orders",
       "EXPENSE": "Expenses",
-      "SETTING": "Settings"
+      "SETTING": "Settings",
+      "TABLE_LAYOUT": "Floor plan"
     },
     "action": {
       "CREATE": "Create",
@@ -777,5 +780,106 @@
     "previous": "Previous",
     "next": "Next",
     "pageOf": "Page {page} of {total}"
+  },
+  "floorPlan": {
+    "eyebrow": "Business",
+    "title": "Floor plan",
+    "description": "Draw your dining room: where the tables are and how many seats each has. Staff see this plan on the floor view.",
+    "loading": "Loading floor plan…",
+    "emptyTitle": "No floor plan yet",
+    "emptyDescription": "Start with a zone, e.g. Indoor or Terrace, then add tables or pick a ready-made layout.",
+    "zones": "Zones",
+    "toolbar": "Floor plan tools",
+    "add": {
+      "ROUND": "Round table",
+      "SQUARE": "Square table",
+      "RECT": "Long table"
+    },
+    "addDecor": "Add wall, bar…",
+    "decor": {
+      "WALL": "Wall",
+      "BAR": "Bar",
+      "ENTRANCE": "Entrance",
+      "PLANT": "Plant",
+      "KITCHEN": "Kitchen"
+    },
+    "shapeName": {
+      "ROUND": "Round",
+      "SQUARE": "Square",
+      "RECT": "Long"
+    },
+    "templates": "Templates",
+    "templatesTitle": "Start from a template",
+    "templatesDescription": "Pick a layout, then move, add or remove tables as you like.",
+    "templatesReplace": "This replaces what is in this zone now. You can undo it.",
+    "useTemplate": "Use this layout",
+    "template": {
+      "FOUR_TOPS": "Tables for 4",
+      "CAFE": "Café with bar",
+      "FAMILY": "Family restaurant"
+    },
+    "templateApplied": "Template added. Save when you are happy with it.",
+    "templatePartly": "Only {placed} of {wanted} tables fit. Make the zone bigger for more.",
+    "undo": "Undo",
+    "redo": "Redo",
+    "reset": "Back to last saved",
+    "unsaved": "Unsaved changes",
+    "save": "Save layout",
+    "saved": "{zone} saved",
+    "saveFailed": "Could not save the layout",
+    "noSpace": "No free space left",
+    "noSpaceHint": "Make the zone bigger or move some tables closer together.",
+    "canvasHint": "Drag to move, drag the corner to resize. Arrow keys move the selected item, Delete removes it. One square is about 50 cm; this zone is {width} × {height}.",
+    "tableAria": "Table {label}, {seats, plural, one {# seat} other {# seats}}",
+    "tableTitle": "Table {label}",
+    "label": "Name",
+    "labelHint": "Printed on the table's QR code, e.g. T4 or Terrace 2.",
+    "shape": "Shape",
+    "seats": "Seats",
+    "size": "Size",
+    "width": "Width",
+    "depth": "Depth",
+    "sizeHint": "In grid squares (about 50 cm each).",
+    "rotate": "Turn ({degrees}°)",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "summary": "{tables, plural, one {# table} other {# tables}} · {seats, plural, one {# seat} other {# seats}}",
+    "help": "Add tables with the buttons above, or start from a template. Select a table to change its name, seats and size.",
+    "overlapsWith": "Overlaps {labels}. Guests may not fit between them.",
+    "problemsTitle": "Fix before saving",
+    "problem": {
+      "OUTSIDE": "{name} is outside the zone.",
+      "LABEL_EMPTY": "A table has no name.",
+      "LABEL_DUPLICATE": "Two tables are called {name}.",
+      "LABEL_TAKEN": "{name} is already used in another zone.",
+      "NOT_SQUARE": "{name}: round and square tables need the same width and depth.",
+      "SEATS": "{name} needs 1 to 30 seats."
+    },
+    "discardTitle": "Discard unsaved changes?",
+    "discardDescription": "Your changes to this zone are not saved yet.",
+    "discard": "Discard changes",
+    "zone": {
+      "add": "Add zone",
+      "addFirst": "Add your first zone",
+      "addTitle": "Add a zone",
+      "editTitle": "Zone name and size",
+      "description": "A zone is one room or area, e.g. Indoor, Terrace or 2nd floor.",
+      "name": "Name",
+      "namePlaceholder": "Indoor",
+      "width": "Width (squares)",
+      "depth": "Depth (squares)",
+      "sizeRange": "Between {min} and {max}",
+      "sizeHint": "One square is about 50 cm. A room of 8 × 5 m is about 16 × 10 squares.",
+      "edit": "Rename or resize {zone}",
+      "delete": "Delete {zone}",
+      "deleteTitle": "Delete {zone}?",
+      "deleteDescription": "{count, plural, =0 {The zone is empty.} one {Its # table is deleted too.} other {Its # tables are deleted too.}} This cannot be undone.",
+      "deleteConfirm": "Delete zone",
+      "created": "{zone} added",
+      "updated": "{zone} updated",
+      "deleted": "{zone} deleted",
+      "saveFailed": "Could not save the zone",
+      "deleteFailed": "Could not delete the zone"
+    }
   }
 }
