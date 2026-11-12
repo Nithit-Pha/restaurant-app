@@ -17,6 +17,7 @@ const { prismaMock, txOrderCreate, txQueryRaw, txUserUpdate, tx } = vi.hoisted((
   const prismaMock = {
     menuItem: { findMany: vi.fn() },
     order: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), aggregate: vi.fn() },
+    tableSession: { findUnique: vi.fn(async () => ({ tableId: 'table-4' })) },
     $transaction: vi.fn(async (cb: (t: any) => any) => cb(tx)),
   };
   return { prismaMock, txOrderCreate, txQueryRaw, txUserUpdate, tx };

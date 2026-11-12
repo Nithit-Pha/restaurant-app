@@ -2,7 +2,7 @@
 
 import { forwardRef, useId, type KeyboardEvent, type PointerEvent, type SVGProps } from 'react';
 import type { DecorType, TableShape } from '../../../api/apiSlice';
-import type { Box } from './layoutRules';
+import { halfExtents, type Box } from './layoutRules';
 
 /** Size of one grid cell in SVG units. */
 export const CELL = 40;
@@ -34,6 +34,12 @@ export interface FloorCanvasProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
   warningKeys?: Set<string>;
   /** Fill of a table, e.g. by live status on the floor view. */
   tableFill?: (t: CanvasTable) => string | undefined;
+  /** A red "!" on the table, e.g. guests call the staff. */
+  tableAlert?: (t: CanvasTable) => boolean;
+  /** A short second line under the table name, e.g. "4 · ฿340". */
+  tableNote?: (t: CanvasTable) => string | undefined;
+  /** Mouse cursor on items: "grab" in the editor, "pointer" on the floor view. */
+  itemCursor?: string;
   tableLabel: (t: CanvasTable) => string;
   decorLabel: (type: DecorType) => string;
   onItemPointerDown?: (e: PointerEvent<SVGGElement>, kind: ItemKind, key: string) => void;
@@ -58,7 +64,7 @@ function chairsOnSides(seats: number, w: number, h: number): [number, number, nu
   return counts as [number, number, number, number];
 }
 
-function TableGlyph({ t, fill }: { t: CanvasTable; fill?: string }) {
+function TableGlyph({ t, fill, alert, note }: { t: CanvasTable; fill?: string; alert?: boolean; note?: string }) {
   const x = t.x * CELL;
   const y = t.y * CELL;
   const w = t.width * CELL;
@@ -86,6 +92,12 @@ function TableGlyph({ t, fill }: { t: CanvasTable; fill?: string }) {
 
   const body = fill ?? c('surface');
   const fontSize = Math.min(CELL * 0.45, (Math.min(w, h) - 2 * inset) * 0.42);
+  // Upright text sits across the table's outline as seen on screen.
+  const [ex, ey] = halfExtents(t);
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const across = (t.shape === 'ROUND' ? Math.min(w, h) * 0.7 : Math.min(2 * ex * CELL, w + h) - 2 * inset);
+  const noteSize = note ? Math.min(fontSize * 0.62, across / Math.max(note.length * 0.62, 1)) : 0;
   return (
     <>
       {chairs.map(([cx, cy], i) => (
@@ -96,20 +108,32 @@ function TableGlyph({ t, fill }: { t: CanvasTable; fill?: string }) {
       ) : (
         <rect x={x + inset} y={y + inset} width={w - 2 * inset} height={h - 2 * inset} rx={6} fill={body} stroke={c('line-strong')} strokeWidth={1.5} />
       )}
-      <text
-        x={x + w / 2}
-        y={y + h / 2}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={fontSize}
-        fontWeight={600}
-        fill={c('fg')}
-        // Text stays upright when the table is turned.
-        transform={t.rotation ? `rotate(${-t.rotation} ${x + w / 2} ${y + h / 2})` : undefined}
-        style={{ pointerEvents: 'none', userSelect: 'none' }}
-      >
-        {t.label}
-      </text>
+      {/* Text stays upright when the table is turned. */}
+      <g transform={t.rotation ? `rotate(${-t.rotation} ${x + w / 2} ${y + h / 2})` : undefined} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+        <text
+          x={x + w / 2}
+          y={note ? y + h / 2 - fontSize * 0.45 : y + h / 2}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={fontSize}
+          fontWeight={600}
+          fill={c('fg')}
+        >
+          {t.label}
+        </text>
+        {note && (
+          <text x={cx} y={cy + fontSize * 0.6} textAnchor="middle" dominantBaseline="central" fontSize={noteSize} fill={c('fg-muted')}>
+            {note}
+          </text>
+        )}
+        {alert && (
+          // Top-right corner of the table as seen on screen, whatever its turn.
+          <>
+            <circle cx={cx + ex * CELL - CELL * 0.22} cy={cy - ey * CELL + CELL * 0.22} r={CELL * 0.2} fill={c('danger')} stroke={c('surface')} strokeWidth={2} />
+            <text x={cx + ex * CELL - CELL * 0.22} y={cy - ey * CELL + CELL * 0.23} textAnchor="middle" dominantBaseline="central" fontSize={CELL * 0.28} fontWeight={700} fill="#fff">!</text>
+          </>
+        )}
+      </g>
     </>
   );
 }
@@ -191,7 +215,7 @@ function DecorGlyph({ d, label, hatch }: { d: CanvasDecor; label: string; hatch:
 /** Draws a zone: the grid, decor and tables. Used by the editor and, later, the live floor view. */
 const FloorCanvas = forwardRef<SVGSVGElement, FloorCanvasProps>(function FloorCanvas(
   {
-    zone, tables, decor, selectedKey, errorKeys, warningKeys, tableFill, tableLabel, decorLabel,
+    zone, tables, decor, selectedKey, errorKeys, warningKeys, tableFill, tableAlert, tableNote, itemCursor = 'grab', tableLabel, decorLabel,
     onItemPointerDown, onItemKeyDown, onItemFocus, onResizePointerDown, className, ...svgProps
   },
   ref,
@@ -251,7 +275,7 @@ const FloorCanvas = forwardRef<SVGSVGElement, FloorCanvasProps>(function FloorCa
           role: 'button',
           'aria-label': label,
           'aria-pressed': item.key === selectedKey,
-          style: { cursor: 'grab', touchAction: 'none', outline: 'none' } as const,
+          style: { cursor: itemCursor, touchAction: 'none', outline: 'none' } as const,
           onPointerDown: (e: PointerEvent<SVGGElement>) => onItemPointerDown?.(e, kind, item.key),
           onKeyDown: (e: KeyboardEvent<SVGGElement>) => onItemKeyDown?.(e, kind, item.key),
           onFocus: () => onItemFocus?.(kind, item.key),
@@ -292,7 +316,7 @@ const FloorCanvas = forwardRef<SVGSVGElement, FloorCanvasProps>(function FloorCa
       {tables.map((t) => (
         <g key={t.key}>
           <g {...groupProps('table', t, tableLabel(t))}>
-            <TableGlyph t={t} fill={tableFill?.(t)} />
+            <TableGlyph t={t} fill={tableFill?.(t)} alert={tableAlert?.(t)} note={tableNote?.(t)} />
             {frame('table', t)}
           </g>
         </g>

@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/db';
 import { audit } from '../../utils/auditLog';
+import { publish } from '../../utils/events';
 import {
   checkLayout, labelKey, MAX_ZONES, type DecorInput, type TableInput,
 } from './layout';
@@ -182,5 +183,6 @@ export async function saveLayout(zoneId: string, input: LayoutInput, actorId: st
     actorId, action: 'UPDATE', entityType: 'TABLE_LAYOUT', entityId: zoneId,
     metadata: { zone: zone.name, tables: input.tables.length, added: added.length, removed: removed.length, decor: input.decor.length },
   });
+  publish({ type: 'floor' });
   return getZone(zoneId);
 }

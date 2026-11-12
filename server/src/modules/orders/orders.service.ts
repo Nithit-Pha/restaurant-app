@@ -9,6 +9,7 @@ import { planPayment, type PaymentAction, type PaymentMethod, type PaymentStatus
 import { buildPromptPayPayload } from '../../utils/promptpay';
 import { priceLine } from './lineOptions';
 import { syncTableStatus } from '../dineIn/tableStatus';
+import { publish } from '../../utils/events';
 
 // Distance assumed when the customer shares no location and no max delivery
 // distance is configured.
@@ -208,6 +209,7 @@ export async function placeOrder(userId: string, input: PlaceOrderInput) {
         include: { items: itemsInclude },
       });
     });
+    publish({ type: 'order', orderId: order.id });
     return { order, created: true };
   } catch (err) {
     // Two identical requests raced past the first check: return the winner.
@@ -312,7 +314,7 @@ export async function changeOrderStatus(id: string, change: StatusChange) {
     { ...change },
   );
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const res = await tx.order.updateMany({ where: { id, status: order.status }, data });
     if (res.count === 0) {
       throw httpError(409, 'This order was just updated by someone else. Refresh and try again.');
@@ -339,6 +341,13 @@ export async function changeOrderStatus(id: string, change: StatusChange) {
     const updated = await tx.order.findUnique({ where: { id }, include: { items: itemsInclude } });
     return { from: order.status as OrderStatus, order: updated! };
   });
+  publish({ type: 'order', orderId: id, ...(order.tableSessionId ? { tableId: await tableOfVisit(order.tableSessionId) } : {}) });
+  return result;
+}
+
+async function tableOfVisit(visitId: string) {
+  const v = await prisma.tableSession.findUnique({ where: { id: visitId }, select: { tableId: true } });
+  return v?.tableId ?? null;
 }
 
 /** A customer cancels their own order; only possible while it is still PENDING. */
@@ -376,7 +385,7 @@ export async function changePayment(id: string, action: PaymentAction, change: P
     action,
   );
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const res = await tx.order.updateMany({
       where: { id, paymentStatus: from },
       data: { paymentStatus: to, ...(to === 'PAID' ? { paidAt: new Date() } : {}) },
@@ -403,6 +412,8 @@ export async function changePayment(id: string, action: PaymentAction, change: P
     });
     return { from, to, order: updated! };
   });
+  publish({ type: 'order', orderId: id });
+  return result;
 }
 
 /**

@@ -6,6 +6,8 @@ import { getOpenStatus } from '../settings/settings.service';
 import { itemsInclude, nextOrderNumber, priceItems, type CartItemInput } from '../orders/orders.service';
 import { syncTableStatus } from './tableStatus';
 import { readVisitKey, signVisitKey } from './visitKey';
+import { publish } from '../../utils/events';
+import { getFloor } from '../tables/tables.service';
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 
@@ -109,11 +111,26 @@ export async function joinVisit(qrToken: string) {
   };
 }
 
+/**
+ * Where a guest's visit lives now: staff may have merged it into another
+ * table's visit (a big group at joined tables). Returns the id of the visit
+ * at the end of that chain.
+ */
+async function followMerges(db: Prisma.TransactionClient | typeof prisma, id: string): Promise<string> {
+  let current = id;
+  for (let i = 0; i < 10; i++) {
+    const v = await db.tableSession.findUnique({ where: { id: current }, select: { mergedIntoId: true } });
+    if (!v?.mergedIntoId) return current;
+    current = v.mergedIntoId;
+  }
+  return current;
+}
+
 /** The guest's visit from their key: 401 without a valid key, 410 once it is paid and closed. */
 export async function getVisitByKey(key: string | undefined) {
   const id = readVisitKey(key);
   if (!id) throw httpError(401, 'Please scan the QR code on your table again.');
-  const visit = await loadVisit(id);
+  const visit = await loadVisit(await followMerges(prisma, id));
   if (!visit) throw httpError(401, 'Please scan the QR code on your table again.');
   if (visit.closedAt) throw httpError(410, 'This visit has ended. Thank you for coming!');
   return visit;
@@ -155,8 +172,9 @@ export async function placeTableOrder(qrToken: string, key: string | undefined, 
   const visitId = await prisma.$transaction(async (tx) => {
     // One guest at a time per table, so two phones cannot open two visits.
     await tx.$queryRaw`SELECT "id" FROM "DiningTable" WHERE "id" = ${table.id} FOR UPDATE`;
+    // The guest's own visit first (even after staff moved or merged it), then the table's open visit.
     let visit = wanted
-      ? await tx.tableSession.findFirst({ where: { id: wanted, tableId: table.id, closedAt: null }, select: { id: true } })
+      ? await tx.tableSession.findFirst({ where: { id: await followMerges(tx, wanted), closedAt: null }, select: { id: true } })
       : null;
     visit ??= await tx.tableSession.findFirst({ where: { tableId: table.id, closedAt: null }, orderBy: { openedAt: 'desc' }, select: { id: true } });
     visit ??= await tx.tableSession.create({
@@ -199,6 +217,7 @@ export async function placeTableOrder(qrToken: string, key: string | undefined, 
   });
 
   const visit = (await loadVisit(visitId))!;
+  publish({ type: 'order', orderId: visit.orders[visit.orders.length - 1]?.id ?? '', tableId: await tableIdOf(visitId) });
   return { created: true, key: signVisitKey(visitId), visit: visitSummary(visit) };
 }
 
@@ -212,6 +231,7 @@ export async function guestRequest(key: string | undefined, what: 'CALL_STAFF' |
     });
     if (what === 'REQUEST_BILL') await syncTableStatus(tx, visit.id);
   });
+  publish({ type: 'table', tableId: await tableIdOf(visit.id) });
   return visitSummary((await loadVisit(visit.id))!);
 }
 
@@ -228,5 +248,142 @@ export async function confirmVisit(id: string, staffId: string, guests?: number)
       staffCalledAt: null,
     },
   });
+  publish({ type: 'table', tableId: await tableIdOf(id) });
   return visitSummary((await loadVisit(id))!);
+}
+
+async function tableIdOf(visitId: string) {
+  const v = await prisma.tableSession.findUnique({ where: { id: visitId }, select: { tableId: true } });
+  return v?.tableId ?? null;
+}
+
+// ------------------------------------------------------------- floor view --
+
+/** A visit as the floor view shows it on a table. */
+function visitBrief(v: Prisma.TableSessionGetPayload<{ include: { orders: { select: { status: true; total: true } } } }>) {
+  const live = v.orders.filter((o) => o.status !== 'CANCELLED');
+  const count = (s: string) => live.filter((o) => o.status === s).length;
+  return {
+    id: v.id,
+    tableId: v.tableId,
+    guests: v.guests,
+    confirmed: Boolean(v.confirmedAt),
+    openedAt: v.openedAt,
+    staffCalledAt: v.staffCalledAt,
+    billRequestedAt: v.billRequestedAt,
+    total: round2(live.reduce((s, o) => s + Number(o.total), 0)),
+    orders: { waiting: count('PENDING'), cooking: count('PREPARING'), ready: count('READY'), served: count('DELIVERED') },
+  };
+}
+
+/** Zones, tables (with live status) and every open visit, for the staff floor view. */
+export async function getFloorView() {
+  const [zones, visits] = await Promise.all([
+    getFloor(),
+    prisma.tableSession.findMany({
+      where: { closedAt: null, tableId: { not: null } },
+      include: { orders: { select: { status: true, total: true } } },
+    }),
+  ]);
+  return { zones, visits: visits.map(visitBrief) };
+}
+
+/** One open visit with every round, for the side panel of the floor view. */
+export async function getVisitForStaff(id: string) {
+  const visit = await loadVisit(id);
+  if (!visit) throw httpError(404, 'Visit not found');
+  return visitSummary(visit);
+}
+
+/** Lock the table rows (in id order, so two staff never deadlock). */
+async function lockTables(tx: Prisma.TransactionClient, ids: string[]) {
+  for (const id of [...ids].sort()) {
+    await tx.$queryRaw`SELECT "id" FROM "DiningTable" WHERE "id" = ${id} FOR UPDATE`;
+  }
+}
+
+async function activeTable(tx: Prisma.TransactionClient, id: string) {
+  const table = await tx.diningTable.findUnique({ where: { id }, select: { id: true, label: true, isActive: true, zone: { select: { name: true } } } });
+  if (!table || !table.isActive) throw httpError(404, 'Table not found');
+  return table;
+}
+
+async function openVisitAt(tx: Prisma.TransactionClient, tableId: string) {
+  return tx.tableSession.findFirst({ where: { tableId, closedAt: null }, select: { id: true } });
+}
+
+/** Staff seat guests at a free table (walk-ins who order with the waiter, or before they scan). */
+export async function seatGuests(tableId: string, guests: number | undefined, staffId: string) {
+  const visitId = await prisma.$transaction(async (tx) => {
+    await lockTables(tx, [tableId]);
+    const table = await activeTable(tx, tableId);
+    if (await openVisitAt(tx, tableId)) throw httpError(409, `Table ${table.label} already has guests.`);
+    const visit = await tx.tableSession.create({
+      data: {
+        tableId, tableLabel: table.label, zoneName: table.zone.name, guests,
+        confirmedAt: new Date(), confirmedById: staffId,
+      },
+      select: { id: true },
+    });
+    await syncTableStatus(tx, visit.id);
+    return visit.id;
+  });
+  publish({ type: 'table', tableId });
+  return getVisitForStaff(visitId);
+}
+
+/** Guests change table: the visit (and its bill) moves along; the old table is free again. */
+export async function moveVisit(visitId: string, toTableId: string) {
+  const visit = await prisma.tableSession.findUnique({ where: { id: visitId }, select: { tableId: true, closedAt: true } });
+  if (!visit || visit.closedAt) throw httpError(404, 'This visit is not open any more.');
+  if (visit.tableId === toTableId) throw httpError(400, 'The guests are already at this table.');
+  const fromTableId = visit.tableId;
+  await prisma.$transaction(async (tx) => {
+    await lockTables(tx, [toTableId, ...(fromTableId ? [fromTableId] : [])]);
+    const target = await activeTable(tx, toTableId);
+    if (await openVisitAt(tx, toTableId)) {
+      throw httpError(409, `Table ${target.label} already has guests. Use "Merge" to put both on one bill.`);
+    }
+    await tx.tableSession.update({ where: { id: visitId }, data: { tableId: toTableId, tableLabel: target.label, zoneName: target.zone.name } });
+    if (fromTableId) await tx.diningTable.update({ where: { id: fromTableId }, data: { status: 'FREE' } });
+    await syncTableStatus(tx, visitId);
+  });
+  publish({ type: 'table', tableId: fromTableId });
+  publish({ type: 'table', tableId: toTableId });
+  return getVisitForStaff(visitId);
+}
+
+/**
+ * Two tables become one bill (a big group): the orders of `fromVisitId` move
+ * to `intoVisitId`, and the first visit is closed as merged. Guests' keys for
+ * it keep working and now show the joint bill.
+ */
+export async function mergeVisits(fromVisitId: string, intoVisitId: string) {
+  if (fromVisitId === intoVisitId) throw httpError(400, 'Pick another table to merge with.');
+  const [from, into] = await Promise.all([
+    prisma.tableSession.findUnique({ where: { id: fromVisitId }, select: { tableId: true, closedAt: true, guests: true } }),
+    prisma.tableSession.findUnique({ where: { id: intoVisitId }, select: { tableId: true, closedAt: true, guests: true } }),
+  ]);
+  if (!from || from.closedAt || !into || into.closedAt) throw httpError(409, 'Both tables need an open visit to merge.');
+  await prisma.$transaction(async (tx) => {
+    await lockTables(tx, [from.tableId, into.tableId].filter((x): x is string => Boolean(x)));
+    await tx.order.updateMany({ where: { tableSessionId: fromVisitId }, data: { tableSessionId: intoVisitId } });
+    await tx.tableSession.update({ where: { id: fromVisitId }, data: { closedAt: new Date(), mergedIntoId: intoVisitId } });
+    if (from.guests || into.guests) {
+      await tx.tableSession.update({ where: { id: intoVisitId }, data: { guests: (from.guests ?? 0) + (into.guests ?? 0) } });
+    }
+    if (from.tableId) await tx.diningTable.update({ where: { id: from.tableId }, data: { status: 'FREE' } });
+    await syncTableStatus(tx, intoVisitId);
+  });
+  publish({ type: 'table', tableId: from.tableId });
+  publish({ type: 'table', tableId: into.tableId });
+  return getVisitForStaff(intoVisitId);
+}
+
+/** The table is cleaned and ready for the next guests. */
+export async function markCleaned(tableId: string) {
+  const open = await prisma.tableSession.findFirst({ where: { tableId, closedAt: null }, select: { id: true } });
+  if (open) throw httpError(409, 'This table still has guests.');
+  await prisma.diningTable.update({ where: { id: tableId }, data: { status: 'FREE' } });
+  publish({ type: 'table', tableId });
 }

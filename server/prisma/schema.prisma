@@ -386,6 +386,9 @@ model TableSession {
   staffCalledAt   DateTime?
   billRequestedAt DateTime?
   closedAt        DateTime?
+  // Staff merged this visit into another one (a big group at joined tables):
+  // its orders moved there, and guests' keys for it lead to that visit.
+  mergedIntoId    String?
   orders          Order[]
 
   @@index([tableId, closedAt])

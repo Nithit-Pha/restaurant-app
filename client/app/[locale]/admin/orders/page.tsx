@@ -25,6 +25,7 @@ import { useOrderLabels } from '../../../../src/features/orders/useOrderLabels';
 import { AcceptDialog, CancelDialog, CompleteCashDialog, MarkPaidDialog, RefundDialog } from '../../../../src/features/admin/orders/OrderDialogs';
 import { useNewOrderAlert } from '../../../../src/features/admin/orders/useNewOrderAlert';
 import BusyModeControl from '../../../../src/features/admin/orders/BusyModeControl';
+import { useLiveConnected } from '../../../../src/components/LiveUpdates';
 import LineDetails from '../../../../src/features/orders/LineDetails';
 import { bangkokDateISO, formatCurrency } from '../../../../src/lib/format';
 import { useRequireRole } from '../../../../src/routes/useAuthGuard';
@@ -299,6 +300,7 @@ export default function AdminOrdersPage() {
   const tco = useTranslations('checkout');
   const labels = useOrderLabels();
   const { ready } = useRequireRole('STAFF');
+  const live = useLiveConnected();
   const toast = useToast();
   const [filterStatus, setFilterStatus] = useState<StatusFilter>('');
   const [day, setDayState] = useState(todayISO); // '' = all dates
@@ -310,7 +312,8 @@ export default function AdminOrdersPage() {
   const serverStatus = day ? undefined : filterStatus || undefined;
   const { data: orders, isLoading, isFetching, fulfilledTimeStamp } = useGetAdminOrdersQuery(
     { status: serverStatus, date: day || undefined },
-    { pollingInterval: 15000, skip: !ready },
+    // Live updates reload the list on every change; polling is the fallback when they are down.
+    { pollingInterval: live ? 60000 : 15000, skip: !ready },
   );
   const [updateStatus, { isLoading: savingStatus }] = useUpdateOrderStatusMutation();
   const [markPaid, { isLoading: savingPaid }] = useMarkOrderPaidMutation();

@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { prismaMock, tx, openStatus, syncMock } = vi.hoisted(() => {
   const tx = {
     $queryRaw: vi.fn(),
-    tableSession: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
-    order: { create: vi.fn() },
+    tableSession: { findFirst: vi.fn(), findUnique: vi.fn(async () => ({ mergedIntoId: null })), create: vi.fn(), update: vi.fn() },
+    order: { create: vi.fn(), updateMany: vi.fn() },
+    diningTable: { findUnique: vi.fn(), update: vi.fn() },
   };
   return {
     tx,
@@ -31,7 +32,13 @@ vi.mock('../orders/orders.service', () => ({
   })),
 }));
 
-import { getVisitByKey, guestRequest, joinVisit, placeTableOrder, visitSummary } from './dineIn.service';
+vi.mock('../tables/tables.service', () => ({ getFloor: vi.fn(async () => []) }));
+const { publishMock } = vi.hoisted(() => ({ publishMock: vi.fn() }));
+vi.mock('../../utils/events', () => ({ publish: publishMock }));
+
+import {
+  getVisitByKey, guestRequest, joinVisit, mergeVisits, moveVisit, placeTableOrder, seatGuests, visitSummary,
+} from './dineIn.service';
 import { readVisitKey, signVisitKey } from './visitKey';
 
 const TABLE = { id: 'table-4', label: 'T4', isActive: true, zone: { name: 'Indoor' } };
@@ -91,7 +98,7 @@ describe('guest orders from the table', () => {
   it('adds a second round to the same visit with the guest\'s key', async () => {
     tx.tableSession.findFirst.mockResolvedValueOnce({ id: 'visit-1' });
     await placeTableOrder('qr-abc', signVisitKey('visit-1'), ITEMS);
-    expect(tx.tableSession.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'visit-1', tableId: 'table-4', closedAt: null } }));
+    expect(tx.tableSession.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'visit-1', closedAt: null } }));
     expect(tx.tableSession.create).not.toHaveBeenCalled();
     expect(tx.order.create.mock.calls[0][0].data.tableSessionId).toBe('visit-1');
   });
@@ -143,5 +150,61 @@ describe('the guest\'s visit', () => {
     const summary = visitSummary(visitRow({ orders: [order('DELIVERED', 160), order('CANCELLED', 50), order('PREPARING', 80)] }) as any);
     expect(summary.totals.total).toBe(240);
     expect(JSON.stringify(summary)).not.toMatch(/cost|profit/i);
+  });
+});
+
+describe('staff at the table', () => {
+  beforeEach(() => {
+    tx.diningTable.findUnique.mockImplementation(async ({ where }: any) => ({ id: where.id, label: where.id.toUpperCase(), isActive: true, zone: { name: 'Indoor' } }));
+  });
+
+  it('seat guests at a free table: a confirmed visit, and the floor view hears about it', async () => {
+    tx.tableSession.findFirst.mockResolvedValue(null);
+    tx.tableSession.create.mockResolvedValue({ id: 'visit-9' });
+    await seatGuests('t5', 4, 'staff-1');
+    expect(tx.tableSession.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ tableId: 't5', tableLabel: 'T5', guests: 4, confirmedById: 'staff-1', confirmedAt: expect.any(Date) }),
+    }));
+    expect(publishMock).toHaveBeenCalledWith({ type: 'table', tableId: 't5' });
+  });
+
+  it('will not seat guests at a table that already has a visit (409)', async () => {
+    tx.tableSession.findFirst.mockResolvedValue({ id: 'visit-1' });
+    await expect(seatGuests('t5', 2, 'staff-1')).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('moves a visit to a free table; the old table is free again', async () => {
+    prismaMock.tableSession.findUnique.mockImplementation(async ({ where }: any) =>
+      (where.id === 'visit-1' ? { ...visitRow(), tableId: 't4' } : visitRow({ id: where.id })));
+    tx.tableSession.findFirst.mockResolvedValue(null);
+    await moveVisit('visit-1', 't6');
+    expect(tx.tableSession.update).toHaveBeenCalledWith({ where: { id: 'visit-1' }, data: { tableId: 't6', tableLabel: 'T6', zoneName: 'Indoor' } });
+    expect(tx.diningTable.update).toHaveBeenCalledWith({ where: { id: 't4' }, data: { status: 'FREE' } });
+  });
+
+  it('will not move onto a table with guests: that is a merge (409)', async () => {
+    prismaMock.tableSession.findUnique.mockResolvedValue({ ...visitRow(), tableId: 't4' });
+    tx.tableSession.findFirst.mockResolvedValue({ id: 'visit-2' });
+    await expect(moveVisit('visit-1', 't6')).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining('Merge') });
+  });
+
+  it('merges two visits into one bill: orders move, the first visit closes as merged', async () => {
+    prismaMock.tableSession.findUnique.mockImplementation(async ({ where, include }: any) => (include
+      ? visitRow({ id: where.id }) // the joint bill that is returned
+      : where.id === 'visit-a' ? { tableId: 't4', closedAt: null, guests: 2 } : { tableId: 't5', closedAt: null, guests: 3 }));
+    await mergeVisits('visit-a', 'visit-b');
+    expect(tx.order.updateMany).toHaveBeenCalledWith({ where: { tableSessionId: 'visit-a' }, data: { tableSessionId: 'visit-b' } });
+    expect(tx.tableSession.update).toHaveBeenCalledWith({ where: { id: 'visit-a' }, data: { closedAt: expect.any(Date), mergedIntoId: 'visit-b' } });
+    expect(tx.tableSession.update).toHaveBeenCalledWith({ where: { id: 'visit-b' }, data: { guests: 5 } });
+    expect(tx.diningTable.update).toHaveBeenCalledWith({ where: { id: 't4' }, data: { status: 'FREE' } });
+  });
+
+  it('a guest whose visit was merged sees the joint bill (their key follows the merge)', async () => {
+    prismaMock.tableSession.findUnique.mockImplementation(async ({ where, select }: any) => {
+      if (select?.mergedIntoId) return { mergedIntoId: where.id === 'visit-a' ? 'visit-b' : null };
+      return visitRow({ id: where.id, tableLabel: where.id === 'visit-b' ? 'T5' : 'T4' });
+    });
+    const visit = await getVisitByKey(signVisitKey('visit-a'));
+    expect(visit.id).toBe('visit-b');
   });
 });

@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import {
-  ClipboardList, History, House, LayoutGrid, LogIn, LogOut, Menu as MenuIcon, NotebookPen, Receipt, Settings, ShoppingBag,
+  Armchair, ClipboardList, History, House, LayoutGrid, LogIn, LogOut, Menu as MenuIcon, NotebookPen, Receipt, Settings, ShoppingBag,
   UserPlus, UtensilsCrossed, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
@@ -12,6 +12,7 @@ import { logout } from '../features/auth/authSlice';
 import { selectCartCount, toggleCart } from '../features/cart/cartSlice';
 import { useGetAdminOrdersQuery, useGetMeQuery, type User } from '../api/apiSlice';
 import TopBarControls from './TopBarControls';
+import { LiveUpdatesProvider } from './LiveUpdates';
 import { Drawer } from './ui/Dialog';
 import IconButton from './ui/IconButton';
 import { cn, ICON_SM, ICON_STROKE } from './ui/cn';
@@ -208,6 +209,7 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
       label: t('groupService'),
       items: [
         { href: '/admin/orders', label: t('orders'), icon: ClipboardList, prefix: true, badge: pending?.length },
+        { href: '/admin/floor', label: t('floor'), icon: Armchair, prefix: true },
         { href: '/admin/menu', label: t('menuManagement'), icon: NotebookPen, prefix: true },
       ],
     });
@@ -263,7 +265,7 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
   );
 
   return (
-    <>
+    <LiveUpdatesProvider enabled={isStaff}>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-control focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:shadow-raised"
@@ -296,6 +298,6 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
         </div>
         {children}
       </main>
-    </>
+    </LiveUpdatesProvider>
   );
 }

@@ -28,7 +28,15 @@ router.get('/visit', ctrl.visit);
 router.post('/visit/call-staff', ctrl.callStaff);
 router.post('/visit/request-bill', ctrl.requestBill);
 
-// Staff
-router.post('/visits/:id/confirm', authenticate, requireRole('STAFF', 'SUPER_ADMIN'), validate(confirmSchema), ctrl.confirm);
+// Staff: floor view and table actions.
+const staff = [authenticate, requireRole('STAFF', 'SUPER_ADMIN')];
+const guestsSchema = z.object({ guests: z.number().int().min(1).max(99).optional() });
+router.get('/floor', ...staff, ctrl.floor);
+router.get('/visits/:id', ...staff, ctrl.staffVisit);
+router.post('/visits/:id/confirm', ...staff, validate(confirmSchema), ctrl.confirm);
+router.post('/visits/:id/move', ...staff, validate(z.object({ tableId: z.string().uuid() })), ctrl.move);
+router.post('/visits/:id/merge', ...staff, validate(z.object({ intoVisitId: z.string().uuid() })), ctrl.merge);
+router.post('/tables/:id/seat', ...staff, validate(guestsSchema), ctrl.seat);
+router.post('/tables/:id/cleaned', ...staff, ctrl.cleaned);
 
 export default router;

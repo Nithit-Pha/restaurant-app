@@ -80,7 +80,7 @@ const baseQueryWithReauth: BaseQueryFn<
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus', 'Address', 'Floor'],
+  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus', 'Address', 'Floor', 'Visit'],
   endpoints: (builder) => ({
     // Auth
     login: builder.mutation<AuthResponse, LoginInput>({
@@ -335,7 +335,33 @@ export const apiSlice = createApi({
     // Staff confirm that dine-in guests are really at the table.
     confirmVisit: builder.mutation<void, { id: string; guests?: number }>({
       query: ({ id, ...body }) => ({ url: `/dine-in/visits/${id}/confirm`, method: 'POST', body }),
-      invalidatesTags: ['Order', 'Floor'],
+      invalidatesTags: ['Order', 'Floor', 'Visit'],
+    }),
+
+    // Floor view (staff): live table states and table actions.
+    getFloorView: builder.query<FloorView, void>({
+      query: () => '/dine-in/floor',
+      providesTags: ['Floor'],
+    }),
+    getStaffVisit: builder.query<TableVisit, string>({
+      query: (id) => `/dine-in/visits/${id}`,
+      providesTags: ['Visit'],
+    }),
+    seatGuests: builder.mutation<TableVisit, { tableId: string; guests?: number }>({
+      query: ({ tableId, ...body }) => ({ url: `/dine-in/tables/${tableId}/seat`, method: 'POST', body }),
+      invalidatesTags: ['Floor', 'Visit'],
+    }),
+    moveVisit: builder.mutation<TableVisit, { id: string; tableId: string }>({
+      query: ({ id, ...body }) => ({ url: `/dine-in/visits/${id}/move`, method: 'POST', body }),
+      invalidatesTags: ['Floor', 'Visit', 'Order'],
+    }),
+    mergeVisits: builder.mutation<TableVisit, { id: string; intoVisitId: string }>({
+      query: ({ id, ...body }) => ({ url: `/dine-in/visits/${id}/merge`, method: 'POST', body }),
+      invalidatesTags: ['Floor', 'Visit', 'Order'],
+    }),
+    markTableCleaned: builder.mutation<void, string>({
+      query: (tableId) => ({ url: `/dine-in/tables/${tableId}/cleaned`, method: 'POST' }),
+      invalidatesTags: ['Floor'],
     }),
   }),
 });
@@ -391,6 +417,12 @@ export const {
   useGetQrCodesQuery,
   useRegenerateQrMutation,
   useConfirmVisitMutation,
+  useGetFloorViewQuery,
+  useGetStaffVisitQuery,
+  useSeatGuestsMutation,
+  useMoveVisitMutation,
+  useMergeVisitsMutation,
+  useMarkTableCleanedMutation,
 } = apiSlice;
 
 // --- Types ---
@@ -755,6 +787,46 @@ export interface TableLayoutInput {
   width: number;
   height: number;
   rotation: number;
+}
+
+/** An open table visit as the floor view shows it on a table. */
+export interface VisitBrief {
+  id: string;
+  tableId: string | null;
+  guests: number | null;
+  confirmed: boolean;
+  openedAt: string;
+  staffCalledAt: string | null;
+  billRequestedAt: string | null;
+  total: number;
+  orders: { waiting: number; cooking: number; ready: number; served: number };
+}
+
+export interface FloorView {
+  zones: FloorZone[];
+  visits: VisitBrief[];
+}
+
+/** A visit with every round (floor view side panel, guest page, bill). */
+export interface TableVisit {
+  id: string;
+  tableLabel: string;
+  zoneName: string;
+  guests: number | null;
+  confirmed: boolean;
+  openedAt: string;
+  staffCalledAt: string | null;
+  billRequestedAt: string | null;
+  closedAt: string | null;
+  orders: {
+    id: string;
+    orderNumber: number | null;
+    status: OrderStatus;
+    createdAt: string;
+    total: number;
+    items: { id: string; name: string; menuItemId: string; quantity: number; unitPrice: number; note: string | null; options: { groupName: string; name: string; priceDelta: number }[] }[];
+  }[];
+  totals: { subtotal: number; taxAmount: number; total: number };
 }
 
 export interface QrTable {
