@@ -245,14 +245,16 @@ export default function SettingsPage() {
     }
   };
 
-  if (!ready) return null;
-  if (isLoading) return <PageContainer><LoadingBlock label={t('loading')} /></PageContainer>;
-
-  const hoursEnforced = (settings?.ORDERING_HOURS_ENFORCED ?? 1) !== 0;
+  // Hooks must run before the early returns below.
   const [prepMinutes, setPrepMinutes] = useState('15');
   useEffect(() => {
     if (settings?.DEFAULT_PREP_MINUTES) setPrepMinutes(String(settings.DEFAULT_PREP_MINUTES));
   }, [settings?.DEFAULT_PREP_MINUTES]);
+
+  if (!ready) return null;
+  if (isLoading) return <PageContainer><LoadingBlock label={t('loading')} /></PageContainer>;
+
+  const hoursEnforced = (settings?.ORDERING_HOURS_ENFORCED ?? 1) !== 0;
   const roleName = (role: string) => tnav(`role.${role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'STAFF'}`);
 
   return (

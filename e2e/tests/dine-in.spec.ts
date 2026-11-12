@@ -69,7 +69,8 @@ test('guest orders at the table, kitchen cooks, staff close the bill, the QR cod
   await expect(guest.getByRole('heading', { name: `Table ${LABEL}` })).toBeVisible();
   await orderRound(guest);
   await expect(guest.getByRole('heading', { name: 'Your table' })).toBeVisible();
-  await expect(guest.getByText(/confirm your table/)).toBeVisible(); // first order waits for staff
+  // First order waits for staff (banner; the toast says it too).
+  await expect(guest.getByText(/confirm your table in a moment/)).toBeVisible();
   await orderRound(guest); // a second round on the same bill
   await expect(guest.getByText('Order 2')).toBeVisible();
 
@@ -79,13 +80,16 @@ test('guest orders at the table, kitchen cooks, staff close the bill, the QR cod
   const tickets = page.locator('article', { hasText: `Table ${LABEL}` });
   await expect(tickets).toHaveCount(2);
   await expect(tickets.first().getByText('New table')).toBeVisible();
-  for (let i = 0; i < 2; i++) {
-    await page.locator('section[aria-labelledby="col-new"] article', { hasText: `Table ${LABEL}` }).first()
-      .getByRole('button', { name: 'Accept, ready in 10 minutes' }).click();
+  // Each box has one button: Accept order → Done → Served.
+  const withButton = (name: string) => tickets.filter({ has: page.getByRole('button', { name, exact: true }) });
+  for (let left = 2; left > 0; left--) {
+    await withButton('Accept order').first().getByRole('button', { name: 'Accept order' }).click();
+    await expect(withButton('Accept order')).toHaveCount(left - 1);
   }
-  await expect(page.locator('section[aria-labelledby="col-cooking"] article', { hasText: `Table ${LABEL}` })).toHaveCount(2);
-  await page.locator('section[aria-labelledby="col-cooking"] article', { hasText: `Table ${LABEL}` }).first().getByRole('button', { name: 'Mark ready' }).click();
-  await page.locator('section[aria-labelledby="col-ready"] article', { hasText: `Table ${LABEL}` }).first().getByRole('button', { name: 'Served' }).click();
+  await expect(withButton('Done')).toHaveCount(2);
+  await withButton('Done').first().getByRole('button', { name: 'Done' }).click();
+  await withButton('Served').getByRole('button', { name: 'Served' }).click();
+  await expect(tickets).toHaveCount(1); // the served round leaves the kitchen
 
   // Accepting confirmed the table: the guest's notice goes away.
   await expect(guest.getByText(/confirm your table/)).toBeHidden({ timeout: 20_000 });
