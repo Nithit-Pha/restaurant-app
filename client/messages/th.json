@@ -93,6 +93,7 @@
     "myOrders": "คำสั่งซื้อของฉัน",
     "orders": "ออเดอร์",
     "floor": "ผังโต๊ะ",
+    "kitchen": "ครัว",
     "menuManagement": "จัดการเมนู",
     "floorPlan": "ผังร้าน",
     "finance": "การเงิน",
@@ -1016,5 +1017,36 @@
     "merge": "รวมโต๊ะ",
     "merged": "รวมโต๊ะเป็นบิลเดียวแล้ว",
     "pickTable": "เลือกโต๊ะ"
+  },
+  "kitchen": {
+    "eyebrow": "บริการ",
+    "title": "ครัว",
+    "live": "เรียลไทม์: ออเดอร์ใหม่แสดงทันที",
+    "notLive": "กำลังเชื่อมต่อใหม่… ระหว่างนี้รีเฟรชทุก 10 วินาที",
+    "soundOn": "เปิดเสียง",
+    "soundOff": "ปิดเสียง",
+    "loading": "กำลังโหลดออเดอร์…",
+    "emptyTitle": "ยังไม่มีอะไรต้องทำ",
+    "emptyDescription": "ออเดอร์ใหม่จะแสดงที่นี่ทันทีที่เข้ามา",
+    "column": {
+      "new": "ใหม่",
+      "cooking": "กำลังทำ",
+      "ready": "พร้อม"
+    },
+    "table": "โต๊ะ {label}",
+    "dineIn": "ทานที่ร้าน",
+    "pickup": "รับเอง",
+    "delivery": "เดลิเวอรี",
+    "newTable": "โต๊ะใหม่: การรับออเดอร์จะยืนยันโต๊ะ",
+    "acceptWith": "รับออเดอร์ เสร็จใน",
+    "minutes": "{minutes} นาที",
+    "acceptMinutes": "รับออเดอร์ เสร็จใน {minutes} นาที",
+    "timer": {
+      "waiting": "{minutes} นาที",
+      "waitingServe": "พร้อมแล้ว {minutes} นาที",
+      "left": "เหลือ {minutes} นาที",
+      "late": "ช้า {minutes} นาที"
+    },
+    "updateFailed": "อัปเดตออเดอร์ไม่สำเร็จ"
   }
 }

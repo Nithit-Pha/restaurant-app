@@ -176,7 +176,8 @@ export const apiSlice = createApi({
     }),
     updateOrderStatus: builder.mutation<Order, StatusChangeInput>({
       query: ({ id, ...body }) => ({ url: `/orders/${id}/status`, method: 'PATCH', body }),
-      invalidatesTags: ['Order'],
+      // Dine-in orders also change their table on the floor view.
+      invalidatesTags: ['Order', 'Floor', 'Visit'],
     }),
     cancelMyOrder: builder.mutation<Order, { id: string; note?: string }>({
       query: ({ id, note }) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: { note } }),

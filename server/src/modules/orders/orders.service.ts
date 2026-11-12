@@ -264,7 +264,7 @@ export const tableSessionSelect = {
 };
 
 export interface AdminOrderFilter {
-  status?: string;
+  status?: string; // one status, or several separated by commas (kitchen: "PENDING,PREPARING,READY")
   date?: string; // 'YYYY-MM-DD' business day
   limit?: number;
 }
@@ -272,9 +272,10 @@ export interface AdminOrderFilter {
 /** Staff order list: filtered on the server, newest first, capped. */
 export async function getAllOrders({ status, date, limit = 200 }: AdminOrderFilter = {}) {
   const range = date ? zonedDayRange(date, env.businessTimeZone) : null;
+  const statuses = (status ?? '').split(',').map((s) => s.trim()).filter(Boolean) as OrderStatus[];
   return prisma.order.findMany({
     where: {
-      ...(status ? { status: status as OrderStatus } : {}),
+      ...(statuses.length === 1 ? { status: statuses[0] } : statuses.length > 1 ? { status: { in: statuses } } : {}),
       ...(range ? { createdAt: { gte: range.start, lte: range.end } } : {}),
     },
     include: {

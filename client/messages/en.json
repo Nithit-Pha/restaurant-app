@@ -93,6 +93,7 @@
     "myOrders": "My orders",
     "orders": "Orders",
     "floor": "Floor",
+    "kitchen": "Kitchen",
     "menuManagement": "Menu management",
     "floorPlan": "Floor plan",
     "finance": "Finance",
@@ -1016,5 +1017,36 @@
     "merge": "Merge",
     "merged": "Tables merged into one bill",
     "pickTable": "Pick a table"
+  },
+  "kitchen": {
+    "eyebrow": "Service",
+    "title": "Kitchen",
+    "live": "Live: new orders appear at once",
+    "notLive": "Reconnecting… refreshing every 10 seconds meanwhile",
+    "soundOn": "Sound on",
+    "soundOff": "Sound off",
+    "loading": "Loading orders…",
+    "emptyTitle": "Nothing to cook",
+    "emptyDescription": "New orders appear here as soon as they come in.",
+    "column": {
+      "new": "New",
+      "cooking": "Cooking",
+      "ready": "Ready"
+    },
+    "table": "Table {label}",
+    "dineIn": "Dine-in",
+    "pickup": "Pickup",
+    "delivery": "Delivery",
+    "newTable": "New table: accepting confirms it",
+    "acceptWith": "Accept, ready in",
+    "minutes": "{minutes} min",
+    "acceptMinutes": "Accept, ready in {minutes} minutes",
+    "timer": {
+      "waiting": "{minutes} min",
+      "waitingServe": "ready {minutes} min",
+      "left": "{minutes} min left",
+      "late": "{minutes} min late"
+    },
+    "updateFailed": "Could not update the order"
   }
 }

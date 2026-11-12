@@ -42,7 +42,7 @@ vi.mock('../../utils/pricing', async (importOriginal) => {
   return { ...actual, calcDeliveryFeeAsync: vi.fn(async () => 5.99) };
 });
 
-import { quoteOrder, placeOrder, changeOrderStatus, cancelByCustomer, changePayment, getPromptPayQr } from './orders.service';
+import { quoteOrder, placeOrder, changeOrderStatus, cancelByCustomer, changePayment, getPromptPayQr, getAllOrders } from './orders.service';
 import { calcDeliveryFeeAsync } from '../../utils/pricing';
 import { getSetting, getOpenStatus, getPaymentSettings } from '../settings/settings.service';
 
@@ -450,5 +450,17 @@ describe('getPromptPayQr', () => {
       prismaMock.order.findFirst.mockResolvedValueOnce({ ...o, total: 10 });
       await expect(getPromptPayQr('o1')).rejects.toMatchObject({ statusCode: 409 });
     }
+  });
+});
+
+describe('getAllOrders', () => {
+  it('takes one status, or several for the kitchen', async () => {
+    prismaMock.order.findMany.mockResolvedValue([]);
+    await getAllOrders({ status: 'PENDING' });
+    expect(prismaMock.order.findMany.mock.calls[0][0].where).toEqual({ status: 'PENDING' });
+    await getAllOrders({ status: 'PENDING, PREPARING,READY' });
+    expect(prismaMock.order.findMany.mock.calls[1][0].where).toEqual({ status: { in: ['PENDING', 'PREPARING', 'READY'] } });
+    await getAllOrders({});
+    expect(prismaMock.order.findMany.mock.calls[2][0].where).toEqual({});
   });
 });
