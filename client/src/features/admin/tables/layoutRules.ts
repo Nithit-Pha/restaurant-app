@@ -7,7 +7,9 @@ export const ZONE_MAX = 60;
 export const TABLE_MAX_SIZE = 8;
 export const SEATS_MAX = 30;
 export const LABEL_MAX = 12;
-export const ROTATIONS = [0, 45, 90, 135] as const;
+/** Every item (table or decor, also future types) turns in 45° steps all the way round. */
+export const ROTATION_STEP = 45;
+export const ROTATIONS: readonly number[] = Array.from({ length: 360 / ROTATION_STEP }, (_, i) => i * ROTATION_STEP);
 export const MAX_TABLES_PER_ZONE = 150;
 export const MAX_DECOR_PER_ZONE = 100;
 
@@ -47,15 +49,19 @@ export interface Problem {
 
 const EPS = 1e-9;
 
+/**
+ * Half the width and height of the box once it is turned (its outline on the
+ * grid). Works for any angle, so every item type turns the same way.
+ */
 export function halfExtents(b: Box): [number, number] {
   const w = b.width / 2;
   const h = b.height / 2;
-  if (b.rotation === 90) return [h, w];
-  if (b.rotation === 45 || b.rotation === 135) {
-    const e = (w + h) / Math.SQRT2;
-    return [e, e];
-  }
-  return [w, h];
+  const a = (b.rotation * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(a));
+  const sin = Math.abs(Math.sin(a));
+  // Rounded so 90° gives exactly [h, w] instead of 1e-17 leftovers.
+  const r = (n: number) => Math.round(n * 1e9) / 1e9;
+  return [r(w * cos + h * sin), r(w * sin + h * cos)];
 }
 
 export function isInside(b: Box, zoneWidth: number, zoneHeight: number) {
@@ -152,7 +158,8 @@ export function findFreeSpot(size: { width: number; height: number }, zone: { wi
 }
 
 /** Turn by 45 degrees: 0 → 45 → 90 → 135 → 0. */
-export const nextRotation = (r: number) => ROTATIONS[(ROTATIONS.indexOf(r as (typeof ROTATIONS)[number]) + 1) % ROTATIONS.length];
+/** Turn by 45 degrees: 0 → 45 → … → 315 → 0. */
+export const nextRotation = (r: number) => ROTATIONS[(ROTATIONS.indexOf(r) + 1) % ROTATIONS.length];
 
 export const TABLE_DEFAULTS: Record<TableShape, { width: number; height: number; seats: number }> = {
   ROUND: { width: 2, height: 2, seats: 4 },

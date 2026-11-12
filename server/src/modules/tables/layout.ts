@@ -3,7 +3,7 @@
 // for live feedback in the editor - keep the two in step.
 //
 // Everything is measured in grid cells. A table or decor item is a box
-// (x, y, width, height) that may be turned 0, 45, 90 or 135 degrees around
+// (x, y, width, height) that may be turned in steps of 45 degrees (0-315) around
 // its centre; the whole turned box has to stay inside the zone.
 
 export const ZONE_MIN = 6;
@@ -11,7 +11,9 @@ export const ZONE_MAX = 60;
 export const TABLE_MAX_SIZE = 8;
 export const SEATS_MAX = 30;
 export const LABEL_MAX = 12;
-export const ROTATIONS = [0, 45, 90, 135] as const;
+/** Every item (table or decor, also future types) turns in 45° steps all the way round. */
+export const ROTATION_STEP = 45;
+export const ROTATIONS: readonly number[] = Array.from({ length: 360 / ROTATION_STEP }, (_, i) => i * ROTATION_STEP);
 export const MAX_ZONES = 10;
 export const MAX_TABLES_PER_ZONE = 150;
 export const MAX_DECOR_PER_ZONE = 100;
@@ -50,21 +52,19 @@ export interface LayoutProblem {
 
 const EPS = 1e-9;
 
-/** Half the width and height of the box once it is turned (its outline on the grid). */
+/**
+ * Half the width and height of the box once it is turned (its outline on the
+ * grid). Works for any angle, so every item type turns the same way.
+ */
 export function halfExtents(b: Box): [number, number] {
   const w = b.width / 2;
   const h = b.height / 2;
-  switch (b.rotation) {
-    case 90:
-      return [h, w];
-    case 45:
-    case 135: {
-      const e = (w + h) / Math.SQRT2;
-      return [e, e];
-    }
-    default:
-      return [w, h];
-  }
+  const a = (b.rotation * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(a));
+  const sin = Math.abs(Math.sin(a));
+  // Rounded so 90° gives exactly [h, w] instead of 1e-17 leftovers.
+  const r = (n: number) => Math.round(n * 1e9) / 1e9;
+  return [r(w * cos + h * sin), r(w * sin + h * cos)];
 }
 
 /** True when the whole turned box lies inside a zone of zoneWidth × zoneHeight cells. */
@@ -92,8 +92,8 @@ export function checkLayout(
 
   tables.forEach((t, index) => {
     const name = t.label.trim() || `#${index + 1}`;
-    if (!ROTATIONS.includes(t.rotation as (typeof ROTATIONS)[number])) {
-      problems.push({ kind: 'table', index, code: 'ROTATION', message: `Table ${name} can only be turned 0, 45, 90 or 135 degrees.` });
+    if (!ROTATIONS.includes(t.rotation)) {
+      problems.push({ kind: 'table', index, code: 'ROTATION', message: `Table ${name} can only be turned in steps of ${ROTATION_STEP} degrees.` });
     }
     if (!t.label.trim()) {
       problems.push({ kind: 'table', index, code: 'LABEL_EMPTY', message: `Table ${index + 1} needs a name.` });
@@ -117,8 +117,8 @@ export function checkLayout(
   });
 
   decor.forEach((d, index) => {
-    if (!ROTATIONS.includes(d.rotation as (typeof ROTATIONS)[number])) {
-      problems.push({ kind: 'decor', index, code: 'ROTATION', message: `A ${d.type.toLowerCase()} can only be turned 0, 45, 90 or 135 degrees.` });
+    if (!ROTATIONS.includes(d.rotation)) {
+      problems.push({ kind: 'decor', index, code: 'ROTATION', message: `A ${d.type.toLowerCase()} can only be turned in steps of ${ROTATION_STEP} degrees.` });
     }
     if (!isInside(d, zone.width, zone.height)) {
       problems.push({ kind: 'decor', index, code: 'OUTSIDE', message: `A ${d.type.toLowerCase()} is outside the zone.` });

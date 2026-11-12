@@ -14,6 +14,15 @@ describe('floor plan rules', () => {
     expect(e45).toBeCloseTo(Math.SQRT2); // a 2×2 square turned 45° is √2 from centre to corner
   });
 
+  it('turns all the way round: 180° fits like 0°, 270° like 90°, 225° / 315° like 45°', () => {
+    const box = { x: 0, y: 0, width: 4, height: 2 };
+    for (const [a, b] of [[180, 0], [270, 90], [225, 45], [315, 45], [135, 45]]) {
+      expect(halfExtents({ ...box, rotation: a })).toEqual(halfExtents({ ...box, rotation: b }));
+    }
+    // A long table turned 270° against the left wall (unturned corner at x = -1) fits.
+    expect(isInside({ x: -1, y: 1, width: 4, height: 2, rotation: 270 }, 10, 8)).toBe(true);
+  });
+
   it('keeps the whole turned table inside the zone', () => {
     expect(isInside({ x: 0, y: 0, width: 10, height: 8, rotation: 0 }, 10, 8)).toBe(true); // exactly the zone
     expect(isInside({ x: 9, y: 0, width: 2, height: 2, rotation: 0 }, 10, 8)).toBe(false); // one cell over the edge

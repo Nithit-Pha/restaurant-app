@@ -9,7 +9,7 @@ import {
 // while the table itself is inside. Only rough limits here: whether the turned
 // item really fits is checked by checkLayout() in the service.
 const position = z.number().int().min(-ZONE_MAX).max(ZONE_MAX);
-const rotation = z.number().int().refine((r) => (ROTATIONS as readonly number[]).includes(r), 'Turn by 0, 45, 90 or 135 degrees');
+const rotation = z.number().int().refine((r) => ROTATIONS.includes(r), 'Turn in steps of 45 degrees (0 to 315)');
 
 export const zoneSchema = z.object({
   name: z.string().trim().min(1, 'Give the zone a name, e.g. Indoor').max(40),
