@@ -11,6 +11,9 @@ const { prismaMock, auditMock } = vi.hoisted(() => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    tableSession: {
+      findMany: vi.fn(),
+    },
     diningTable: {
       findMany: vi.fn(),
       deleteMany: vi.fn(),
@@ -37,6 +40,7 @@ const table = (over: Partial<TableInput> = {}): TableInput => ({
 beforeEach(() => {
   vi.clearAllMocks();
   prismaMock.$transaction.mockResolvedValue([]);
+  prismaMock.tableSession.findMany.mockResolvedValue([]); // no guests anywhere
   prismaMock.diningTable.findMany.mockResolvedValue([]);
   // The ops passed to $transaction are built by these calls; tag them so tests can read them back.
   prismaMock.diningTable.deleteMany.mockImplementation((a: unknown) => ({ op: 'deleteMany', a }));
@@ -81,7 +85,7 @@ describe('zones', () => {
   it('deletes a zone (404 when it does not exist)', async () => {
     prismaMock.floorZone.findUnique.mockResolvedValue(null);
     await expect(deleteZone('nope', 'owner-1')).rejects.toMatchObject({ statusCode: 404 });
-    prismaMock.floorZone.findUnique.mockResolvedValue({ id: 'z-1', name: 'Indoor', _count: { tables: 3 } });
+    prismaMock.floorZone.findUnique.mockResolvedValue({ id: 'z-1', name: 'Indoor', tables: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] });
     await deleteZone('z-1', 'owner-1');
     expect(prismaMock.floorZone.delete).toHaveBeenCalledWith({ where: { id: 'z-1' } });
     expect(auditMock).toHaveBeenCalledWith(expect.objectContaining({ action: 'DELETE', metadata: { zone: 'Indoor', tables: 3 } }));
@@ -132,6 +136,22 @@ describe('saving a layout', () => {
     await expect(saveLayout('z-1', { tables: [table({ label: 't1' })], decor: [] }, 'owner-1'))
       .rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining('Terrace') });
     expect(prismaMock.diningTable.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { isActive: true, zoneId: { not: 'z-1' } } }));
+  });
+
+  it('will not remove a table that has guests right now (409)', async () => {
+    prismaMock.floorZone.findUnique.mockResolvedValue(zoneRow([T1_ID, T2_ID]));
+    prismaMock.tableSession.findMany.mockResolvedValue([{ tableLabel: 'T2' }]);
+    await expect(saveLayout('z-1', { tables: [table({ id: T1_ID })], decor: [] }, 'owner-1'))
+      .rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining('T2 still has guests') });
+    expect(prismaMock.tableSession.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tableId: { in: [T2_ID] }, closedAt: null } }));
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('will not delete a zone while one of its tables has guests (409)', async () => {
+    prismaMock.floorZone.findUnique.mockResolvedValue({ id: 'z-1', name: 'Indoor', tables: [{ id: T1_ID }] });
+    prismaMock.tableSession.findMany.mockResolvedValue([{ tableLabel: 'T1' }]);
+    await expect(deleteZone('z-1', 'owner-1')).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.floorZone.delete).not.toHaveBeenCalled();
   });
 
   it('makes a different QR secret every time', () => {

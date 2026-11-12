@@ -13,6 +13,8 @@ describe('allowedNext', () => {
   it('delivery goes READY → OUT_FOR_DELIVERY → DELIVERED', () => {
     expect(allowedNext('READY', 'DELIVERY')).toEqual(['OUT_FOR_DELIVERY', 'CANCELLED']);
     expect(allowedNext('OUT_FOR_DELIVERY', 'DELIVERY')).toEqual(['DELIVERED', 'CANCELLED']);
+    // Dine-in: ready → served (DELIVERED), never out for delivery.
+    expect(allowedNext('READY', 'DINE_IN')).toEqual(['DELIVERED', 'CANCELLED']);
   });
 
   it('final statuses allow nothing', () => {

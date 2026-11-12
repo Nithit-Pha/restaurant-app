@@ -4,7 +4,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { apiErrorMessage } from '@/lib/localized';
 import {
-  Bell, BellOff, Bike, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, StickyNote, Store,
+  Bell, BellOff, Bike, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, StickyNote, Store, UtensilsCrossed,
 } from 'lucide-react';
 import {
   useGetAdminOrdersQuery,
@@ -29,7 +29,7 @@ import LineDetails from '../../../../src/features/orders/LineDetails';
 import { bangkokDateISO, formatCurrency } from '../../../../src/lib/format';
 import { useRequireRole } from '../../../../src/routes/useAuthGuard';
 import {
-  Alert, Button, Card, ChipGroup, EmptyState, IconButton, LoadingBlock, PageContainer, PageHeader, Table, TBody, TD, TH, THead,
+  Alert, Badge, Button, Card, ChipGroup, EmptyState, IconButton, LoadingBlock, PageContainer, PageHeader, Table, TBody, TD, TH, THead,
   cn, ICON_SM, ICON_STROKE, useToast,
 } from '../../../../src/components/ui';
 
@@ -68,8 +68,25 @@ function minutesSince(iso: string): number {
 }
 
 /** Same rule as the server: open payments, except a cancelled order nobody paid for. */
+// Dine-in orders are paid together as the table's bill (floor view), not one by one.
 const canMarkPaid = (o: Order) =>
+  o.type !== 'DINE_IN' &&
   (o.paymentStatus === 'UNPAID' || o.paymentStatus === 'PENDING') && !(o.status === 'CANCELLED' && o.paymentStatus === 'UNPAID');
+
+/** The table's name for a dine-in order, the customer's for the others. */
+function TableOrCustomer({ order }: { order: Order }) {
+  const t = useTranslations('staffOrders');
+  if (order.type !== 'DINE_IN') return <span className="truncate">{order.user?.name ?? '—'}</span>;
+  const visit = order.tableSession;
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className="truncate font-medium">{visit ? t('table', { label: visit.tableLabel }) : t('dineIn')}</span>
+      {visit && !visit.confirmedAt && order.status === 'PENDING' && (
+        <Badge tone="warning">{t('newTable')}</Badge>
+      )}
+    </span>
+  );
+}
 
 /* ------------------------------------------------------------------ parts -- */
 
@@ -106,8 +123,15 @@ function OrderDetail({ order, isOwner, onRefund }: { order: Order; isOwner: bool
 
       <dl className="space-y-3">
         <div>
-          <DetailLabel>{t('customer')}</DetailLabel>
-          <dd className="mt-0.5 text-fg">{order.user?.name ?? '—'}</dd>
+          <DetailLabel>{order.type === 'DINE_IN' ? t('tableHeading') : t('customer')}</DetailLabel>
+          <dd className="mt-0.5 text-fg">
+            {order.type === 'DINE_IN'
+              ? order.tableSession ? `${t('table', { label: order.tableSession.tableLabel })} · ${order.tableSession.zoneName}` : '—'
+              : order.user?.name ?? '—'}
+          </dd>
+          {order.type === 'DINE_IN' && order.tableSession && !order.tableSession.confirmedAt && (
+            <p className="mt-1 text-xs text-warning">{t('newTableHint')}</p>
+          )}
         </div>
         <div>
           <DetailLabel>{t('phone')}</DetailLabel>
@@ -346,7 +370,7 @@ export default function AdminOrdersPage() {
     if (!next) return;
     if (next === 'PREPARING') setAccepting(order); // accepting asks for a prep time
     // Completing an unpaid cash order asks whether the cash was collected.
-    else if (next === 'DELIVERED' && order.paymentMethod === 'CASH' && order.paymentStatus === 'UNPAID') setCompleting(order);
+    else if (next === 'DELIVERED' && order.type !== 'DINE_IN' && order.paymentMethod === 'CASH' && order.paymentStatus === 'UNPAID') setCompleting(order);
     else void run({ id: order.id, status: next as StatusChangeInput['status'] }, forwardDone(formatOrderNumber(order), next));
   };
 
@@ -456,7 +480,8 @@ export default function AdminOrdersPage() {
                 const open = expanded === order.id;
                 const isNew = order.status === 'PENDING';
                 const transferToCheck = order.paymentStatus === 'PENDING';
-                const typeText = order.type === 'DELIVERY' ? tco('delivery') : tco('pickup');
+                const typeText = order.type === 'DELIVERY' ? tco('delivery') : order.type === 'DINE_IN' ? t('dineIn') : tco('pickup');
+                const TypeIcon = order.type === 'DELIVERY' ? Bike : order.type === 'DINE_IN' ? UtensilsCrossed : Store;
                 return (
                   <Fragment key={order.id}>
                     <tr
@@ -496,13 +521,9 @@ export default function AdminOrdersPage() {
                       <TD className="max-w-[12rem]">
                         <span className="flex items-center gap-2">
                           <span className="text-fg-subtle min-[1400px]:hidden" title={typeText}>
-                            {order.type === 'DELIVERY' ? (
-                              <Bike size={ICON_SM} strokeWidth={ICON_STROKE} aria-label={typeText} />
-                            ) : (
-                              <Store size={ICON_SM} strokeWidth={ICON_STROKE} aria-label={typeText} />
-                            )}
+                            <TypeIcon size={ICON_SM} strokeWidth={ICON_STROKE} aria-label={typeText} />
                           </span>
-                          <span className="truncate">{order.user?.name ?? '—'}</span>
+                          <TableOrCustomer order={order} />
                           {order.items.some((i) => i.note) && (
                             <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-warning" title={t('hasNote')}>
                               <StickyNote size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden />
@@ -513,11 +534,7 @@ export default function AdminOrdersPage() {
                       </TD>
                       <TD muted className="hidden whitespace-nowrap min-[1400px]:table-cell">
                         <span className="inline-flex items-center gap-1.5">
-                          {order.type === 'DELIVERY' ? (
-                            <Bike size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden />
-                          ) : (
-                            <Store size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden />
-                          )}
+                          <TypeIcon size={ICON_SM} strokeWidth={ICON_STROKE} aria-hidden />
                           {typeText}
                         </span>
                       </TD>

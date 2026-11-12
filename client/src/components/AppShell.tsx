@@ -234,6 +234,21 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
     router.push('/login');
   };
 
+  // Dine-in guests at a table (/t/...) only see the restaurant name and the
+  // language / theme switch: no navigation and no pickup/delivery cart.
+  if (pathname.startsWith('/t/')) {
+    return (
+      <>
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2.5 border-b border-line bg-surface/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-surface/85">
+          <BrandMark name={restaurantName} />
+          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-fg">{restaurantName}</span>
+          <TopBarControls />
+        </header>
+        <main id="main" className="min-h-screen">{children}</main>
+      </>
+    );
+  }
+
   const content = (
     <SidebarContent
       restaurantName={restaurantName}
@@ -257,10 +272,10 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
       </a>
 
       {/* Desktop: fixed sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-line bg-surface lg:block">{content}</aside>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-line bg-surface lg:block print:!hidden">{content}</aside>
 
       {/* Phones and small tablets: slim top bar + drawer */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line bg-surface/95 px-2 backdrop-blur supports-[backdrop-filter]:bg-surface/85 lg:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line bg-surface/95 px-2 backdrop-blur supports-[backdrop-filter]:bg-surface/85 lg:hidden print:hidden">
         <IconButton icon={MenuIcon} label={t('openNavigation')} onClick={() => setMobileOpen(true)} />
         <Link href="/" className="flex min-w-0 flex-1 items-center gap-2.5">
           <BrandMark name={restaurantName} />
@@ -273,10 +288,10 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
         {content}
       </Drawer>
 
-      <main id="main" className="min-h-screen lg:pl-64">
+      <main id="main" className="min-h-screen lg:pl-64 print:!pl-0">
         {/* Desktop: slim bar across the page area, corner controls on the right.
             Page-level sticky elements sit below it (lg:top-12). */}
-        <div className="sticky top-0 z-30 hidden h-12 items-center justify-end border-b border-line bg-surface/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-surface/85 lg:flex lg:px-6">
+        <div className="sticky top-0 z-30 hidden h-12 items-center justify-end border-b border-line bg-surface/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-surface/85 lg:flex lg:px-6 print:!hidden">
           <TopBarControls />
         </div>
         {children}

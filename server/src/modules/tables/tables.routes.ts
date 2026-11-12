@@ -15,5 +15,8 @@ router.post('/zones', requireRole('SUPER_ADMIN'), validate(zoneSchema), ctrl.cre
 router.patch('/zones/:id', requireRole('SUPER_ADMIN'), validate(zonePatchSchema), ctrl.updateZone);
 router.delete('/zones/:id', requireRole('SUPER_ADMIN'), ctrl.deleteZone);
 router.put('/zones/:id/layout', requireRole('SUPER_ADMIN'), validate(layoutSchema), ctrl.saveLayout);
+// QR codes contain the table's secret: only the owner prints or renews them.
+router.get('/qr-codes', requireRole('SUPER_ADMIN'), ctrl.qrCodes);
+router.post('/:id/qr', requireRole('SUPER_ADMIN'), ctrl.regenerateQr);
 
 export default router;

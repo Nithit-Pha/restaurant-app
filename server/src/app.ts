@@ -15,6 +15,7 @@ import financeRoutes from './modules/finance/finance.routes';
 import auditLogRoutes from './modules/auditLog/auditLog.routes';
 import addressesRoutes from './modules/addresses/addresses.routes';
 import tablesRoutes from './modules/tables/tables.routes';
+import dineInRoutes from './modules/dineIn/dineIn.routes';
 import { authenticate } from './middleware/auth';
 import { requireRole } from './middleware/requireRole';
 import { profitReportHandler } from './modules/orders/orders.controller';
@@ -66,6 +67,8 @@ app.use('/api/auth/login', rateLimit({
 }));
 app.use('/api/auth/register', rateLimit({ ...limiterOptions, windowMs: 60 * 60 * 1000, limit: 20 }));
 app.use('/api/auth/refresh', rateLimit({ ...limiterOptions, windowMs: 15 * 60 * 1000, limit: 120 }));
+// Dine-in guests need no account: keep their endpoints from being hammered.
+app.use(['/api/dine-in/t', '/api/dine-in/visit'], rateLimit({ ...limiterOptions, windowMs: 60 * 1000, limit: 300 }));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -77,6 +80,7 @@ app.use('/api/finance', financeRoutes);
 app.use('/api/admin/audit-log', auditLogRoutes);
 app.use('/api/addresses', addressesRoutes);
 app.use('/api/tables', tablesRoutes);
+app.use('/api/dine-in', dineInRoutes);
 app.get('/api/admin/reports/profit', authenticate, requireRole('SUPER_ADMIN'), profitReportHandler);
 
 // Error handler (must be last)

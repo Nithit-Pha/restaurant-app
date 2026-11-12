@@ -23,7 +23,9 @@
       "delivered": "Delivered",
       "cancelled": "Cancelled",
       "newShort": "New",
-      "readyShort": "Ready"
+      "readyShort": "Ready",
+      "readyDineIn": "Ready to serve",
+      "served": "Served"
     },
     "cancelReason": {
       "SOLD_OUT": "Item sold out",
@@ -38,7 +40,8 @@
       "markReady": "Mark ready",
       "outForDelivery": "Out for delivery",
       "pickedUp": "Picked up",
-      "delivered": "Delivered"
+      "delivered": "Delivered",
+      "served": "Served"
     },
     "payment": {
       "method": {
@@ -53,7 +56,9 @@
       },
       "cashOnDelivery": "Cash on delivery",
       "cashAtPickup": "Cash at pickup",
-      "promptPayQr": "PromptPay QR"
+      "promptPayQr": "PromptPay QR",
+      "atCounter": "Pay at the counter",
+      "tableBill": "Table bill"
     },
     "number": "Order {number}",
     "note": "Note: {note}"
@@ -443,7 +448,12 @@
       "cancelled": "{number} cancelled",
       "paymentRecorded": "Payment recorded for {number}",
       "refundRecorded": "Refund recorded for {number}"
-    }
+    },
+    "dineIn": "Dine-in",
+    "table": "Table {label}",
+    "tableHeading": "Table",
+    "newTable": "New table",
+    "newTableHint": "First order of this table: check the guests are really there. Accepting the order confirms the table."
   },
   "menuForm": {
     "saved": "{name} saved",
@@ -881,6 +891,72 @@
       "deleted": "{zone} deleted",
       "saveFailed": "Could not save the zone",
       "deleteFailed": "Could not delete the zone"
-    }
+    },
+    "qrCodes": "QR codes"
+  },
+  "tableOrder": {
+    "title": "Table {table}",
+    "intro": "Order from your phone. Add dishes, then send them to the kitchen. You can order more any time.",
+    "loadFailed": "This page could not load. Please try again or ask the staff.",
+    "invalidTitle": "This QR code does not work",
+    "endedTitle": "Thank you!",
+    "endedText": "Your bill is paid. To order again, just add dishes below.",
+    "yourTable": "Your table",
+    "soFar": "So far {total}",
+    "waitingForStaff": "A staff member will confirm your table in a moment. Your order is already waiting.",
+    "billOnTheWay": "Your bill is on its way. You pay at the counter or at the table.",
+    "round": "Order {n}",
+    "callStaff": "Call staff",
+    "staffComing": "Staff are coming",
+    "staffCalled": "The staff have been called.",
+    "requestBill": "Request the bill",
+    "billAsked": "Bill requested",
+    "billRequested": "The staff will bring your bill.",
+    "billTitle": "Request the bill?",
+    "billDescription": "Your total so far is {total}. You can still order more after this.",
+    "menu": "Menu",
+    "categories": "Categories",
+    "all": "All",
+    "add": "Add",
+    "addLabel": "Add {name}",
+    "added": "{name} added",
+    "itemsCount": "{count, plural, one {# item} other {# items}}",
+    "reviewOrder": "Review order",
+    "newRound": "Your new order",
+    "roundTotal": "Total",
+    "payAtCounter": "Prices include VAT. You pay when you leave, at the counter.",
+    "sendToKitchen": "Send to kitchen",
+    "sent": "Sent to the kitchen",
+    "sentWaiting": "A staff member will confirm your table shortly.",
+    "sendFailed": "Your order was not sent",
+    "remove": "Remove",
+    "less": "One less",
+    "more": "One more"
+  },
+  "qrCodes": {
+    "eyebrow": "Business",
+    "title": "Table QR codes",
+    "description": "Print one QR code per table. Guests scan it to see the menu and order from their table.",
+    "back": "Floor plan",
+    "print": "Print",
+    "address": "Website address guests open",
+    "addressHint": "The address phones on your Wi-Fi or the internet can reach, e.g. http://192.168.1.20:5173 or https://order.myrestaurant.com",
+    "language": "Language of the menu",
+    "localTitle": "Phones cannot open this address",
+    "localText": "localhost only works on this computer. Enter this computer's network address (e.g. http://192.168.1.20:5173) or your website address before printing.",
+    "loading": "Loading QR codes…",
+    "emptyTitle": "No tables yet",
+    "emptyDescription": "Draw your tables on the floor plan first.",
+    "toFloorPlan": "Open floor plan",
+    "table": "Table {label}",
+    "qrAlt": "QR code for table {label}",
+    "scanToOrder": "Scan to order",
+    "renew": "New QR code",
+    "renewTitle": "New QR code for table {label}?",
+    "renewDescription": "The old QR code stops working at once. Use this when a sticker is lost, damaged or copied, then print the new one.",
+    "renewConfirm": "Make new QR code",
+    "renewed": "New QR code for table {label}",
+    "renewedHint": "Print it and replace the old sticker.",
+    "renewFailed": "Could not make a new QR code"
   }
 }

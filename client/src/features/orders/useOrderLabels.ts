@@ -7,14 +7,14 @@ import type { CancelReason, Order, OrderStatus, PaymentMethod, PaymentStatus } f
 export function useOrderLabels() {
   const t = useTranslations('order');
 
-  /** Status words as customers and staff see them. DELIVERED reads "Completed" for pickup. */
+  /** Status words as customers and staff see them. DELIVERED reads "Completed" for pickup, "Served" for dine-in. */
   const status = (s: OrderStatus, type?: Order['type']): string => {
     switch (s) {
       case 'PENDING': return t('status.pending');
       case 'PREPARING': return t('status.preparing');
-      case 'READY': return type === 'DELIVERY' ? t('status.readyDelivery') : t('status.readyPickup');
+      case 'READY': return type === 'DELIVERY' ? t('status.readyDelivery') : type === 'DINE_IN' ? t('status.readyDineIn') : t('status.readyPickup');
       case 'OUT_FOR_DELIVERY': return t('status.outForDelivery');
-      case 'DELIVERED': return type === 'PICKUP' ? t('status.completed') : t('status.delivered');
+      case 'DELIVERED': return type === 'PICKUP' ? t('status.completed') : type === 'DINE_IN' ? t('status.served') : t('status.delivered');
       case 'CANCELLED': return t('status.cancelled');
       default: return s;
     }
@@ -34,7 +34,7 @@ export function useOrderLabels() {
     switch (order.status) {
       case 'PENDING': return t('action.accept');
       case 'PREPARING': return t('action.markReady');
-      case 'READY': return order.type === 'DELIVERY' ? t('action.outForDelivery') : t('action.pickedUp');
+      case 'READY': return order.type === 'DELIVERY' ? t('action.outForDelivery') : order.type === 'DINE_IN' ? t('action.served') : t('action.pickedUp');
       case 'OUT_FOR_DELIVERY': return t('action.delivered');
       default: return '';
     }
@@ -43,8 +43,9 @@ export function useOrderLabels() {
   const paymentMethod = (m: PaymentMethod): string => t(`payment.method.${m}`);
   const paymentStatus = (s: PaymentStatus): string => t(`payment.status.${s}`);
 
-  /** "Cash on delivery" / "Cash at pickup" / "PromptPay QR" for the customer. */
+  /** "Cash on delivery" / "Cash at pickup" / "PromptPay QR" / "Pay at the counter" for the customer. */
   const paymentMethodText = (order: Pick<Order, 'paymentMethod' | 'type'>): string => {
+    if (order.type === 'DINE_IN') return t('payment.atCounter');
     if (order.paymentMethod === 'PROMPTPAY') return t('payment.promptPayQr');
     return order.type === 'DELIVERY' ? t('payment.cashOnDelivery') : t('payment.cashAtPickup');
   };

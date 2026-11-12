@@ -26,6 +26,18 @@ export async function deleteZone(req: Request, res: Response, next: NextFunction
   } catch (err) { next(err); }
 }
 
+export async function qrCodes(_req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await service.listQrCodes());
+  } catch (err) { next(err); }
+}
+
+export async function regenerateQr(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await service.regenerateQr(req.params.id, req.user!.userId));
+  } catch (err) { next(err); }
+}
+
 export async function saveLayout(req: Request, res: Response, next: NextFunction) {
   try {
     res.json(await service.saveLayout(req.params.id, req.body, req.user!.userId));

@@ -3,13 +3,14 @@
 //
 //   PENDING → PREPARING → READY → OUT_FOR_DELIVERY → DELIVERED   (delivery)
 //   PENDING → PREPARING → READY → DELIVERED                      (pickup)
+//   PENDING → PREPARING → READY → DELIVERED                      (dine-in: "Served")
 //   any non-final status → CANCELLED (with a reason)
 //
 // DELIVERED is the final "completed" status for both types; the UI calls it
 // "Completed" for pickup orders.
 
 export type OrderStatus = 'PENDING' | 'PREPARING' | 'READY' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED';
-export type OrderType = 'PICKUP' | 'DELIVERY';
+export type OrderType = 'PICKUP' | 'DELIVERY' | 'DINE_IN';
 export type CancelReason = 'SOLD_OUT' | 'CLOSING_SOON' | 'TOO_BUSY' | 'OUT_OF_AREA' | 'CUSTOMER_REQUEST' | 'OTHER';
 
 export const CANCEL_REASONS: CancelReason[] = ['SOLD_OUT', 'CLOSING_SOON', 'TOO_BUSY', 'OUT_OF_AREA', 'CUSTOMER_REQUEST', 'OTHER'];

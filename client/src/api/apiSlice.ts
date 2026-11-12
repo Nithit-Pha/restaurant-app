@@ -323,6 +323,20 @@ export const apiSlice = createApi({
       query: ({ id, ...body }) => ({ url: `/tables/zones/${id}/layout`, method: 'PUT', body }),
       invalidatesTags: ['Floor'],
     }),
+    getQrCodes: builder.query<QrZone[], void>({
+      query: () => '/tables/qr-codes',
+      providesTags: ['Floor'],
+    }),
+    // The old sticker stops working.
+    regenerateQr: builder.mutation<QrTable, string>({
+      query: (tableId) => ({ url: `/tables/${tableId}/qr`, method: 'POST' }),
+      invalidatesTags: ['Floor'],
+    }),
+    // Staff confirm that dine-in guests are really at the table.
+    confirmVisit: builder.mutation<void, { id: string; guests?: number }>({
+      query: ({ id, ...body }) => ({ url: `/dine-in/visits/${id}/confirm`, method: 'POST', body }),
+      invalidatesTags: ['Order', 'Floor'],
+    }),
   }),
 });
 
@@ -374,6 +388,9 @@ export const {
   useUpdateZoneMutation,
   useDeleteZoneMutation,
   useSaveZoneLayoutMutation,
+  useGetQrCodesQuery,
+  useRegenerateQrMutation,
+  useConfirmVisitMutation,
 } = apiSlice;
 
 // --- Types ---
@@ -573,11 +590,24 @@ export interface PaymentSettings {
   promptPayName: string;
 }
 
+export type OrderType = 'PICKUP' | 'DELIVERY' | 'DINE_IN';
+
+/** Dine-in: the table visit an order belongs to (staff views). */
+export interface OrderTableVisit {
+  id: string;
+  tableId: string | null;
+  tableLabel: string;
+  zoneName: string;
+  confirmedAt: string | null;
+  closedAt: string | null;
+}
+
 export interface Order {
   id: string;
-  userId: string;
+  userId: string | null; // null for dine-in guests who order from the table's QR code
   items: OrderItem[];
-  type: 'PICKUP' | 'DELIVERY';
+  type: OrderType;
+  tableSession?: OrderTableVisit | null;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
@@ -725,6 +755,19 @@ export interface TableLayoutInput {
   width: number;
   height: number;
   rotation: number;
+}
+
+export interface QrTable {
+  id: string;
+  label: string;
+  seats: number;
+  qrToken: string;
+}
+
+export interface QrZone {
+  id: string;
+  name: string;
+  tables: QrTable[];
 }
 
 export interface LayoutInput {

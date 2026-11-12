@@ -8,12 +8,13 @@ import { planTransition, type CancelReason, type OrderStatus, type OrderType } f
 import { planPayment, type PaymentAction, type PaymentMethod, type PaymentStatus } from './paymentState';
 import { buildPromptPayPayload } from '../../utils/promptpay';
 import { priceLine } from './lineOptions';
+import { syncTableStatus } from '../dineIn/tableStatus';
 
 // Distance assumed when the customer shares no location and no max delivery
 // distance is configured.
 const DEFAULT_DELIVERY_KM = 5;
 
-interface CartItemInput {
+export interface CartItemInput {
   menuItemId: string;
   quantity: number;
   modifierIds?: string[]; // chosen options
@@ -21,7 +22,7 @@ interface CartItemInput {
 }
 
 // Order lines always come with their chosen options, in display order.
-const itemsInclude = { include: { modifiers: { orderBy: { position: 'asc' as const } } } };
+export const itemsInclude = { include: { modifiers: { orderBy: { position: 'asc' as const } } } };
 
 interface CheckoutInput {
   items: CartItemInput[];
@@ -48,7 +49,7 @@ function closedMessage(next: { dayOfWeek: string; time: string; inDays: number }
 }
 
 /** Next number for the business day, atomically (safe under concurrent checkouts). */
-async function nextOrderNumber(tx: Prisma.TransactionClient, day: string): Promise<number> {
+export async function nextOrderNumber(tx: Prisma.TransactionClient, day: string): Promise<number> {
   const rows = await tx.$queryRaw<{ value: number }[]>`
     INSERT INTO "DailyCounter" ("date", "value") VALUES (${day}, 1)
     ON CONFLICT ("date") DO UPDATE SET "value" = "DailyCounter"."value" + 1
@@ -128,6 +129,13 @@ async function priceOrder(input: CheckoutInput) {
   const deliveryFee = await calcDelivery(input);
   const taxRate = await getSetting('TAX_RATE');
   return { lines, pricing: priceCart(lines, deliveryFee, taxRate) };
+}
+
+/** Lines and prices for a dine-in order: like checkout, without a delivery fee. */
+export async function priceItems(items: CartItemInput[]) {
+  const lines = await buildLines(items);
+  const taxRate = await getSetting('TAX_RATE');
+  return { lines, pricing: priceCart(lines, 0, taxRate) };
 }
 
 export async function quoteOrder(input: CheckoutInput) {
@@ -248,6 +256,11 @@ export async function getOrderById(id: string, userId?: string, withHistory = fa
   });
 }
 
+// For dine-in orders: which table, and whether staff confirmed the visit yet.
+export const tableSessionSelect = {
+  select: { id: true, tableId: true, tableLabel: true, zoneName: true, confirmedAt: true, closedAt: true },
+};
+
 export interface AdminOrderFilter {
   status?: string;
   date?: string; // 'YYYY-MM-DD' business day
@@ -264,6 +277,7 @@ export async function getAllOrders({ status, date, limit = 200 }: AdminOrderFilt
     },
     include: {
       user: { select: { id: true, name: true, username: true, email: true, phone: true } },
+      tableSession: tableSessionSelect,
       items: itemsInclude,
       statusHistory: historyInclude,
       payments: paymentsInclude,
@@ -287,7 +301,10 @@ export interface StatusChange {
  * same time cannot both move it.
  */
 export async function changeOrderStatus(id: string, change: StatusChange) {
-  const order = await prisma.order.findUnique({ where: { id }, select: { status: true, type: true } });
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { status: true, type: true, tableSessionId: true, tableSession: { select: { confirmedAt: true } } },
+  });
   if (!order) throw httpError(404, 'Order not found');
 
   const data = planTransition(
@@ -309,6 +326,16 @@ export async function changeOrderStatus(id: string, change: StatusChange) {
         note: change.cancelNote?.trim() || null,
       },
     });
+    if (order.tableSessionId) {
+      // Accepting a dine-in order also confirms that the guests are really at the table.
+      if (change.to === 'PREPARING' && !order.tableSession?.confirmedAt) {
+        await tx.tableSession.update({
+          where: { id: order.tableSessionId },
+          data: { confirmedAt: new Date(), confirmedById: change.actorId },
+        });
+      }
+      await syncTableStatus(tx, order.tableSessionId);
+    }
     const updated = await tx.order.findUnique({ where: { id }, include: { items: itemsInclude } });
     return { from: order.status as OrderStatus, order: updated! };
   });

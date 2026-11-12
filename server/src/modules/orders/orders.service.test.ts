@@ -11,6 +11,7 @@ const { prismaMock, txOrderCreate, txQueryRaw, txUserUpdate, tx } = vi.hoisted((
     orderStatusHistory: { create: vi.fn() },
     payment: { create: vi.fn() },
     user: { update: txUserUpdate },
+    tableSession: { update: vi.fn() },
     $queryRaw: txQueryRaw,
   };
   const prismaMock = {
@@ -22,6 +23,8 @@ const { prismaMock, txOrderCreate, txQueryRaw, txUserUpdate, tx } = vi.hoisted((
 });
 
 vi.mock('../../config/db', () => ({ prisma: prismaMock }));
+const { syncTableStatus } = vi.hoisted(() => ({ syncTableStatus: vi.fn() }));
+vi.mock('../dineIn/tableStatus', () => ({ syncTableStatus }));
 // Key-aware: tax rate 0.07, and DELIVERY_MAX_KM = 0 (no limit) by default.
 // Restaurant location used as the delivery origin (Springfield, IL).
 const RESTAURANT_GEO = { latitude: 39.7817, longitude: -89.6501 };
@@ -275,6 +278,20 @@ describe('changeOrderStatus', () => {
     expect(tx.orderStatusHistory.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ orderId: 'o1', fromStatus: 'PENDING', toStatus: 'PREPARING', actorId: 'staff-1' }),
     });
+  });
+
+  it('accepting a dine-in order also confirms the table visit and updates the table', async () => {
+    prismaMock.order.findUnique.mockResolvedValueOnce({ status: 'PENDING', type: 'DINE_IN', tableSessionId: 'visit-1', tableSession: { confirmedAt: null } });
+    await changeOrderStatus('o1', { to: 'PREPARING', actorId: 'staff-1', prepMinutes: 10 });
+    expect(tx.tableSession.update).toHaveBeenCalledWith({ where: { id: 'visit-1' }, data: { confirmedAt: expect.any(Date), confirmedById: 'staff-1' } });
+    expect(syncTableStatus).toHaveBeenCalledWith(tx, 'visit-1');
+  });
+
+  it('serving a dine-in order (READY → DELIVERED) keeps the confirmation and updates the table', async () => {
+    prismaMock.order.findUnique.mockResolvedValueOnce({ status: 'READY', type: 'DINE_IN', tableSessionId: 'visit-1', tableSession: { confirmedAt: new Date() } });
+    await changeOrderStatus('o1', { to: 'DELIVERED', actorId: 'staff-1' });
+    expect(tx.tableSession.update).not.toHaveBeenCalled();
+    expect(syncTableStatus).toHaveBeenCalledWith(tx, 'visit-1');
   });
 
   it('rejects a move the workflow does not allow (409)', async () => {

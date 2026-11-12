@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { LayoutGrid, Pencil, Plus, Trash2 } from 'lucide-react';
+import { LayoutGrid, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
+import { Link } from '@/i18n/navigation';
 import {
   useCreateZoneMutation, useDeleteZoneMutation, useGetFloorQuery, useUpdateZoneMutation, type ZoneInput,
 } from '../../../../src/api/apiSlice';
@@ -11,7 +12,7 @@ import { ConfirmDialog, ZoneDialog } from '../../../../src/features/admin/tables
 import { labelKey } from '../../../../src/features/admin/tables/layoutRules';
 import { useRequireRole } from '../../../../src/routes/useAuthGuard';
 import {
-  Button, EmptyState, IconButton, LoadingBlock, PageContainer, PageHeader, cn, useToast,
+  Button, EmptyState, IconButton, LoadingBlock, PageContainer, PageHeader, buttonClasses, cn, useToast,
 } from '../../../../src/components/ui';
 
 const errorMessage = (err: unknown) => (err as { data?: { message?: string } })?.data?.message;
@@ -97,7 +98,12 @@ export default function FloorPlanPage() {
         eyebrow={t('eyebrow')}
         title={t('title')}
         description={t('description')}
-        actions={<Button icon={Plus} variant="secondary" onClick={() => setZoneDialog('add')}>{t('zone.add')}</Button>}
+        actions={
+          <>
+            <Link href="/admin/tables/qr" className={buttonClasses('secondary')}><QrCode size={16} aria-hidden /> {t('qrCodes')}</Link>
+            <Button icon={Plus} variant="secondary" onClick={() => setZoneDialog('add')}>{t('zone.add')}</Button>
+          </>
+        }
       />
 
       {isLoading ? (

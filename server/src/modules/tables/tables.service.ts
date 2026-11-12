@@ -22,6 +22,31 @@ const zoneInclude = {
   tables: { where: { isActive: true }, select: tableSelect, orderBy: { label: 'asc' } },
 } satisfies Prisma.FloorZoneInclude;
 
+/** Every active table with its QR secret, for printing the QR codes (Super Admin). */
+export async function listQrCodes() {
+  const zones = await prisma.floorZone.findMany({
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true, name: true,
+      tables: { where: { isActive: true }, orderBy: { label: 'asc' }, select: { id: true, label: true, seats: true, qrToken: true } },
+    },
+  });
+  return zones.filter((z) => z.tables.length > 0);
+}
+
+/** A new QR secret for a table: the old sticker stops working (lost, damaged or copied). */
+export async function regenerateQr(tableId: string, actorId: string) {
+  const table = await prisma.diningTable.findUnique({ where: { id: tableId }, select: { label: true, zoneId: true } });
+  if (!table) throw httpError(404, 'Table not found');
+  const updated = await prisma.diningTable.update({
+    where: { id: tableId },
+    data: { qrToken: newQrToken() },
+    select: { id: true, label: true, seats: true, qrToken: true },
+  });
+  await audit({ actorId, action: 'UPDATE', entityType: 'TABLE_LAYOUT', entityId: table.zoneId, metadata: { table: table.label, qrCode: 'renewed' } });
+  return updated;
+}
+
 export interface ZoneInput {
   name: string;
   width: number;
@@ -75,13 +100,27 @@ export async function updateZone(id: string, input: Partial<ZoneInput>, actorId:
   return getZone(id);
 }
 
-/** Removes the zone and its tables. */
+/** Labels of these tables that have guests right now (an open visit). */
+async function tablesWithGuests(tableIds: string[]) {
+  if (!tableIds.length) return [];
+  const open = await prisma.tableSession.findMany({
+    where: { tableId: { in: tableIds }, closedAt: null },
+    select: { tableLabel: true },
+  });
+  return open.map((v) => v.tableLabel);
+}
+
+/**
+ * Removes the zone and its tables. Past visits keep the table and zone names
+ * (copied when the visit started), so history stays readable.
+ */
 export async function deleteZone(id: string, actorId: string) {
-  const zone = await prisma.floorZone.findUnique({ where: { id }, include: { _count: { select: { tables: true } } } });
+  const zone = await prisma.floorZone.findUnique({ where: { id }, include: { tables: { select: { id: true } } } });
   if (!zone) throw httpError(404, 'Zone not found');
-  // Step 1b: refuse while a table in the zone has an open visit.
+  const busy = await tablesWithGuests(zone.tables.map((t) => t.id));
+  if (busy.length) throw httpError(409, `${busy.join(', ')} still ${busy.length === 1 ? 'has' : 'have'} guests. Close their bill first.`);
   await prisma.floorZone.delete({ where: { id } });
-  await audit({ actorId, action: 'DELETE', entityType: 'TABLE_LAYOUT', entityId: id, metadata: { zone: zone.name, tables: zone._count.tables } });
+  await audit({ actorId, action: 'DELETE', entityType: 'TABLE_LAYOUT', entityId: id, metadata: { zone: zone.name, tables: zone.tables.length } });
 }
 
 const tableData = (t: TableInput) => ({
@@ -126,7 +165,10 @@ export async function saveLayout(zoneId: string, input: LayoutInput, actorId: st
   const removed = zone.tables.filter((t) => !kept.has(t.id)).map((t) => t.id);
   const added = input.tables.filter((t) => !t.id);
 
-  // Step 1b: tables with past visits are deactivated instead of deleted.
+  const busy = await tablesWithGuests(removed);
+  if (busy.length) throw httpError(409, `${busy.join(', ')} still ${busy.length === 1 ? 'has' : 'have'} guests. Close their bill before removing it.`);
+
+  // Past visits of removed tables keep their copied names (TableSession.tableLabel).
   await prisma.$transaction([
     prisma.diningTable.deleteMany({ where: { id: { in: removed } } }),
     ...input.tables

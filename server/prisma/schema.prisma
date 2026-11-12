@@ -16,6 +16,7 @@ enum Role {
 enum OrderType {
   PICKUP
   DELIVERY
+  DINE_IN
 }
 
 enum OrderStatus {
@@ -63,6 +64,7 @@ model User {
   statusChanges OrderStatusHistory[]
   confirmedPayments Payment[]
   addresses  Address[]
+  confirmedVisits TableSession[] @relation("VisitConfirmedBy")
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 }
@@ -135,8 +137,12 @@ model Modifier {
 
 model Order {
   id              String      @id @default(uuid())
-  user            User        @relation(fields: [userId], references: [id])
-  userId          String
+  // No customer for dine-in guests who order from the table's QR code.
+  user            User?       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId          String?
+  // Dine-in: the table visit this order belongs to (one visit = one bill).
+  tableSession    TableSession? @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  tableSessionId  String?
   items           OrderItem[]
   type            OrderType
   status          OrderStatus @default(PENDING)
@@ -174,6 +180,7 @@ model Order {
 
   @@unique([businessDate, orderNumber])
   @@index([userId])
+  @@index([tableSessionId])
   @@index([status])
   @@index([createdAt])
   @@index([status, createdAt])
@@ -353,8 +360,33 @@ model DiningTable {
   qrToken   String      @unique
   isActive  Boolean     @default(true)
   status    TableStatus @default(FREE)
+  sessions  TableSession[]
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
   @@index([zoneId])
+}
+
+// One visit at a table: from the first order (or staff seating guests) until
+// the bill is paid. All orders of the visit form one bill. After payment the
+// visit is closed, and the next scan of the table's QR code starts a new one.
+model TableSession {
+  id              String       @id @default(uuid())
+  table           DiningTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  tableId         String?
+  // Copied, so history keeps the names if the table or zone is removed later.
+  tableLabel      String
+  zoneName        String
+  guests          Int?
+  openedAt        DateTime     @default(now())
+  // Staff confirmed the guests are really there (stops orders from a photo of the QR code).
+  confirmedAt     DateTime?
+  confirmedBy     User?        @relation("VisitConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  confirmedById   String?
+  staffCalledAt   DateTime?
+  billRequestedAt DateTime?
+  closedAt        DateTime?
+  orders          Order[]
+
+  @@index([tableId, closedAt])
 }
