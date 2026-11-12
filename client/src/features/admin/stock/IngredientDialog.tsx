@@ -5,10 +5,11 @@ import { useLocale, useTranslations } from 'next-intl';
 import { apiErrorMessage } from '@/lib/localized';
 import { Alert, Button, Dialog, Field, Input, Select, Switch, useToast } from '../../../components/ui';
 import { UNITS, useCreateIngredientMutation, useUpdateIngredientMutation, type Ingredient, type Unit } from './stockApi';
+import { useGetSuppliersQuery } from '../suppliers/suppliersApi';
 
 const status = (err: unknown) => (err as { status?: number } | undefined)?.status;
 
-/** Owner: add an ingredient, or edit one (name, unit, low-stock level, storage, on/off). */
+/** Owner: add an ingredient, or edit one (name, unit, levels, storage, supplier and pack, on/off). */
 export default function IngredientDialog({ ingredient, onDone }: { ingredient?: Ingredient; onDone: () => void }) {
   const t = useTranslations('stock');
   const tc = useTranslations('common');
@@ -22,6 +23,14 @@ export default function IngredientDialog({ ingredient, onDone }: { ingredient?: 
   const [storage, setStorage] = useState(ingredient?.storage ?? '');
   const [openingStock, setOpeningStock] = useState('');
   const [isActive, setIsActive] = useState(ingredient?.isActive ?? true);
+  // Ordering (Step 3)
+  const { data: suppliers = [] } = useGetSuppliersQuery();
+  const numText = (v: string | null | undefined) => (v === null || v === undefined ? '' : String(Number(v)));
+  const [supplierId, setSupplierId] = useState(ingredient?.supplierId ?? '');
+  const [packName, setPackName] = useState(ingredient?.packName ?? '');
+  const [packSize, setPackSize] = useState(ingredient ? numText(ingredient.packSize) : '1');
+  const [targetLevel, setTargetLevel] = useState(numText(ingredient?.targetLevel));
+  const [emergencyLevel, setEmergencyLevel] = useState(numText(ingredient?.emergencyLevel));
   const [error, setError] = useState('');
 
   const submit = async (e: FormEvent) => {
@@ -34,15 +43,26 @@ export default function IngredientDialog({ ingredient, onDone }: { ingredient?: 
       setError(t('amountInvalid'));
       return;
     }
+    const optional = (v: string) => (v.trim() === '' ? null : Number(v));
+    const pack = packSize.trim() === '' ? 1 : Number(packSize);
+    const target = optional(targetLevel);
+    const emergency = optional(emergencyLevel);
+    if (Number.isNaN(pack) || pack <= 0 || [target, emergency].some((n) => n !== null && (Number.isNaN(n) || n < 0))) {
+      setError(t('amountInvalid'));
+      return;
+    }
+    if (target !== null && target < level) { setError(t('targetTooLow')); return; }
+    if (emergency !== null && emergency > level) { setError(t('emergencyTooHigh')); return; }
+    const ordering = { supplierId: supplierId || null, packName: packName.trim() || null, packSize: pack, targetLevel: target, emergencyLevel: emergency };
     try {
       if (ingredient) {
         await update({
           id: ingredient.id,
-          patch: { name: name.trim(), unit, reorderLevel: level, storage: storage.trim() || null, isActive },
+          patch: { name: name.trim(), unit, reorderLevel: level, storage: storage.trim() || null, isActive, ...ordering },
         }).unwrap();
         toast({ title: t('saved', { name: name.trim() }) });
       } else {
-        await create({ name: name.trim(), unit, reorderLevel: level, storage: storage.trim() || undefined, openingStock: opening }).unwrap();
+        await create({ name: name.trim(), unit, reorderLevel: level, storage: storage.trim() || undefined, openingStock: opening, ...ordering }).unwrap();
         toast({ title: t('added', { name: name.trim() }) });
       }
       onDone();
@@ -87,6 +107,33 @@ export default function IngredientDialog({ ingredient, onDone }: { ingredient?: 
         <Field label={t('field.storage')} htmlFor="ing-storage">
           <Input id="ing-storage" value={storage} onChange={(e) => setStorage(e.target.value)} maxLength={40} placeholder={t('field.storagePlaceholder')} />
         </Field>
+
+        <fieldset className="space-y-4 rounded-card border border-line p-4">
+          <legend className="px-1 text-sm font-semibold text-fg">{t('orderingTitle')}</legend>
+          <Field label={t('field.supplier')} htmlFor="ing-supplier" hint={suppliers.length === 0 ? t('field.supplierNone') : undefined}>
+            <Select id="ing-supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+              <option value="">{t('field.supplierEmpty')}</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {ingredient?.supplier && !suppliers.some((s) => s.id === ingredient.supplier!.id) && (
+                <option value={ingredient.supplier.id}>{ingredient.supplier.name} ({t('switchedOff')})</option>
+              )}
+            </Select>
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={t('field.packName')} htmlFor="ing-pack-name">
+              <Input id="ing-pack-name" value={packName} onChange={(e) => setPackName(e.target.value)} maxLength={40} placeholder={t('field.packNamePlaceholder')} />
+            </Field>
+            <Field label={t('field.packSize', { unit: t(`unit.${unit}`) })} htmlFor="ing-pack-size" hint={t('field.packSizeHint')}>
+              <Input id="ing-pack-size" type="number" min="0.001" step="0.001" inputMode="decimal" value={packSize} onChange={(e) => setPackSize(e.target.value)} placeholder="1" className="tabular-nums" />
+            </Field>
+            <Field label={t('field.targetLevel')} htmlFor="ing-target" hint={t('field.targetLevelHint')}>
+              <Input id="ing-target" type="number" min="0" step="0.001" inputMode="decimal" value={targetLevel} onChange={(e) => setTargetLevel(e.target.value)} placeholder={reorderLevel || '0'} className="tabular-nums" />
+            </Field>
+            <Field label={t('field.emergencyLevel')} htmlFor="ing-emergency" hint={t('field.emergencyLevelHint')}>
+              <Input id="ing-emergency" type="number" min="0" step="0.001" inputMode="decimal" value={emergencyLevel} onChange={(e) => setEmergencyLevel(e.target.value)} placeholder="—" className="tabular-nums" />
+            </Field>
+          </div>
+        </fieldset>
         {ingredient ? (
           <Switch checked={isActive} onChange={setIsActive} label={t('field.active')} />
         ) : (

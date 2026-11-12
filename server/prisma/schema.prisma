@@ -426,10 +426,56 @@ model Ingredient {
   storage      String?  // "Fridge 1", "Freezer", "Dry store"
   // Deactivated, never deleted: the history keeps pointing at it.
   isActive     Boolean  @default(true)
+  // Ordering (Step 3): who delivers it, in what packs, and the levels that
+  // decide what goes on an order. reorderLevel above: put it on the next order.
+  supplier       Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplierId     String?
+  packName       String?  // "sack", "case", "bottle"
+  packSize       Decimal  @default(1) @db.Decimal(12, 3) // amount in one pack, in the ingredient's unit
+  targetLevel    Decimal? @db.Decimal(12, 3) // fill up to this when ordering
+  emergencyLevel Decimal? @db.Decimal(12, 3) // below this: urgent order now
+  lastPackPrice  Decimal? @db.Decimal(12, 2) // THB per pack, from the last delivery
   movements    StockMovement[]
   recipeItems  RecipeItem[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([supplierId])
+}
+
+// How often a supplier gets a normal order.
+enum OrderFrequency {
+  DAILY
+  WEEKLY       // on the chosen weekdays
+  EVERY_N_DAYS // every N days, counted from startDate
+  MONTHLY      // on monthDay (the last day in shorter months)
+}
+
+// Who delivers ingredients (Step 3). Switched off, never deleted.
+model Supplier {
+  id           String         @id @default(uuid())
+  name         String         @unique
+  contactName  String?
+  phone        String?
+  lineId       String?
+  email        String?
+  address      String?
+  note         String?
+  isActive     Boolean        @default(true)
+  frequency    OrderFrequency @default(WEEKLY)
+  weekdays     Int[]          // WEEKLY: 1 = Monday ... 7 = Sunday
+  everyNDays   Int?
+  startDate    String?        // EVERY_N_DAYS: first order day, YYYY-MM-DD (Bangkok)
+  monthDay     Int?           // MONTHLY: 1-31
+  // When the draft order is prepared: null = when the restaurant closes on the
+  // day before the order day; "HH:MM" = at that time on the order day.
+  draftTime    String?
+  cutOffTime   String?        // "order before 16:00", printed on the order
+  leadTimeDays Int            @default(1) // days from ordering to delivery
+  minOrder     Decimal?       @db.Decimal(12, 2) // THB
+  ingredients  Ingredient[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 }
 
 model StockMovement {

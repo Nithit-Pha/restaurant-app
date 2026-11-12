@@ -16,6 +16,16 @@ export interface Ingredient {
   storage: string | null;
   isActive: boolean;
   low: boolean;
+  // Ordering (Step 3)
+  supplierId: string | null;
+  supplier: { id: string; name: string; isActive: boolean } | null;
+  packName: string | null; // e.g. "bag 5 kg"
+  packSize: string; // how much one pack holds, in the ingredient's unit
+  targetLevel: string | null; // fill up to this when ordering
+  emergencyLevel: string | null; // order at once below this
+  lastPackPrice: string | null;
+  emergency: boolean;
+  orderPacks: number; // packs to order now (0 when not low)
 }
 
 export interface StockMovement {
@@ -41,6 +51,11 @@ export interface IngredientInput {
   reorderLevel: number;
   storage?: string;
   openingStock?: number;
+  supplierId?: string | null;
+  packName?: string | null;
+  packSize?: number;
+  targetLevel?: number | null;
+  emergencyLevel?: number | null;
 }
 
 export type IngredientPatch = Partial<Omit<IngredientInput, 'openingStock' | 'storage'>> & {
@@ -66,11 +81,11 @@ const stockApi = apiSlice.injectEndpoints({
     }),
     createIngredient: builder.mutation<Ingredient, IngredientInput>({
       query: (body) => ({ url: '/stock/ingredients', method: 'POST', body }),
-      invalidatesTags: ['Stock'],
+      invalidatesTags: ['Stock', 'Supplier'],
     }),
     updateIngredient: builder.mutation<Ingredient, { id: string; patch: IngredientPatch }>({
       query: ({ id, patch }) => ({ url: `/stock/ingredients/${id}`, method: 'PATCH', body: patch }),
-      invalidatesTags: ['Stock'],
+      invalidatesTags: ['Stock', 'Supplier'],
     }),
     // A priced stock in also adds a Finance expense, so Finance reloads too.
     stockIn: builder.mutation<StockMovement, { id: string; amount: number; price?: number; note?: string }>({

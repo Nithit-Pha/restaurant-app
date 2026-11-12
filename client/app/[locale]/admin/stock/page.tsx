@@ -45,7 +45,7 @@ export default function StockPage() {
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return ingredients.filter(
-      (i) => (!filter || i.low) && (!q || [i.name, i.storage].some((s) => s?.toLowerCase().includes(q))),
+      (i) => (!filter || i.low) && (!q || [i.name, i.storage, i.supplier?.name].some((s) => s?.toLowerCase().includes(q))),
     );
   }, [ingredients, query, filter]);
 
@@ -108,16 +108,27 @@ export default function StockPage() {
                     <TD className="py-2.5">
                       <p className={cn('font-medium', i.isActive ? 'text-fg' : 'text-fg-muted')}>{i.name}</p>
                       <p className="text-xs text-fg-muted">
-                        {[i.storage, !i.isActive && t('switchedOff')].filter(Boolean).join(' · ') || '—'}
+                        {[i.supplier?.name, i.storage, !i.isActive && t('switchedOff')].filter(Boolean).join(' · ') || '—'}
                       </p>
                     </TD>
                     <TD numeric>
                       <div className="flex items-center justify-end gap-2">
-                        {i.low && <Badge tone={qty <= 0 ? 'danger' : 'warning'}>{qty <= 0 ? t('out') : t('low')}</Badge>}
+                        {i.low && (
+                          <Badge tone={qty <= 0 || i.emergency ? 'danger' : 'warning'}>
+                            {qty <= 0 ? t('out') : i.emergency ? t('emergency') : t('low')}
+                          </Badge>
+                        )}
                         <span className={cn('font-semibold tabular-nums', qty < 0 && 'text-danger')}>
                           {formatAmount(qty, locale)} <span className="font-normal text-fg-muted">{unit(i.unit)}</span>
                         </span>
                       </div>
+                      {i.orderPacks > 0 && (
+                        <p className="mt-0.5 text-xs text-fg-muted">
+                          {i.packName
+                            ? t('orderPacksNamed', { count: i.orderPacks, pack: i.packName })
+                            : t('orderPacks', { count: i.orderPacks, amount: formatAmount(i.orderPacks * Number(i.packSize), locale), unit: unit(i.unit) })}
+                        </p>
+                      )}
                     </TD>
                     <TD numeric muted className="hidden sm:table-cell tabular-nums">
                       {formatAmount(i.reorderLevel, locale)} {unit(i.unit)}

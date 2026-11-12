@@ -117,7 +117,8 @@
       "CUSTOMER": "ลูกค้า",
       "STAFF": "พนักงาน",
       "SUPER_ADMIN": "เจ้าของร้าน"
-    }
+    },
+    "suppliers": "ซัพพลายเออร์"
   },
   "menu": {
     "categories": "หมวดหมู่เมนู",
@@ -768,7 +769,8 @@
       "EXPENSE": "ค่าใช้จ่าย",
       "SETTING": "การตั้งค่า",
       "TABLE_LAYOUT": "ผังร้าน",
-      "INGREDIENT": "วัตถุดิบ"
+      "INGREDIENT": "วัตถุดิบ",
+      "SUPPLIER": "ซัพพลายเออร์"
     },
     "entityPlural": {
       "USER": "ผู้ใช้",
@@ -777,7 +779,8 @@
       "EXPENSE": "ค่าใช้จ่าย",
       "SETTING": "การตั้งค่า",
       "TABLE_LAYOUT": "ผังร้าน",
-      "INGREDIENT": "วัตถุดิบ"
+      "INGREDIENT": "วัตถุดิบ",
+      "SUPPLIER": "ซัพพลายเออร์"
     },
     "action": {
       "CREATE": "สร้าง",
@@ -1177,7 +1180,18 @@
       "note": "หมายเหตุ (ไม่บังคับ)",
       "notePlaceholder": "เช่น ร้านที่ซื้อ เลขที่ใบส่งของ",
       "reason": "เหตุผล",
-      "reasonPlaceholder": "เช่น เสีย ทำหล่น หมดอายุ"
+      "reasonPlaceholder": "เช่น เสีย ทำหล่น หมดอายุ",
+      "supplier": "ซัพพลายเออร์",
+      "supplierEmpty": "ยังไม่มีซัพพลายเออร์",
+      "supplierNone": "เพิ่มซัพพลายเออร์ที่หน้าซัพพลายเออร์ก่อน",
+      "packName": "หน่วยที่ซื้อ",
+      "packNamePlaceholder": "เช่น ถุง 5 กก.",
+      "packSize": "1 หน่วยซื้อมี ({unit})",
+      "packSizeHint": "จำนวนสั่งจะปัดขึ้นเป็นหน่วยเต็ม",
+      "targetLevel": "เติมให้ถึง",
+      "targetLevelHint": "สั่งให้สต็อกขึ้นถึงระดับนี้ ว่าง = ระดับเตือนใกล้หมด",
+      "emergencyLevel": "ด่วนเมื่อต่ำกว่า",
+      "emergencyLevelHint": "ต่ำกว่านี้จะแนะนำให้สั่งด่วนทันที ว่าง = ปิด"
     },
     "currentStock": "คงเหลือตอนนี้: {amount}",
     "inTitle": "รับของเข้า: {name}",
@@ -1207,7 +1221,13 @@
       "countMatched": "ตรงกับในระบบ",
       "countDiff": "ส่วนต่าง: {diff} {unit}",
       "waste": "นำ {name} {amount} {unit} ออกเป็นของเสียแล้ว"
-    }
+    },
+    "emergency": "ด่วน",
+    "orderPacks": "สั่ง {count} แพ็ก ({amount} {unit})",
+    "orderPacksNamed": "สั่ง {count} × {pack}",
+    "orderingTitle": "การสั่งซื้อ",
+    "targetTooLow": "ระดับเติมถึงต้องไม่น้อยกว่าระดับเตือนใกล้หมด",
+    "emergencyTooHigh": "ระดับด่วนต้องไม่มากกว่าระดับเตือนใกล้หมด"
   },
   "recipe": {
     "title": "สูตร: {name}",
@@ -1222,5 +1242,93 @@
     "removeN": "ลบวัตถุดิบที่ {n}",
     "noIngredients": "เพิ่มวัตถุดิบในหน้าสต็อกก่อน",
     "toStock": "ไปที่หน้าสต็อก"
+  },
+  "suppliers": {
+    "eyebrow": "ธุรกิจ",
+    "title": "ซัพพลายเออร์",
+    "count": "{count} ราย",
+    "unassigned": "วัตถุดิบ {count} รายการยังไม่มีซัพพลายเออร์",
+    "addSupplier": "เพิ่มซัพพลายเออร์",
+    "showInactive": "แสดงที่ปิดอยู่",
+    "loading": "กำลังโหลดซัพพลายเออร์…",
+    "emptyTitle": "ยังไม่มีซัพพลายเออร์",
+    "emptyDescription": "เพิ่มร้านหรือฟาร์มที่คุณซื้อของ วันที่สั่ง และวัตถุดิบที่เขาส่ง",
+    "switchedOff": "ปิดอยู่",
+    "lowCount": "ใกล้หมด {count}",
+    "editFor": "แก้ไข {name}",
+    "draftLineClose": "สร้างร่างใบสั่งซื้อตอนร้านปิดของวันก่อนหน้า",
+    "draftLineTime": "สร้างร่างใบสั่งซื้อเวลา {time} ของวันก่อนหน้า",
+    "cutOffLine": "ส่งก่อน {time}",
+    "minOrderLine": "สั่งขั้นต่ำ {amount}",
+    "nextOrders": "รอบสั่งถัดไป",
+    "delivers": "{count, plural, =0 {ไม่มีวัตถุดิบ} other {วัตถุดิบ # รายการ}}",
+    "nothingTicked": "ติ๊กวัตถุดิบที่ซัพพลายเออร์นี้ส่ง",
+    "schedule": {
+      "daily": "ทุกวัน",
+      "weekly": "ทุกสัปดาห์: {days}",
+      "everyN": "ทุก {count} วัน",
+      "monthly": "ทุกเดือน วันที่ {day}"
+    },
+    "frequency": {
+      "DAILY": "ทุกวัน",
+      "WEEKLY": "ตามวันในสัปดาห์",
+      "EVERY_N_DAYS": "ทุกกี่วัน",
+      "MONTHLY": "เดือนละครั้ง"
+    },
+    "addTitle": "เพิ่มซัพพลายเออร์",
+    "editTitle": "แก้ไข {name}",
+    "dialogDescription": "ข้อมูลติดต่อ วันที่สั่ง และวัตถุดิบที่มาจากเขา",
+    "add": "เพิ่มซัพพลายเออร์",
+    "save": "บันทึก",
+    "added": "เพิ่ม {name} แล้ว",
+    "saved": "บันทึก {name} แล้ว",
+    "saveFailed": "บันทึกซัพพลายเออร์ไม่สำเร็จ",
+    "nameRequired": "ตั้งชื่อซัพพลายเออร์",
+    "nameTaken": "มีซัพพลายเออร์ชื่อ \"{name}\" อยู่แล้ว",
+    "pickWeekday": "เลือกอย่างน้อยหนึ่งวัน",
+    "everyNInvalid": "ใส่จำนวนวัน 2 ถึง 60 และวันสั่งครั้งแรก",
+    "monthDayInvalid": "ใส่วันที่ของเดือน 1 ถึง 31",
+    "numberInvalid": "ตรวจตัวเลข: ระยะส่ง 0 ถึง 30 วัน สั่งขั้นต่ำ 0 ขึ้นไป",
+    "contactTitle": "ข้อมูลติดต่อ",
+    "orderDaysTitle": "วันที่สั่ง",
+    "ingredientsTitle": "วัตถุดิบที่เขาส่ง ({count})",
+    "ingredientsHint": "วัตถุดิบที่ติ๊กจะมาจากซัพพลายเออร์นี้ หรือเลือกซัพพลายเออร์ที่วัตถุดิบแต่ละตัวก็ได้",
+    "noIngredients": "เพิ่มวัตถุดิบที่หน้าสต็อกก่อน",
+    "searchIngredients": "ค้นหาวัตถุดิบ",
+    "tickAll": "ติ๊กทั้งหมดที่แสดง",
+    "tickNone": "เอาติ๊กออกทั้งหมดที่แสดง",
+    "nowFrom": "ตอนนี้มาจาก {name}",
+    "movesFrom": "ย้ายมาจาก {name}",
+    "draftAtClose": "ตอนร้านปิด",
+    "draftAtTime": "ตามเวลาที่ตั้ง",
+    "draftAtCloseHint": "วันก่อนวันสั่งแต่ละครั้ง จะสร้างร่างใบสั่งซื้อตอนร้านปิด (ตามเวลาเปิดร้าน)",
+    "draftAtTimeHint": "วันก่อนวันสั่งแต่ละครั้ง จะสร้างร่างใบสั่งซื้อตามเวลานี้",
+    "field": {
+      "name": "ชื่อ",
+      "namePlaceholder": "เช่น ตลาดไท",
+      "contactName": "ผู้ติดต่อ",
+      "phone": "โทรศัพท์",
+      "lineId": "LINE ID",
+      "email": "อีเมล",
+      "address": "ที่อยู่",
+      "note": "หมายเหตุ",
+      "notePlaceholder": "เช่น เก็บเงินปลายทาง",
+      "frequency": "สั่งบ่อยแค่ไหน",
+      "weekdays": "วันที่สั่ง",
+      "everyNDays": "ทุกกี่วัน",
+      "startDate": "วันสั่งครั้งแรก",
+      "startDateHint": "เริ่มนับจากวันนี้",
+      "monthDay": "วันที่ของเดือน",
+      "monthDayHint": "เดือนที่สั้นกว่าจะใช้วันสุดท้ายของเดือน",
+      "draftTime": "สร้างร่างใบสั่งซื้อ",
+      "draftTimeAt": "เวลาสร้างร่าง",
+      "cutOffTime": "ส่งก่อน",
+      "cutOffTimeHint": "เวลาสุดท้ายที่เขารับออเดอร์ (ไม่บังคับ)",
+      "leadTimeDays": "ส่งของใช้เวลา (วัน)",
+      "leadTimeDaysHint": "0 = วันเดียวกัน",
+      "minOrder": "สั่งขั้นต่ำ (฿)",
+      "minOrderHint": "ไม่บังคับ",
+      "active": "เปิดใช้ซัพพลายเออร์"
+    }
   }
 }

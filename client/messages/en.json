@@ -117,7 +117,8 @@
       "CUSTOMER": "Customer",
       "STAFF": "Staff",
       "SUPER_ADMIN": "Super admin"
-    }
+    },
+    "suppliers": "Suppliers"
   },
   "menu": {
     "categories": "Menu categories",
@@ -768,7 +769,8 @@
       "EXPENSE": "Expense",
       "SETTING": "Setting",
       "TABLE_LAYOUT": "Floor plan",
-      "INGREDIENT": "Ingredient"
+      "INGREDIENT": "Ingredient",
+      "SUPPLIER": "Supplier"
     },
     "entityPlural": {
       "USER": "Users",
@@ -777,7 +779,8 @@
       "EXPENSE": "Expenses",
       "SETTING": "Settings",
       "TABLE_LAYOUT": "Floor plan",
-      "INGREDIENT": "Ingredients"
+      "INGREDIENT": "Ingredients",
+      "SUPPLIER": "Suppliers"
     },
     "action": {
       "CREATE": "Create",
@@ -1177,7 +1180,18 @@
       "note": "Note (optional)",
       "notePlaceholder": "e.g. supplier, delivery slip number",
       "reason": "Reason",
-      "reasonPlaceholder": "e.g. spoiled, dropped, past its date"
+      "reasonPlaceholder": "e.g. spoiled, dropped, past its date",
+      "supplier": "Supplier",
+      "supplierEmpty": "No supplier yet",
+      "supplierNone": "Add suppliers on the Suppliers page first.",
+      "packName": "Pack (how you buy it)",
+      "packNamePlaceholder": "e.g. Bag 5 kg",
+      "packSize": "One pack holds ({unit})",
+      "packSizeHint": "Orders are rounded up to whole packs.",
+      "targetLevel": "Fill up to",
+      "targetLevelHint": "Orders bring the stock up to this. Empty = the low-stock level.",
+      "emergencyLevel": "Urgent below",
+      "emergencyLevelHint": "Below this an urgent order is suggested at once. Empty = off."
     },
     "currentStock": "In stock now: {amount}",
     "inTitle": "Stock in: {name}",
@@ -1207,7 +1221,13 @@
       "countMatched": "Matches the app.",
       "countDiff": "Difference: {diff} {unit}",
       "waste": "{amount} {unit} {name} taken out as waste"
-    }
+    },
+    "emergency": "Urgent",
+    "orderPacks": "Order {count, plural, one {# pack} other {# packs}} ({amount} {unit})",
+    "orderPacksNamed": "Order {count} × {pack}",
+    "orderingTitle": "Ordering",
+    "targetTooLow": "The fill-up level must be at least the low-stock level.",
+    "emergencyTooHigh": "The urgent level must be at or below the low-stock level."
   },
   "recipe": {
     "title": "Recipe: {name}",
@@ -1222,5 +1242,93 @@
     "removeN": "Remove ingredient {n}",
     "noIngredients": "Add ingredients on the Stock page first.",
     "toStock": "Go to Stock"
+  },
+  "suppliers": {
+    "eyebrow": "Business",
+    "title": "Suppliers",
+    "count": "{count, plural, one {# supplier} other {# suppliers}}",
+    "unassigned": "{count, plural, one {# ingredient} other {# ingredients}} without a supplier",
+    "addSupplier": "Add supplier",
+    "showInactive": "Show switched off",
+    "loading": "Loading suppliers…",
+    "emptyTitle": "No suppliers yet",
+    "emptyDescription": "Add the shops and farms you buy from, when you order from them, and which ingredients they deliver.",
+    "switchedOff": "Switched off",
+    "lowCount": "{count} low",
+    "editFor": "Edit {name}",
+    "draftLineClose": "Draft order made when the restaurant closes the day before",
+    "draftLineTime": "Draft order made at {time} the day before",
+    "cutOffLine": "Send by {time}",
+    "minOrderLine": "Minimum order {amount}",
+    "nextOrders": "Next orders",
+    "delivers": "{count, plural, =0 {No ingredients} one {# ingredient} other {# ingredients}}",
+    "nothingTicked": "Tick the ingredients this supplier delivers.",
+    "schedule": {
+      "daily": "Every day",
+      "weekly": "Every week: {days}",
+      "everyN": "Every {count} days",
+      "monthly": "Every month on day {day}"
+    },
+    "frequency": {
+      "DAILY": "Every day",
+      "WEEKLY": "On set weekdays",
+      "EVERY_N_DAYS": "Every few days",
+      "MONTHLY": "Once a month"
+    },
+    "addTitle": "Add a supplier",
+    "editTitle": "Edit {name}",
+    "dialogDescription": "Who they are, when you order, and which ingredients come from them.",
+    "add": "Add supplier",
+    "save": "Save",
+    "added": "{name} added",
+    "saved": "{name} saved",
+    "saveFailed": "Could not save the supplier.",
+    "nameRequired": "Give the supplier a name.",
+    "nameTaken": "There is already a supplier called \"{name}\".",
+    "pickWeekday": "Pick at least one weekday.",
+    "everyNInvalid": "Enter a number of days from 2 to 60 and a first order day.",
+    "monthDayInvalid": "Enter a day of the month from 1 to 31.",
+    "numberInvalid": "Check the numbers: lead time 0 to 30 days, minimum order 0 or more.",
+    "contactTitle": "Contact",
+    "orderDaysTitle": "When you order",
+    "ingredientsTitle": "Ingredients they deliver ({count})",
+    "ingredientsHint": "Ticked ingredients come from this supplier. You can also choose the supplier on each ingredient.",
+    "noIngredients": "Add ingredients on the Stock page first.",
+    "searchIngredients": "Find an ingredient",
+    "tickAll": "Tick all shown",
+    "tickNone": "Untick all shown",
+    "nowFrom": "now from {name}",
+    "movesFrom": "moves from {name}",
+    "draftAtClose": "At closing time",
+    "draftAtTime": "At a set time",
+    "draftAtCloseHint": "On the day before each order day, the draft order is made at closing time (from your opening hours).",
+    "draftAtTimeHint": "On the day before each order day, the draft order is made at this time.",
+    "field": {
+      "name": "Name",
+      "namePlaceholder": "e.g. Talad Thai fresh market",
+      "contactName": "Contact person",
+      "phone": "Phone",
+      "lineId": "LINE ID",
+      "email": "Email",
+      "address": "Address",
+      "note": "Note",
+      "notePlaceholder": "e.g. Cash on delivery",
+      "frequency": "How often",
+      "weekdays": "Order days",
+      "everyNDays": "Every how many days",
+      "startDate": "First order day",
+      "startDateHint": "Counting starts from this day.",
+      "monthDay": "Day of the month",
+      "monthDayHint": "Short months use their last day.",
+      "draftTime": "Make the draft order",
+      "draftTimeAt": "Draft time",
+      "cutOffTime": "Send by",
+      "cutOffTimeHint": "Their last time to take orders (optional).",
+      "leadTimeDays": "Delivery takes (days)",
+      "leadTimeDaysHint": "0 = same day.",
+      "minOrder": "Minimum order (฿)",
+      "minOrderHint": "Optional.",
+      "active": "Supplier is on"
+    }
   }
 }

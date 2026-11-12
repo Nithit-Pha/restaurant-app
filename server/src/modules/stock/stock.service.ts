@@ -4,6 +4,7 @@ import { audit } from '../../utils/auditLog';
 import { countChange, isLow, stockInExpenseText } from './stock.rules';
 import { planReturn, planSale } from './stock.plan';
 import { notifyStockChanged } from './stock.notify';
+import { isEmergency, levelProblem, packsToOrder } from '../suppliers/ordering';
 import type { CountInput, IngredientInput, IngredientPatch, RecipeInput, StockInInput, WasteInput } from './stock.validation';
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
@@ -15,14 +16,34 @@ interface Actor {
   role: string;
 }
 
-const withLow = <T extends { quantity: Prisma.Decimal; reorderLevel: Prisma.Decimal; isActive: boolean }>(ing: T) =>
-  ({ ...ing, low: isLow(ing) });
+type Levels = { quantity: Prisma.Decimal; reorderLevel: Prisma.Decimal; isActive: boolean; packSize: Prisma.Decimal; targetLevel: Prisma.Decimal | null; emergencyLevel: Prisma.Decimal | null };
+
+/** Adds "low", "emergency" and the packs to order now (0 when it is not low). */
+const withLow = <T extends Levels>(ing: T) => {
+  const low = isLow(ing);
+  return { ...ing, low, emergency: low && isEmergency(ing), orderPacks: low ? packsToOrder(ing) : 0 };
+};
+
+const supplierSelect = { supplier: { select: { id: true, name: true, isActive: true } } } as const;
+
+async function assertSupplier(supplierId: string | null | undefined) {
+  if (!supplierId) return;
+  const found = await prisma.supplier.findUnique({ where: { id: supplierId }, select: { isActive: true } });
+  if (!found) throw httpError(400, 'That supplier does not exist any more. Reload the page.');
+  if (!found.isActive) throw httpError(400, 'That supplier is switched off.');
+}
+
+function assertLevels(l: Parameters<typeof levelProblem>[0]) {
+  const problem = levelProblem(l);
+  if (problem) throw httpError(400, problem);
+}
 
 /** All ingredients (inactive ones only on request), A to Z, each with a "low" flag. */
 export async function listIngredients(includeInactive = false) {
   const rows = await prisma.ingredient.findMany({
     where: includeInactive ? {} : { isActive: true },
     orderBy: { name: 'asc' },
+    include: supplierSelect,
   });
   return rows.map(withLow);
 }
@@ -128,14 +149,20 @@ export async function setRecipe(menuItemId: string, items: RecipeInput['items'],
 
 export async function createIngredient(input: IngredientInput, actorId: string) {
   await assertNameFree(input.name);
+  await assertSupplier(input.supplierId);
+  assertLevels(input);
   const ingredient = await prisma.$transaction(async (tx) => {
     const created = await tx.ingredient.create({
-      data: { name: input.name, unit: input.unit, reorderLevel: input.reorderLevel, storage: input.storage },
+      data: {
+        name: input.name, unit: input.unit, reorderLevel: input.reorderLevel, storage: input.storage,
+        supplierId: input.supplierId ?? null, packName: input.packName ?? null, packSize: input.packSize ?? 1,
+        targetLevel: input.targetLevel ?? null, emergencyLevel: input.emergencyLevel ?? null,
+      },
     });
     if (input.openingStock) {
       await applyChange(tx, created.id, new Prisma.Decimal(input.openingStock), 'COUNT_ADJUST', { reason: 'Opening stock', userId: actorId });
     }
-    return tx.ingredient.findUniqueOrThrow({ where: { id: created.id } });
+    return tx.ingredient.findUniqueOrThrow({ where: { id: created.id }, include: supplierSelect });
   });
   await audit({ actorId, action: 'CREATE', entityType: 'INGREDIENT', entityId: ingredient.id, metadata: { ...input } });
   void notifyStockChanged();
@@ -156,7 +183,9 @@ export async function updateIngredient(id: string, patch: IngredientPatch, actor
       throw httpError(409, 'The unit cannot change once stock was recorded or a recipe uses it. Add a new ingredient instead.');
     }
   }
-  const updated = await prisma.ingredient.update({ where: { id }, data: patch });
+  if (patch.supplierId && patch.supplierId !== before.supplierId) await assertSupplier(patch.supplierId);
+  assertLevels({ ...before, ...patch });
+  const updated = await prisma.ingredient.update({ where: { id }, data: patch, include: supplierSelect });
   const action = patch.isActive === false && before.isActive ? 'DEACTIVATE'
     : patch.isActive === true && !before.isActive ? 'REACTIVATE' : 'UPDATE';
   await audit({

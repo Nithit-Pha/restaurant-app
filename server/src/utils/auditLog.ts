@@ -4,7 +4,7 @@ import { prisma } from '../config/db';
 interface AuditEntry {
   actorId: string;
   action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'PAYMENT' | 'LOGIN' | 'DEACTIVATE' | 'REACTIVATE';
-  entityType: 'USER' | 'MENU_ITEM' | 'ORDER' | 'EXPENSE' | 'SETTING' | 'TABLE_LAYOUT' | 'INGREDIENT';
+  entityType: 'USER' | 'MENU_ITEM' | 'ORDER' | 'EXPENSE' | 'SETTING' | 'TABLE_LAYOUT' | 'INGREDIENT' | 'SUPPLIER';
   entityId?: string;
   // Accepts any JSON-serializable snapshot (Decimals, etc.); cast at the
   // Prisma boundary below since it's stored as an opaque JSON column.

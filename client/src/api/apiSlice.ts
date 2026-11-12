@@ -80,7 +80,7 @@ const baseQueryWithReauth: BaseQueryFn<
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus', 'Address', 'Floor', 'Visit', 'Stock'],
+  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus', 'Address', 'Floor', 'Visit', 'Stock', 'Supplier'],
   endpoints: (builder) => ({
     // Auth
     login: builder.mutation<AuthResponse, LoginInput>({
