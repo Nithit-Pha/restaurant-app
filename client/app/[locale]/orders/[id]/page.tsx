@@ -18,58 +18,7 @@ import { useRequireAuth } from '../../../../src/routes/useAuthGuard';
 import {
   Alert, Button, Card, CardBody, CardHeader, Dialog, EmptyState, LoadingBlock, PageContainer, buttonClasses, cn,
 } from '../../../../src/components/ui';
-
-function stepsFor(type: Order['type']): OrderStatus[] {
-  return type === 'DELIVERY'
-    ? ['PENDING', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED']
-    : ['PENDING', 'PREPARING', 'READY', 'DELIVERED'];
-}
-
-/** Received → Preparing → Ready → (On the way →) Done */
-function ProgressSteps({ order }: { order: Order }) {
-  const t = useTranslations('orderPage.steps');
-  const steps = stepsFor(order.type);
-  const current = steps.indexOf(order.status);
-  const short: Record<string, string> = {
-    PENDING: t('received'),
-    PREPARING: t('preparing'),
-    READY: t('ready'),
-    OUT_FOR_DELIVERY: t('onTheWay'),
-    DELIVERED: order.type === 'PICKUP' ? t('pickedUp') : t('delivered'),
-  };
-  return (
-    <ol className="mt-6 flex" aria-label={t('label')}>
-      {steps.map((s, i) => {
-        const done = i < current || (i === current && s === 'DELIVERED');
-        const active = i === current && !done;
-        return (
-          <li key={s} className="relative flex min-w-0 flex-1 flex-col items-center text-center" aria-current={i === current ? 'step' : undefined}>
-            {/* connector to the previous step */}
-            {i > 0 && (
-              <span
-                aria-hidden
-                className={cn('absolute right-1/2 top-3 h-0.5 w-full -translate-y-1/2', i <= current ? 'bg-accent' : 'bg-line')}
-              />
-            )}
-            <span
-              className={cn(
-                'relative z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs',
-                done && 'border-accent bg-accent text-accent-fg',
-                active && 'border-accent bg-surface text-accent',
-                !done && !active && 'border-line bg-surface text-fg-subtle',
-              )}
-            >
-              {done ? <Check size={14} strokeWidth={2.5} aria-hidden /> : active ? <span className="h-2 w-2 rounded-full bg-accent" /> : null}
-            </span>
-            <span className={cn('mt-2 w-full px-1 text-xs leading-tight', i === current ? 'font-semibold text-fg' : 'text-fg-muted')}>
-              {short[s]}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
+import OrderProgress from '../../../../src/features/orders/OrderProgress';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -167,7 +116,7 @@ export default function OrderDetailPage() {
                   {order.status === 'PENDING' && (
                     <p className="mt-1 text-sm text-fg-muted">{t('confirmSoon')}</p>
                   )}
-                  <ProgressSteps order={order} />
+                  <OrderProgress order={order} className="mt-6" />
                 </>
               )}
 

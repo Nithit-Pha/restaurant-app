@@ -313,7 +313,9 @@
       "ready": "พร้อม",
       "onTheWay": "กำลังไปส่ง",
       "pickedUp": "รับแล้ว",
-      "delivered": "ส่งถึงแล้ว"
+      "delivered": "ส่งถึงแล้ว",
+      "cooking": "กำลังทำ",
+      "srStep": "ขั้นที่ {n} จาก {total}: {step}"
     },
     "loading": "กำลังโหลดคำสั่งซื้อ…",
     "notFound": "ไม่พบคำสั่งซื้อนี้",
@@ -666,7 +668,10 @@
     "deactivateDescription": "พนักงานจะถูกออกจากระบบทันทีและเข้าสู่ระบบไม่ได้อีก ออเดอร์และประวัติเดิมยังอยู่ เปิดใช้งานอีกครั้งได้ภายหลัง",
     "keepActive": "ใช้งานต่อ",
     "deactivatedToast": "ปิดใช้งาน {name} แล้ว",
-    "deactivateFailed": "ปิดใช้งานบัญชีไม่สำเร็จ"
+    "deactivateFailed": "ปิดใช้งานบัญชีไม่สำเร็จ",
+    "defaultPrep": "เวลาทำอาหารปกติ (นาที)",
+    "defaultPrepHint": "ใช้เมื่อครัวกด \"รับออเดอร์\" ลูกค้าจะเห็นเป็นเวลาที่คาดว่าจะเสร็จ โหมดยุ่งจะบวกนาทีเพิ่ม",
+    "defaultPrepSaved": "เวลาทำอาหารปกติ: {minutes} นาที"
   },
   "paymentSettings": {
     "nowOn": "เปิดพร้อมเพย์ที่หน้าชำระเงินแล้ว",
@@ -1045,16 +1050,16 @@
     "pickup": "รับเอง",
     "delivery": "เดลิเวอรี",
     "newTable": "โต๊ะใหม่: การรับออเดอร์จะยืนยันโต๊ะ",
-    "acceptWith": "รับออเดอร์ เสร็จใน",
-    "minutes": "{minutes} นาที",
-    "acceptMinutes": "รับออเดอร์ เสร็จใน {minutes} นาที",
     "timer": {
       "waiting": "{minutes} นาที",
-      "waitingServe": "พร้อมแล้ว {minutes} นาที",
-      "left": "เหลือ {minutes} นาที",
-      "late": "ช้า {minutes} นาที"
+      "cooking": "กำลังทำ {minutes} นาที",
+      "ready": "พร้อมแล้ว {minutes} นาที"
     },
-    "updateFailed": "อัปเดตออเดอร์ไม่สำเร็จ"
+    "updateFailed": "อัปเดตออเดอร์ไม่สำเร็จ",
+    "accept": "รับออเดอร์",
+    "done": "เสร็จแล้ว",
+    "summary": "ออเดอร์ตามขั้นตอน",
+    "cookedIn": "ทำเสร็จใน {minutes} นาที"
   },
   "bill": {
     "title": "บิล · โต๊ะ {table}",

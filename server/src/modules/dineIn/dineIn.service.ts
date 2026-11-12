@@ -38,7 +38,7 @@ const visitInclude = {
   orders: {
     orderBy: { createdAt: 'asc' as const },
     select: {
-      id: true, orderNumber: true, status: true, createdAt: true,
+      id: true, orderNumber: true, status: true, createdAt: true, acceptedAt: true, estimatedReadyAt: true,
       subtotal: true, taxAmount: true, total: true,
       items: { select: { id: true, nameSnapshot: true, menuItemId: true, quantity: true, unitPrice: true, note: true, modifiers: itemsInclude.include.modifiers } },
     },
@@ -69,6 +69,8 @@ export function visitSummary(v: VisitWithOrders) {
       orderNumber: o.orderNumber,
       status: o.status,
       createdAt: o.createdAt,
+      acceptedAt: o.acceptedAt,
+      estimatedReadyAt: o.estimatedReadyAt,
       total: Number(o.total),
       items: o.items.map((i) => ({
         id: i.id,

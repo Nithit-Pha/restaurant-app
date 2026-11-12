@@ -21,6 +21,8 @@ const DEFAULTS: Record<string, string> = {
   // Busy mode (staff, during a rush): 1 = no new orders; minutes added to the estimate.
   ORDERING_PAUSED: '0',
   BUSY_EXTRA_MINUTES: '0',
+  // Cooking time used when the kitchen accepts an order with one tap (no time chosen).
+  DEFAULT_PREP_MINUTES: '15',
 };
 const PAUSE_MESSAGE_KEY = 'ORDERING_PAUSE_MESSAGE';
 
@@ -173,6 +175,13 @@ export async function getBusyMode(): Promise<BusyMode> {
   };
 }
 
+/** Minutes for an order accepted without a chosen time: the default, plus the busy-mode extra. */
+export async function defaultPrepMinutes(): Promise<number> {
+  const [base, busy] = await Promise.all([getSetting('DEFAULT_PREP_MINUTES'), getBusyMode()]);
+  const minutes = Math.round(base) + (busy.mode === 'BUSY' ? busy.busyExtraMinutes : 0);
+  return Math.min(240, Math.max(1, minutes));
+}
+
 export async function setBusyMode(mode: OrderingMode, extraMinutes?: number, pauseMessage?: string) {
   const { paused, busyExtraMinutes } = modeSettings(mode, extraMinutes);
   await setSetting('ORDERING_PAUSED', paused);
@@ -195,14 +204,17 @@ export interface OpenStatus extends BusyMode {
   enforced: boolean;
   nextOpening: NextOpening | null;
   timeZone: string;
+  /** Usual cooking time, preselected when staff accept an order. */
+  defaultPrepMinutes: number;
 }
 
 /** Whether online ordering is open right now (public: storefront banner). */
 export async function getOpenStatus(now: Date = new Date()): Promise<OpenStatus> {
-  const [profile, enforced, busy] = await Promise.all([
+  const [profile, enforced, busy, prep] = await Promise.all([
     getRestaurantProfile(),
     getSetting('ORDERING_HOURS_ENFORCED'),
     getBusyMode(),
+    getSetting('DEFAULT_PREP_MINUTES'),
   ]);
   const tz = env.businessTimeZone;
   const open = isOpenAt(profile.openingHours, now, tz);
@@ -214,5 +226,6 @@ export async function getOpenStatus(now: Date = new Date()): Promise<OpenStatus>
     enforced: enforced !== 0,
     nextOpening: open ? null : nextOpening(profile.openingHours, now, tz),
     timeZone: tz,
+    defaultPrepMinutes: Math.round(prep),
   };
 }

@@ -1,24 +1,25 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Bell, BellOff, ChefHat } from 'lucide-react';
 import { useGetAdminOrdersQuery, useUpdateOrderStatusMutation, type Order, type OrderStatus } from '../../../src/api/apiSlice';
 import { useLiveConnected } from '../../../src/components/LiveUpdates';
 import { useNewOrderAlert } from '../../../src/features/admin/orders/useNewOrderAlert';
 import KitchenTicket from '../../../src/features/kitchen/KitchenTicket';
+import { useNow } from '../../../src/features/orders/OrderProgress';
 import { nextForwardStatus } from '../../../src/features/orders/orderDisplay';
 import { apiErrorMessage } from '../../../src/lib/localized';
 import { useRequireRole } from '../../../src/routes/useAuthGuard';
 import { Button, EmptyState, LoadingBlock, PageContainer, PageHeader, cn, useToast } from '../../../src/components/ui';
 
-const COLUMNS: { status: OrderStatus; key: 'new' | 'cooking' | 'ready' }[] = [
-  { status: 'PENDING', key: 'new' },
-  { status: 'PREPARING', key: 'cooking' },
-  { status: 'READY', key: 'ready' },
+const COUNTS: { status: OrderStatus; key: 'new' | 'cooking' | 'ready'; dot: string }[] = [
+  { status: 'PENDING', key: 'new', dot: 'bg-line-strong' },
+  { status: 'PREPARING', key: 'cooking', dot: 'bg-info' },
+  { status: 'READY', key: 'ready', dot: 'bg-success' },
 ];
 
-/** The kitchen screen (tablet or TV): every open ticket, oldest first, with big buttons. */
+/** The kitchen tablet: every open order as a box, oldest first. Accept order → Done. */
 export default function KitchenPage() {
   const t = useTranslations('kitchen');
   const tc = useTranslations('common');
@@ -33,21 +34,20 @@ export default function KitchenPage() {
   const [update] = useUpdateOrderStatusMutation();
   const [busy, setBusy] = useState<string | null>(null);
   const { soundOn, toggleSound } = useNewOrderAlert(orders);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => { // timers move on every 20 s
-    const id = window.setInterval(() => setNow(Date.now()), 20_000);
-    return () => window.clearInterval(id);
-  }, []);
+  const now = useNow(10_000); // timers and running lines move on
 
-  const byStatus = useMemo(() => {
-    const sorted = [...(orders ?? [])].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    return Object.fromEntries(COLUMNS.map((c) => [c.status, sorted.filter((o) => o.status === c.status)])) as Record<OrderStatus, Order[]>;
-  }, [orders]);
+  const sorted = useMemo(
+    () => [...(orders ?? [])].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    [orders],
+  );
 
-  const run = async (order: Order, body: { status: 'PREPARING' | 'READY' | 'OUT_FOR_DELIVERY' | 'DELIVERED'; prepMinutes?: number }) => {
+  // One tap: accept (the usual cooking time from Settings), Done (ready), then served / picked up / out for delivery.
+  const act = async (order: Order) => {
+    const next = nextForwardStatus(order);
+    if (!next) return;
     setBusy(order.id);
     try {
-      await update({ id: order.id, ...body }).unwrap();
+      await update({ id: order.id, status: next as 'PREPARING' | 'READY' | 'OUT_FOR_DELIVERY' | 'DELIVERED' }).unwrap();
     } catch (err) {
       toast({ tone: 'error', title: t('updateFailed'), description: apiErrorMessage(err, locale, tc('tryAgain')) });
     } finally {
@@ -56,7 +56,6 @@ export default function KitchenPage() {
   };
 
   if (!ready) return null;
-  const total = orders?.length ?? 0;
 
   return (
     <PageContainer wide className="max-w-none">
@@ -78,32 +77,24 @@ export default function KitchenPage() {
 
       {isLoading ? (
         <LoadingBlock label={t('loading')} />
-      ) : total === 0 ? (
+      ) : sorted.length === 0 ? (
         <EmptyState icon={ChefHat} title={t('emptyTitle')} description={t('emptyDescription')} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
-          {COLUMNS.map((col) => (
-            <section key={col.status} aria-labelledby={`col-${col.key}`} className="flex min-w-0 flex-col gap-3">
-              <h2 id={`col-${col.key}`} className="flex items-center justify-between rounded-control bg-surface-muted px-3 py-2 text-sm font-semibold text-fg">
-                {t(`column.${col.key}`)}
-                <span className="tabular-nums text-fg-muted">{byStatus[col.status].length}</span>
-              </h2>
-              {byStatus[col.status].map((o) => (
-                <KitchenTicket
-                  key={o.id}
-                  order={o}
-                  now={now}
-                  busy={busy === o.id}
-                  onAccept={(minutes) => run(o, { status: 'PREPARING', prepMinutes: minutes })}
-                  onForward={() => {
-                    const next = nextForwardStatus(o);
-                    if (next && next !== 'PREPARING') void run(o, { status: next as 'READY' | 'OUT_FOR_DELIVERY' | 'DELIVERED' });
-                  }}
-                />
-              ))}
-            </section>
-          ))}
-        </div>
+        <>
+          <ul className="mb-4 flex flex-wrap gap-4 text-sm text-fg-muted" aria-label={t('summary')}>
+            {COUNTS.map((c) => (
+              <li key={c.key} className="inline-flex items-center gap-1.5">
+                <span className={cn('h-2.5 w-2.5 rounded-full', c.dot)} aria-hidden />
+                {t(`column.${c.key}`)} <span className="font-semibold tabular-nums text-fg">{sorted.filter((o) => o.status === c.status).length}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {sorted.map((o) => (
+              <KitchenTicket key={o.id} order={o} now={now} busy={busy === o.id} onAction={() => act(o)} />
+            ))}
+          </div>
+        </>
       )}
     </PageContainer>
   );

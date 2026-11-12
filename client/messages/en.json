@@ -313,7 +313,9 @@
       "ready": "Ready",
       "onTheWay": "On the way",
       "pickedUp": "Picked up",
-      "delivered": "Delivered"
+      "delivered": "Delivered",
+      "cooking": "Cooking",
+      "srStep": "Step {n} of {total}: {step}"
     },
     "loading": "Loading order…",
     "notFound": "We couldn't find that order.",
@@ -666,7 +668,10 @@
     "deactivateDescription": "They are signed out at once and cannot sign in again. Their past orders and history stay. You can reactivate them later.",
     "keepActive": "Keep active",
     "deactivatedToast": "{name} was deactivated",
-    "deactivateFailed": "Could not deactivate the account"
+    "deactivateFailed": "Could not deactivate the account",
+    "defaultPrep": "Usual cooking time (minutes)",
+    "defaultPrepHint": "Used when the kitchen taps \"Accept order\". Customers see it as the estimated ready time; busy mode adds its extra minutes.",
+    "defaultPrepSaved": "Usual cooking time: {minutes} min"
   },
   "paymentSettings": {
     "nowOn": "PromptPay is on at checkout",
@@ -1045,16 +1050,16 @@
     "pickup": "Pickup",
     "delivery": "Delivery",
     "newTable": "New table: accepting confirms it",
-    "acceptWith": "Accept, ready in",
-    "minutes": "{minutes} min",
-    "acceptMinutes": "Accept, ready in {minutes} minutes",
     "timer": {
       "waiting": "{minutes} min",
-      "waitingServe": "ready {minutes} min",
-      "left": "{minutes} min left",
-      "late": "{minutes} min late"
+      "cooking": "cooking {minutes} min",
+      "ready": "ready {minutes} min"
     },
-    "updateFailed": "Could not update the order"
+    "updateFailed": "Could not update the order",
+    "accept": "Accept order",
+    "done": "Done",
+    "summary": "Orders by step",
+    "cookedIn": "cooked in {minutes} min"
   },
   "bill": {
     "title": "Bill · Table {table}",

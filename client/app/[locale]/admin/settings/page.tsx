@@ -249,6 +249,10 @@ export default function SettingsPage() {
   if (isLoading) return <PageContainer><LoadingBlock label={t('loading')} /></PageContainer>;
 
   const hoursEnforced = (settings?.ORDERING_HOURS_ENFORCED ?? 1) !== 0;
+  const [prepMinutes, setPrepMinutes] = useState('15');
+  useEffect(() => {
+    if (settings?.DEFAULT_PREP_MINUTES) setPrepMinutes(String(settings.DEFAULT_PREP_MINUTES));
+  }, [settings?.DEFAULT_PREP_MINUTES]);
   const roleName = (role: string) => tnav(`role.${role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'STAFF'}`);
 
   return (
@@ -402,6 +406,31 @@ export default function SettingsPage() {
                   }}
                 />
               </div>
+              <form
+                className="mt-5 flex flex-wrap items-end gap-3 border-t border-line pt-5"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const minutes = Math.round(Number(prepMinutes));
+                  if (!Number.isFinite(minutes) || minutes < 1 || minutes > 240) return;
+                  try {
+                    await setOrdering({ defaultPrepMinutes: minutes }).unwrap();
+                    saved(t('defaultPrepSaved', { minutes }));
+                  } catch (err) {
+                    failed(t('orderingFailed'), err);
+                  }
+                }}
+              >
+                <Field label={t('defaultPrep')} htmlFor="default-prep" hint={t('defaultPrepHint')} className="max-w-md">
+                  <Input
+                    id="default-prep"
+                    type="number" min="1" max="240" step="1" inputMode="numeric"
+                    value={prepMinutes}
+                    onChange={(e) => setPrepMinutes(e.target.value)}
+                    className="!w-28 tabular-nums"
+                  />
+                </Field>
+                <Button type="submit" variant="secondary">{tc('save')}</Button>
+              </form>
             </CardBody>
           </Card>
 

@@ -9,6 +9,7 @@ import ItemOptionsDialog from '../menu/ItemOptionsDialog';
 import ClosedBanner from '../orders/ClosedBanner';
 import LineDetails from '../orders/LineDetails';
 import OrderStatusBadge from '../orders/OrderStatusBadge';
+import OrderProgress from '../orders/OrderProgress';
 import { formatClock } from '../orders/orderDisplay';
 import { formatCurrency } from '../../lib/format';
 import { newUuid } from '../../lib/uuid';
@@ -236,7 +237,7 @@ export default function TableOrderPage({ qrToken }: { qrToken: string }) {
                       <span className="text-sm font-medium text-fg">
                         {t('round', { n: i + 1 })} <span className="font-normal text-fg-muted">· {formatClock(o.createdAt)}</span>
                       </span>
-                      <OrderStatusBadge status={o.status} type="DINE_IN" />
+                      {o.status === 'CANCELLED' && <OrderStatusBadge status={o.status} type="DINE_IN" />}
                     </div>
                     <ul className="space-y-1 text-sm">
                       {o.items.map((l) => (
@@ -249,6 +250,9 @@ export default function TableOrderPage({ qrToken }: { qrToken: string }) {
                         </li>
                       ))}
                     </ul>
+                    {o.status !== 'CANCELLED' && (
+                      <OrderProgress order={{ ...o, type: 'DINE_IN' }} kitchen size="sm" className="mt-3 border-t border-line pt-3" />
+                    )}
                   </li>
                 ))}
               </ol>

@@ -34,6 +34,7 @@ vi.mock('../settings/settings.service', () => ({
   getRestaurantProfile: vi.fn(async () => ({ geo: { latitude: 39.7817, longitude: -89.6501 } })),
   getOpenStatus: vi.fn(async () => ({ isOpen: true, enforced: true, nextOpening: null, timeZone: 'Asia/Bangkok' })),
   getPaymentSettings: vi.fn(async () => ({ promptPayId: '0812345678', promptPayName: 'Test Shop' })),
+  defaultPrepMinutes: vi.fn(async () => 15),
 }));
 
 // Keep real priceCart + haversineKm; stub only the async delivery-fee lookup.
@@ -293,6 +294,16 @@ describe('changeOrderStatus', () => {
     await changeOrderStatus('o1', { to: 'DELIVERED', actorId: 'staff-1' });
     expect(tx.tableSession.update).not.toHaveBeenCalled();
     expect(syncTableStatus).toHaveBeenCalledWith(tx, 'visit-1');
+  });
+
+  it('accepting without a time (kitchen one tap) uses the default cooking time', async () => {
+    prismaMock.order.findUnique.mockResolvedValueOnce({ status: 'PENDING', type: 'PICKUP' });
+    const before = Date.now();
+    await changeOrderStatus('o1', { to: 'PREPARING', actorId: 'cook-1' });
+    const data = tx.order.updateMany.mock.calls[0][0].data;
+    const minutes = (data.estimatedReadyAt.getTime() - before) / 60000;
+    expect(minutes).toBeGreaterThan(14.9);
+    expect(minutes).toBeLessThan(15.1);
   });
 
   it('rejects a move the workflow does not allow (409)', async () => {

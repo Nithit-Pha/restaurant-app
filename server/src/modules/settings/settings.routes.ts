@@ -66,7 +66,10 @@ router.put('/delivery-fee', authenticate, requireRole('SUPER_ADMIN'),
 );
 
 router.put('/ordering', authenticate, requireRole('SUPER_ADMIN'),
-  validate(z.object({ hoursEnforced: z.boolean() })),
+  validate(z.object({
+    hoursEnforced: z.boolean().optional(),
+    defaultPrepMinutes: z.number().int().min(1).max(240).optional(), // kitchen one-tap accept
+  }).refine((d) => d.hoursEnforced !== undefined || d.defaultPrepMinutes !== undefined, 'Nothing to change')),
   ctrl.setOrderingHandler
 );
 

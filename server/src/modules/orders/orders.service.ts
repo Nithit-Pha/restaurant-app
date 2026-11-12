@@ -3,7 +3,7 @@ import { prisma } from '../../config/db';
 import { env } from '../../config/env';
 import { priceCart, calcDeliveryFeeAsync, haversineKm } from '../../utils/pricing';
 import { businessDate, zonedDayRange } from '../../utils/businessTime';
-import { getSetting, getRestaurantProfile, getOpenStatus, getPaymentSettings } from '../settings/settings.service';
+import { getSetting, getRestaurantProfile, getOpenStatus, getPaymentSettings, defaultPrepMinutes } from '../settings/settings.service';
 import { planTransition, type CancelReason, type OrderStatus, type OrderType } from './orderStateMachine';
 import { planPayment, type PaymentAction, type PaymentMethod, type PaymentStatus } from './paymentState';
 import { buildPromptPayPayload } from '../../utils/promptpay';
@@ -310,9 +310,11 @@ export async function changeOrderStatus(id: string, change: StatusChange) {
   });
   if (!order) throw httpError(404, 'Order not found');
 
+  // The kitchen accepts with one tap: no time chosen means the default cooking time.
+  const prepMinutes = change.to === 'PREPARING' && change.prepMinutes === undefined ? await defaultPrepMinutes() : change.prepMinutes;
   const data = planTransition(
     { status: order.status as OrderStatus, type: order.type as OrderType },
-    { ...change },
+    { ...change, prepMinutes },
   );
 
   const result = await prisma.$transaction(async (tx) => {

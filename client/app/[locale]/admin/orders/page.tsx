@@ -596,7 +596,7 @@ export default function AdminOrdersPage() {
         <AcceptDialog
           order={accepting}
           busy={saving}
-          defaultMinutes={15 + busyExtra}
+          defaultMinutes={(openStatus?.defaultPrepMinutes ?? 15) + busyExtra}
           onClose={() => setAccepting(null)}
           onConfirm={async (prepMinutes) => {
             await run(

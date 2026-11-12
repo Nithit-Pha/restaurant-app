@@ -17,6 +17,8 @@ export interface VisitOrder {
   orderNumber: number | null;
   status: OrderStatus;
   createdAt: string;
+  acceptedAt: string | null;
+  estimatedReadyAt: string | null;
   total: number;
   items: VisitLine[];
 }

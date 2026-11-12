@@ -105,10 +105,17 @@ export async function setBusyModeHandler(req: Request, res: Response, next: Next
 
 export async function setOrderingHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    const value = req.body.hoursEnforced ? 1 : 0;
-    const prev = await settingsService.getSetting('ORDERING_HOURS_ENFORCED');
-    await settingsService.setSetting('ORDERING_HOURS_ENFORCED', value);
-    audit({ actorId: req.user!.userId, action: 'UPDATE', entityType: 'SETTING', entityId: 'ORDERING_HOURS_ENFORCED', metadata: { from: prev, to: value } });
+    if (req.body.hoursEnforced !== undefined) {
+      const value = req.body.hoursEnforced ? 1 : 0;
+      const prev = await settingsService.getSetting('ORDERING_HOURS_ENFORCED');
+      await settingsService.setSetting('ORDERING_HOURS_ENFORCED', value);
+      audit({ actorId: req.user!.userId, action: 'UPDATE', entityType: 'SETTING', entityId: 'ORDERING_HOURS_ENFORCED', metadata: { from: prev, to: value } });
+    }
+    if (req.body.defaultPrepMinutes !== undefined) {
+      const prev = await settingsService.getSetting('DEFAULT_PREP_MINUTES');
+      await settingsService.setSetting('DEFAULT_PREP_MINUTES', req.body.defaultPrepMinutes);
+      audit({ actorId: req.user!.userId, action: 'UPDATE', entityType: 'SETTING', entityId: 'DEFAULT_PREP_MINUTES', metadata: { from: prev, to: req.body.defaultPrepMinutes } });
+    }
     res.json(await settingsService.getSettings());
   } catch (err) { next(err); }
 }

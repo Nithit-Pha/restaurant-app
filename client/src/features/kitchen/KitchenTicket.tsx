@@ -1,40 +1,36 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Bike, Check, ChefHat, Store, UtensilsCrossed } from 'lucide-react';
+import { Bike, Check, ChefHat, Play, Store, UtensilsCrossed } from 'lucide-react';
 import type { Order } from '../../api/apiSlice';
 import LineDetails from '../orders/LineDetails';
+import OrderProgress, { cookingFraction } from '../orders/OrderProgress';
 import { formatClock, formatOrderNumber } from '../orders/orderDisplay';
 import { useOrderLabels } from '../orders/useOrderLabels';
 import { Badge, Button, cn } from '../../components/ui';
 
-export const QUICK_MINUTES = [10, 15, 20] as const;
+const minutes = (from: string | null | undefined, now: number) => (from ? Math.max(0, Math.round((now - new Date(from).getTime()) / 60000)) : 0);
 
-const minutesBetween = (from: number, to: number) => Math.round((to - from) / 60000);
-
-/** How urgent a ticket is: its timer text and colour. */
-export function ticketTiming(order: Order, now: number): { tone: 'ok' | 'soon' | 'late'; key: 'waiting' | 'waitingServe' | 'left' | 'late'; minutes: number } {
-  if (order.status === 'PREPARING' && order.estimatedReadyAt) {
-    const left = minutesBetween(now, new Date(order.estimatedReadyAt).getTime());
-    return { key: left < 0 ? 'late' : 'left', minutes: Math.abs(left), tone: left < 0 ? 'late' : left <= 3 ? 'soon' : 'ok' };
+/** The timer on a box: waiting, cooking for, or ready for; and how urgent it is. */
+export function ticketTiming(order: Order, now: number): { key: 'waiting' | 'cooking' | 'ready'; minutes: number; tone: 'ok' | 'soon' | 'late' } {
+  if (order.status === 'PREPARING') {
+    const f = cookingFraction(order, now);
+    return { key: 'cooking', minutes: minutes(order.acceptedAt, now), tone: f === null ? 'ok' : f > 1 ? 'late' : f > 0.8 ? 'soon' : 'ok' };
   }
-  const since = order.status === 'READY' && order.readyAt ? order.readyAt : order.createdAt;
-  const m = Math.max(0, minutesBetween(new Date(since).getTime(), now));
-  return { key: order.status === 'READY' ? 'waitingServe' : 'waiting', minutes: m, tone: m >= 10 ? 'late' : m >= 5 ? 'soon' : 'ok' };
+  if (order.status === 'READY') {
+    const m = minutes(order.readyAt, now);
+    return { key: 'ready', minutes: m, tone: m >= 10 ? 'late' : m >= 5 ? 'soon' : 'ok' };
+  }
+  const m = minutes(order.createdAt, now);
+  return { key: 'waiting', minutes: m, tone: m >= 10 ? 'late' : m >= 5 ? 'soon' : 'ok' };
 }
 
-const TONE: Record<'ok' | 'soon' | 'late', string> = {
-  ok: 'border-line',
-  soon: 'border-warning shadow-[inset_4px_0_0_rgb(var(--warning))]',
-  late: 'border-danger shadow-[inset_4px_0_0_rgb(var(--danger))]',
-};
-
-export default function KitchenTicket({ order, now, busy, onAccept, onForward }: {
+/** One order box on the kitchen tablet: Accept order → Done → Served / Picked up / Out for delivery. */
+export default function KitchenTicket({ order, now, busy, onAction }: {
   order: Order;
   now: number;
   busy: boolean;
-  onAccept: (minutes: number) => void;
-  onForward: () => void;
+  onAction: () => void;
 }) {
   const t = useTranslations('kitchen');
   const labels = useOrderLabels();
@@ -44,9 +40,22 @@ export default function KitchenTicket({ order, now, busy, onAccept, onForward }:
     ? (order.tableSession ? t('table', { label: order.tableSession.tableLabel }) : t('dineIn'))
     : order.type === 'DELIVERY' ? t('delivery') : t('pickup');
   const newTable = order.type === 'DINE_IN' && order.tableSession && !order.tableSession.confirmedAt;
+  const cookedIn = order.status === 'READY' && order.acceptedAt && order.readyAt
+    ? Math.max(1, Math.round((new Date(order.readyAt).getTime() - new Date(order.acceptedAt).getTime()) / 60000))
+    : null;
+
+  const action = order.status === 'PENDING'
+    ? { label: t('accept'), icon: Play, variant: 'primary' as const }
+    : order.status === 'PREPARING'
+      ? { label: t('done'), icon: ChefHat, variant: 'primary' as const }
+      : { label: labels.forwardAction(order), icon: Check, variant: 'secondary' as const };
 
   return (
-    <article className={cn('flex flex-col gap-3 rounded-card border-2 bg-surface p-4', TONE[timing.tone])} aria-label={`${formatOrderNumber(order)} · ${where}`}>
+    <article
+      className={cn('flex flex-col gap-3 rounded-card border bg-surface p-4 shadow-soft',
+        timing.tone === 'late' ? 'border-danger' : timing.tone === 'soon' ? 'border-warning' : 'border-line')}
+      aria-label={`${formatOrderNumber(order)} · ${where}`}
+    >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-lg font-semibold text-fg">
@@ -57,7 +66,7 @@ export default function KitchenTicket({ order, now, busy, onAccept, onForward }:
         </div>
         <span className={cn('shrink-0 rounded-control px-2 py-1 text-sm font-semibold tabular-nums',
           timing.tone === 'late' ? 'bg-danger-soft text-danger' : timing.tone === 'soon' ? 'bg-warning-soft text-warning' : 'bg-surface-muted text-fg')}>
-          {t(`timer.${timing.key}`, { minutes: timing.minutes })}
+          {cookedIn !== null ? t('cookedIn', { minutes: cookedIn }) : t(`timer.${timing.key}`, { minutes: timing.minutes })}
         </span>
       </header>
       {newTable && <Badge tone="warning">{t('newTable')}</Badge>}
@@ -72,23 +81,12 @@ export default function KitchenTicket({ order, now, busy, onAccept, onForward }:
         ))}
       </ul>
 
-      <footer className="mt-auto flex flex-wrap gap-2 pt-1">
-        {order.status === 'PENDING' ? (
-          <>
-            <span className="w-full text-xs font-medium text-fg-muted">{t('acceptWith')}</span>
-            {QUICK_MINUTES.map((m) => (
-              <Button key={m} size="lg" className="flex-1" disabled={busy} onClick={() => onAccept(m)} aria-label={t('acceptMinutes', { minutes: m })}>
-                {t('minutes', { minutes: m })}
-              </Button>
-            ))}
-          </>
-        ) : (
-          <Button size="lg" fullWidth icon={order.status === 'PREPARING' ? ChefHat : Check} disabled={busy} onClick={onForward}
-            variant={order.status === 'READY' ? 'secondary' : 'primary'}>
-            {labels.forwardAction(order)}
-          </Button>
-        )}
-      </footer>
+      <div className="mt-auto flex flex-col gap-3 pt-1">
+        <Button size="lg" fullWidth icon={action.icon} variant={action.variant} disabled={busy} onClick={onAction}>
+          {action.label}
+        </Button>
+        <OrderProgress order={order} kitchen size="sm" now={now} className="border-t border-line pt-3" />
+      </div>
     </article>
   );
 }

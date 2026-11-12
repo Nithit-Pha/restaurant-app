@@ -234,7 +234,7 @@ export const apiSlice = createApi({
       query: (body) => ({ url: '/settings/delivery-fee', method: 'PUT', body }),
       invalidatesTags: ['Settings'],
     }),
-    setOrdering: builder.mutation<AppSettings, { hoursEnforced: boolean }>({
+    setOrdering: builder.mutation<AppSettings, { hoursEnforced?: boolean; defaultPrepMinutes?: number }>({
       query: (body) => ({ url: '/settings/ordering', method: 'PUT', body }),
       invalidatesTags: ['Settings', 'OpenStatus'],
     }),
@@ -457,6 +457,7 @@ export interface AppSettings {
   DELIVERY_FREE_KM: number;
   DELIVERY_MAX_KM: number;
   ORDERING_HOURS_ENFORCED: number; // 1 = only accept orders during opening hours
+  DEFAULT_PREP_MINUTES: number; // kitchen one-tap accept uses this cooking time
 }
 
 export type OrderingMode = 'NORMAL' | 'BUSY' | 'PAUSED';
@@ -473,6 +474,7 @@ export interface OpenStatus extends BusyMode {
   enforced: boolean;
   nextOpening: { dayOfWeek: string; time: string; inDays: number } | null;
   timeZone: string;
+  defaultPrepMinutes: number; // usual cooking time (Settings)
 }
 
 export interface BusyModeInput {
@@ -835,6 +837,8 @@ export interface TableVisit {
     orderNumber: number | null;
     status: OrderStatus;
     createdAt: string;
+    acceptedAt: string | null;
+    estimatedReadyAt: string | null;
     total: number;
     items: { id: string; name: string; menuItemId: string; quantity: number; unitPrice: number; note: string | null; options: { groupName: string; name: string; priceDelta: number }[] }[];
   }[];
