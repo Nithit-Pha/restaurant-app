@@ -7,6 +7,7 @@ import { validate } from '../../middleware/validate';
 import { prisma } from '../../config/db';
 import { audit } from '../../utils/auditLog';
 import { usernameSchema } from './username';
+import { DELETED_USERNAME_PREFIX, deleteStaffAccount } from './staff.service';
 
 const router = Router();
 
@@ -23,7 +24,7 @@ const createStaffSchema = z.object({
 router.get('/', authenticate, requireRole('SUPER_ADMIN'), async (_req, res, next) => {
   try {
     const staff = await prisma.user.findMany({
-      where: { role: { in: ['STAFF', 'SUPER_ADMIN'] } },
+      where: { role: { in: ['STAFF', 'SUPER_ADMIN'] }, NOT: { username: { startsWith: DELETED_USERNAME_PREFIX } } },
       select: { id: true, name: true, username: true, email: true, role: true, isActive: true, createdAt: true },
       orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
     });
@@ -56,7 +57,8 @@ router.patch('/:id/role', authenticate, requireRole('SUPER_ADMIN'),
   validate(z.object({ role: z.enum(['STAFF', 'SUPER_ADMIN', 'CUSTOMER']) })),
   async (req, res, next) => {
     try {
-      const prev = await prisma.user.findUnique({ where: { id: req.params.id }, select: { role: true } });
+      const prev = await prisma.user.findUnique({ where: { id: req.params.id }, select: { role: true, username: true } });
+      if (!prev || prev.username.startsWith(DELETED_USERNAME_PREFIX)) { res.status(404).json({ message: 'User not found' }); return; }
       const user = await prisma.user.update({
         where: { id: req.params.id },
         data: { role: req.body.role },
@@ -68,12 +70,12 @@ router.patch('/:id/role', authenticate, requireRole('SUPER_ADMIN'),
   }
 );
 
-// Deactivate a staff/admin account. Accounts are never hard-deleted: orders,
-// status history and the audit log keep pointing at who did what.
+// Deactivate a staff/admin account. Orders, status history and the audit log
+// keep pointing at who did what (a later delete only wipes personal data).
 // Bumping tokenVersion signs the person out everywhere immediately.
 async function setActive(targetId: string, actorId: string, isActive: boolean) {
   const user = await prisma.user.findUnique({ where: { id: targetId }, select: { id: true, username: true, role: true, isActive: true } });
-  if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
+  if (!user || user.username.startsWith(DELETED_USERNAME_PREFIX)) throw Object.assign(new Error('User not found'), { statusCode: 404 });
   if (user.id === actorId) throw Object.assign(new Error('You cannot deactivate your own account'), { statusCode: 400 });
   const updated = await prisma.user.update({
     where: { id: targetId },
@@ -90,9 +92,11 @@ async function setActive(targetId: string, actorId: string, isActive: boolean) {
   return updated;
 }
 
+// Delete a deactivated account (see deleteStaffAccount: never-used accounts
+// are removed, others have their personal data wiped).
 router.delete('/:id', authenticate, requireRole('SUPER_ADMIN'), async (req, res, next) => {
   try {
-    res.json(await setActive(req.params.id, req.user!.userId, false));
+    res.json(await deleteStaffAccount(req.params.id, req.user!.userId));
   } catch (err) { next(err); }
 });
 

@@ -282,10 +282,16 @@ export const apiSlice = createApi({
       query: ({ id, role }) => ({ url: `/admin/staff/${id}/role`, method: 'PATCH', body: { role } }),
       invalidatesTags: ['Staff'],
     }),
-    // Accounts are deactivated, never deleted (history keeps its author).
+    // Deactivate first; history keeps its author.
     setStaffActive: builder.mutation<StaffUser, { id: string; isActive: boolean }>({
       query: ({ id, isActive }) => ({ url: `/admin/staff/${id}/active`, method: 'PATCH', body: { isActive } }),
       invalidatesTags: ['Staff'],
+    }),
+    // Deleting a deactivated account: removed if never used, otherwise its
+    // personal data is wiped and history shows "Deleted user".
+    deleteStaff: builder.mutation<{ mode: 'REMOVED' | 'ANONYMIZED' }, string>({
+      query: (id) => ({ url: `/admin/staff/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Staff', 'AuditLog'],
     }),
 
     // Audit log
@@ -396,6 +402,7 @@ export const {
   useCreateStaffMutation,
   useUpdateStaffRoleMutation,
   useSetStaffActiveMutation,
+  useDeleteStaffMutation,
   useGetAuditLogQuery,
   useGetMenuItemsQuery,
   useGetMenuItemQuery,

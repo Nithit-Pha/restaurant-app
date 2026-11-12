@@ -39,7 +39,11 @@ test.afterAll(async () => {
   await api.put('/api/settings/ordering', { data: { hoursEnforced: hoursWereEnforced }, headers: auth });
   if (paymentSettingsBefore) await api.put('/api/settings/payment', { data: paymentSettingsBefore, headers: auth });
   await api.put('/api/settings/busy', { data: { mode: 'NORMAL' }, headers: auth }); // never leave ordering paused
-  if (staffId) await api.delete(`/api/admin/staff/${staffId}`, { headers: auth });
+  if (staffId) {
+    // Delete needs a deactivated account; the test staff member's data is wiped.
+    await api.patch(`/api/admin/staff/${staffId}/active`, { data: { isActive: false }, headers: auth });
+    await api.delete(`/api/admin/staff/${staffId}`, { headers: auth });
+  }
   await api.dispose();
 });
 

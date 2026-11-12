@@ -15,6 +15,7 @@ import {
   useCreateStaffMutation,
   useUpdateStaffRoleMutation,
   useSetStaffActiveMutation,
+  useDeleteStaffMutation,
   type RestaurantProfile,
   type StaffUser,
 } from '../../../../src/api/apiSlice';
@@ -109,6 +110,7 @@ export default function SettingsPage() {
   const [createStaff, { isLoading: creatingStaff }] = useCreateStaffMutation();
   const [updateRole] = useUpdateStaffRoleMutation();
   const [setStaffActive, { isLoading: changingActive }] = useSetStaffActiveMutation();
+  const [deleteStaff, { isLoading: deletingStaff }] = useDeleteStaffMutation();
   const [setOrdering] = useSetOrderingMutation();
 
   const [taxPct, setTaxPct] = useState('');
@@ -127,6 +129,8 @@ export default function SettingsPage() {
   const [staffOpen, setStaffOpen] = useState(false);
   const [staffError, setStaffError] = useState('');
   const [deactivating, setDeactivating] = useState<StaffUser | null>(null);
+  const [deleting, setDeleting] = useState<StaffUser | null>(null);
+  const [deleteTyped, setDeleteTyped] = useState('');
 
   useEffect(() => {
     if (settings) {
@@ -536,20 +540,32 @@ export default function SettingsPage() {
                           {t('deactivate')}
                         </Button>
                       ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              await setStaffActive({ id: s.id, isActive: true }).unwrap();
-                              saved(t('reactivated', { name: s.name }));
-                            } catch (err) {
-                              failed(t('reactivateFailed'), err);
-                            }
-                          }}
-                        >
-                          {t('reactivate')}
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                await setStaffActive({ id: s.id, isActive: true }).unwrap();
+                                saved(t('reactivated', { name: s.name }));
+                              } catch (err) {
+                                failed(t('reactivateFailed'), err);
+                              }
+                            }}
+                          >
+                            {t('reactivate')}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            icon={Trash2}
+                            className="!text-danger hover:!bg-danger-soft"
+                            aria-label={t('deleteAccountOf', { name: s.name })}
+                            onClick={() => { setDeleteTyped(''); setDeleting(s); }}
+                          >
+                            {t('deleteAccount')}
+                          </Button>
+                        </div>
                       )}
                     </TD>
                   </TR>
@@ -654,6 +670,50 @@ export default function SettingsPage() {
           </>
         }
       />
+
+      {/* Delete (only deactivated accounts; cannot be undone) */}
+      <Dialog
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        size="sm"
+        title={t('deleteTitle', { name: deleting?.name ?? '' })}
+        description={t('deleteDescription')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDeleting(null)}>{tc('cancel')}</Button>
+            <Button
+              variant="danger"
+              icon={Trash2}
+              loading={deletingStaff}
+              disabled={!deleting || deleteTyped.trim().toLowerCase() !== deleting.username}
+              onClick={async () => {
+                if (!deleting) return;
+                try {
+                  await deleteStaff(deleting.id).unwrap();
+                  saved(t('deletedToast', { name: deleting.name }));
+                  setDeleting(null);
+                } catch (err) {
+                  failed(t('deleteFailed'), err);
+                }
+              }}
+            >
+              {t('deleteAccount')}
+            </Button>
+          </>
+        }
+      >
+        <Field label={t('deleteTypeUsername', { username: deleting?.username ?? '' })} htmlFor="st-delete-confirm">
+          <Input
+            id="st-delete-confirm"
+            data-autofocus
+            value={deleteTyped}
+            onChange={(e) => setDeleteTyped(e.target.value)}
+            autoCapitalize="none"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </Field>
+      </Dialog>
     </PageContainer>
   );
 }

@@ -109,7 +109,10 @@ The server enforces it (`server/src/modules/orders/orderStateMachine.ts`); see
 
 - Orders are only accepted during the opening hours in the restaurant profile.
   Switch this off under **Admin → Settings → Online Ordering** for testing at night.
-- Staff accounts are deactivated, never deleted.
+- Staff accounts are deactivated first. A deactivated account can then be deleted
+  (Settings → Staff accounts): a never-used account is removed; otherwise its
+  personal data is wiped and history shows "Deleted user"
+  ([plan](docs/2026-11-12-delete-staff-account.md)).
 
 ## Sign-in
 

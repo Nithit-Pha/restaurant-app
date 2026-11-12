@@ -644,7 +644,7 @@
     "maxDistance": "Max delivery distance (km)",
     "noLimitHint": "0 = no limit.",
     "saveDelivery": "Save delivery fees",
-    "staffDescription": "People who can work the orders screen. Accounts are deactivated, never deleted.",
+    "staffDescription": "People who can work the orders screen. Deactivate an account first; a deactivated account can then be deleted.",
     "addStaff": "Add staff",
     "col": {
       "name": "Name",
@@ -676,6 +676,13 @@
     "keepActive": "Keep active",
     "deactivatedToast": "{name} was deactivated",
     "deactivateFailed": "Could not deactivate the account",
+    "deleteAccount": "Delete",
+    "deleteAccountOf": "Delete the account of {name}",
+    "deleteTitle": "Delete {name}?",
+    "deleteDescription": "Their name, username, email and phone are removed for good. Past orders and history stay and show \"Deleted user\". This cannot be undone.",
+    "deleteTypeUsername": "Type the username {username} to confirm",
+    "deletedToast": "{name} was deleted",
+    "deleteFailed": "Could not delete the account",
     "defaultPrep": "Usual cooking time (minutes)",
     "defaultPrepHint": "Used when the kitchen taps \"Accept order\". Customers see it as the estimated ready time; busy mode adds its extra minutes.",
     "defaultPrepSaved": "Usual cooking time: {minutes} min"
