@@ -65,6 +65,7 @@ model User {
   confirmedPayments Payment[]
   addresses  Address[]
   confirmedVisits TableSession[] @relation("VisitConfirmedBy")
+  stockMovements StockMovement[]
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 }
@@ -288,6 +289,8 @@ model Expense {
   description String?
   createdBy   User?           @relation(fields: [createdById], references: [id])
   createdById String?
+  // Stock in with a price creates the expense (Step 2).
+  stockMovements StockMovement[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -392,4 +395,50 @@ model TableSession {
   orders          Order[]
 
   @@index([tableId, closedAt])
+}
+
+// ------------------------------------------------------------------ Stock --
+// Ingredients in the shop. Every change to a quantity is a StockMovement, so
+// the history explains the number on screen.
+enum StockMoveType {
+  SALE         // used by an order when staff accepted it
+  SALE_RETURN  // put back because that order was cancelled
+  PURCHASE     // stock in
+  COUNT_ADJUST // difference found when counting (also the opening stock)
+  WASTE        // spoiled or dropped, with a reason
+}
+
+model Ingredient {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  unit         String   // kg, g, L, ml, pcs, pack (recipes use the same unit)
+  // Can drop below 0 when the real stock was higher than the app knew; the
+  // next count corrects it. Orders are never blocked by a wrong number.
+  quantity     Decimal  @default(0) @db.Decimal(12, 3)
+  reorderLevel Decimal  @default(0) @db.Decimal(12, 3) // "low stock" at or below this
+  storage      String?  // "Fridge 1", "Freezer", "Dry store"
+  // Deactivated, never deleted: the history keeps pointing at it.
+  isActive     Boolean  @default(true)
+  movements    StockMovement[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model StockMovement {
+  id            String        @id @default(uuid())
+  ingredient    Ingredient    @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  ingredientId  String
+  type          StockMoveType
+  change        Decimal       @db.Decimal(12, 3) // + in, - out
+  quantityAfter Decimal       @db.Decimal(12, 3) // stock right after this change
+  reason        String?
+  user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId        String?
+  // Stock in with a price: the Finance expense it created.
+  expense       Expense?      @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  expenseId     String?
+  createdAt     DateTime      @default(now())
+
+  @@index([ingredientId, createdAt])
+  @@index([createdAt])
 }

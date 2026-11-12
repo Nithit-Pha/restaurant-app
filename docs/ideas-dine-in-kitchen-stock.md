@@ -40,6 +40,7 @@ purchase orders, and the sensors are the only part that needs hardware.
 | Scope | One restaurant only for now, branches later | 2026-11-11 |
 | Fridge/freezer | Monitor + alerts only, no remote control | 2026-11-11 |
 | Stock | Ingredient stock in the app (recipes, auto-deduct on payment) | 2026-11-11 |
+| Stock deduction | Changed: deduct when staff **accept** the order (not on payment); cancel puts it back. Plan: [2026-11-12-step-2-stock.md](2026-11-12-step-2-stock.md) | 2026-11-12 |
 | Order amount | Fill up to target level (usage-based suggestions later) | 2026-11-11 |
 | Emergency level | Alert + ready-made urgent draft, sent with one tap | 2026-11-11 |
 | Sending to supplier | PDF for now: download and forward by email, LINE, print. Automatic sending later | 2026-11-11 |
