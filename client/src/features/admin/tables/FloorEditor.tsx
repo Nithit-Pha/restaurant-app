@@ -18,7 +18,7 @@ import {
 import { useLayoutHistory } from './useLayoutHistory';
 import { TemplatesDialog } from './ZoneDialogs';
 
-const DECOR_TYPES: DecorType[] = ['WALL', 'BAR', 'ENTRANCE', 'PLANT', 'KITCHEN'];
+const DECOR_TYPES: DecorType[] = ['WALL', 'BAR', 'ENTRANCE', 'PLANT', 'KITCHEN', 'STAIRS'];
 const SHAPES: { shape: TableShape; icon: typeof Circle }[] = [
   { shape: 'ROUND', icon: Circle },
   { shape: 'SQUARE', icon: Square },
@@ -295,7 +295,7 @@ export default function FloorEditor({ zone, otherLabels, onDirtyChange }: Props)
             aria-label={t('addDecor')}
             value=""
             onChange={(e) => e.target.value && addDecor(e.target.value as DecorType)}
-            className="w-40 [&_select]:h-8 [&_select]:text-sm"
+            className="w-52 [&_select]:h-8 [&_select]:text-sm"
           >
             <option value="">{t('addDecor')}</option>
             {DECOR_TYPES.map((d) => <option key={d} value={d}>{t(`decor.${d}`)}</option>)}

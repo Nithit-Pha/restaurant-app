@@ -330,7 +330,7 @@ model FloorZone {
   sortOrder Int           @default(0)
   width     Int           // grid cells
   height    Int
-  // Walls, bar, entrance, plants, kitchen door: [{ type, x, y, width, height, rotation }]
+  // Walls, bar, entrance, plants, kitchen, stairs: [{ type, x, y, width, height, rotation }]
   decor     Json          @default("[]")
   tables    DiningTable[]
   createdAt DateTime      @default(now())

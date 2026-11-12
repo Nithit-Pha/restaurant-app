@@ -166,6 +166,7 @@ export const DECOR_DEFAULTS: Record<DecorType, { width: number; height: number }
   ENTRANCE: { width: 3, height: 1 },
   PLANT: { width: 1, height: 1 },
   KITCHEN: { width: 4, height: 3 },
+  STAIRS: { width: 2, height: 3 },
 };
 
 let tempId = 0;

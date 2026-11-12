@@ -795,13 +795,14 @@
       "SQUARE": "Square table",
       "RECT": "Long table"
     },
-    "addDecor": "Add wall, bar…",
+    "addDecor": "Add wall, bar, stairs…",
     "decor": {
       "WALL": "Wall",
       "BAR": "Bar",
       "ENTRANCE": "Entrance",
       "PLANT": "Plant",
-      "KITCHEN": "Kitchen"
+      "KITCHEN": "Kitchen",
+      "STAIRS": "Stairs"
     },
     "shapeName": {
       "ROUND": "Round",

@@ -17,7 +17,7 @@ export const MAX_TABLES_PER_ZONE = 150;
 export const MAX_DECOR_PER_ZONE = 100;
 
 export const TABLE_SHAPES = ['ROUND', 'SQUARE', 'RECT'] as const;
-export const DECOR_TYPES = ['WALL', 'BAR', 'ENTRANCE', 'PLANT', 'KITCHEN'] as const;
+export const DECOR_TYPES = ['WALL', 'BAR', 'ENTRANCE', 'PLANT', 'KITCHEN', 'STAIRS'] as const;
 
 export type TableShape = (typeof TABLE_SHAPES)[number];
 export type DecorType = (typeof DECOR_TYPES)[number];

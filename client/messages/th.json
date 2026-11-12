@@ -795,13 +795,14 @@
       "SQUARE": "โต๊ะสี่เหลี่ยม",
       "RECT": "โต๊ะยาว"
     },
-    "addDecor": "เพิ่มผนัง บาร์…",
+    "addDecor": "เพิ่มผนัง บาร์ บันได…",
     "decor": {
       "WALL": "ผนัง",
       "BAR": "บาร์",
       "ENTRANCE": "ทางเข้า",
       "PLANT": "ต้นไม้",
-      "KITCHEN": "ครัว"
+      "KITCHEN": "ครัว",
+      "STAIRS": "บันได"
     },
     "shapeName": {
       "ROUND": "กลม",

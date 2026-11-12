@@ -24,6 +24,15 @@ describe('layout input', () => {
     expect(checkLayout(ZONE, [], parsed.data!.decor)).toEqual([]);
   });
 
+  it('accepts stairs, which must stay inside the zone like any decor', () => {
+    const stairs = { type: 'STAIRS', x: 9, y: 0, width: 2, height: 3, rotation: 0 };
+    const ok = layoutSchema.safeParse({ tables: [], decor: [stairs] });
+    expect(ok.success).toBe(true);
+    expect(checkLayout(ZONE, [], ok.data!.decor)).toEqual([]);
+    const out = layoutSchema.parse({ tables: [], decor: [{ ...stairs, x: 11 }] });
+    expect(checkLayout(ZONE, [], out.decor)).toEqual([expect.objectContaining({ kind: 'decor', code: 'OUTSIDE' })]);
+  });
+
   it('still refuses a table that really sticks out, with a clear message', () => {
     const parsed = layoutSchema.safeParse({ tables: [{ ...turnedLong, x: -2 }], decor: [] });
     expect(parsed.success).toBe(true); // the rough limits pass…

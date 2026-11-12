@@ -674,7 +674,7 @@ interface RegisterInput {
 
 export type TableShape = 'ROUND' | 'SQUARE' | 'RECT';
 export type TableStatus = 'FREE' | 'SEATED' | 'ORDERED' | 'SERVED' | 'BILL_REQUESTED' | 'CLEANING';
-export type DecorType = 'WALL' | 'BAR' | 'ENTRANCE' | 'PLANT' | 'KITCHEN';
+export type DecorType = 'WALL' | 'BAR' | 'ENTRANCE' | 'PLANT' | 'KITCHEN' | 'STAIRS';
 
 export interface DiningTable {
   id: string;

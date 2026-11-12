@@ -152,6 +152,32 @@ function DecorGlyph({ d, label, hatch }: { d: CanvasDecor; label: string; hatch:
           {w >= CELL * 2 && text}
         </>
       );
+    case 'STAIRS': {
+      // Steps across the short side, with an arrow pointing up the stairs (towards the top).
+      const vertical = h >= w;
+      const len = vertical ? h : w;
+      const steps = Math.max(3, Math.round(len / (CELL * 0.35)));
+      const lines = Array.from({ length: steps - 1 }, (_, i) => {
+        const p = ((i + 1) / steps) * len;
+        return vertical
+          ? <line key={i} x1={x + 3} y1={y + p} x2={x + w - 3} y2={y + p} stroke={c('line-strong')} strokeWidth={1} />
+          : <line key={i} x1={x + p} y1={y + 3} x2={x + p} y2={y + h - 3} stroke={c('line-strong')} strokeWidth={1} />;
+      });
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const a = Math.min(w, h) * 0.3;
+      const arrow = vertical
+        ? `M ${cx} ${y + h - 6} L ${cx} ${y + 6} M ${cx - a / 2} ${y + 6 + a / 2} L ${cx} ${y + 6} L ${cx + a / 2} ${y + 6 + a / 2}`
+        : `M ${x + 6} ${cy} L ${x + w - 6} ${cy} M ${x + w - 6 - a / 2} ${cy - a / 2} L ${x + w - 6} ${cy} L ${x + w - 6 - a / 2} ${cy + a / 2}`;
+      return (
+        <>
+          <rect x={x + 2} y={y + 2} width={w - 4} height={h - 4} rx={3} fill={c('surface-muted')} stroke={c('line-strong')} strokeWidth={1.5} />
+          {lines}
+          <path d={arrow} fill="none" stroke={c('fg-muted')} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          <title>{label}</title>
+        </>
+      );
+    }
     case 'KITCHEN':
       return (
         <>
