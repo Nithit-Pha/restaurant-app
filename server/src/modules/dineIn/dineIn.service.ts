@@ -8,6 +8,10 @@ import { syncTableStatus } from './tableStatus';
 import { readVisitKey, signVisitKey } from './visitKey';
 import { publish } from '../../utils/events';
 import { getFloor } from '../tables/tables.service';
+import { getPaymentSettings } from '../settings/settings.service';
+import { buildPromptPayPayload } from '../../utils/promptpay';
+import { audit } from '../../utils/auditLog';
+import { planBillPayment } from './bill';
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 
@@ -386,4 +390,82 @@ export async function markCleaned(tableId: string) {
   if (open) throw httpError(409, 'This table still has guests.');
   await prisma.diningTable.update({ where: { id: tableId }, data: { status: 'FREE' } });
   publish({ type: 'table', tableId });
+}
+
+// ------------------------------------------------------------------- bill --
+
+async function billOrders(visitId: string) {
+  const visit = await prisma.tableSession.findUnique({
+    where: { id: visitId },
+    select: {
+      id: true, tableId: true, tableLabel: true, closedAt: true,
+      orders: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true } },
+    },
+  });
+  if (!visit) throw httpError(404, 'Visit not found');
+  if (visit.closedAt) throw httpError(409, 'This bill is already closed.');
+  return { visit, orders: visit.orders.map((o) => ({ ...o, total: Number(o.total) })) };
+}
+
+/** PromptPay QR for what is still unpaid on the table (staff show or print it at the table). */
+export async function getVisitPromptPay(visitId: string) {
+  const { orders } = await billOrders(visitId);
+  const amount = round2(orders
+    .filter((o) => o.status !== 'CANCELLED' && (o.paymentStatus === 'UNPAID' || o.paymentStatus === 'PENDING'))
+    .reduce((s, o) => s + o.total, 0));
+  if (amount <= 0) throw httpError(409, 'There is nothing to pay on this table.');
+  const { promptPayId, promptPayName } = await getPaymentSettings();
+  if (!promptPayId) throw httpError(409, 'PromptPay is not set up. Add the PromptPay ID in Settings, or take cash.');
+  return { payload: buildPromptPayPayload(promptPayId, amount), amount, promptPayName };
+}
+
+export interface PayVisitInput {
+  method: 'CASH' | 'PROMPTPAY';
+  providerRef?: string;
+  /** Dishes still cooking or ready are marked served with the payment. */
+  markServed?: boolean;
+}
+
+/**
+ * The guests paid the table's bill at the counter: every unpaid order of the
+ * visit is marked paid (one Payment row each), the visit closes and the table
+ * needs cleaning. The next scan of the table's QR code starts a new visit.
+ */
+export async function payVisit(visitId: string, input: PayVisitInput, staffId: string) {
+  const { visit, orders } = await billOrders(visitId);
+  const plan = planBillPayment(orders, input.markServed);
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    for (const o of plan.serve) {
+      const res = await tx.order.updateMany({ where: { id: o.id, status: o.status as never }, data: { status: 'DELIVERED', completedAt: now } });
+      if (res.count === 0) throw httpError(409, 'An order on this table was just changed. Check the bill and try again.');
+      await tx.orderStatusHistory.create({
+        data: { orderId: o.id, fromStatus: o.status as never, toStatus: 'DELIVERED', actorId: staffId, note: 'Served when the bill was paid' },
+      });
+    }
+    for (const o of plan.pay) {
+      const res = await tx.order.updateMany({
+        where: { id: o.id, paymentStatus: { in: ['UNPAID', 'PENDING'] } },
+        data: { paymentStatus: 'PAID', paymentMethod: input.method, paidAt: now },
+      });
+      if (res.count === 0) throw httpError(409, 'This bill was just paid by someone else. Refresh and check.');
+      await tx.payment.create({
+        data: {
+          orderId: o.id, method: input.method, status: 'PAID', amount: o.total,
+          providerRef: input.providerRef?.trim() || null, note: `Table ${visit.tableLabel} bill`, confirmedById: staffId,
+        },
+      });
+    }
+    await tx.tableSession.update({ where: { id: visitId }, data: { closedAt: now, staffCalledAt: null } });
+    if (visit.tableId) await tx.diningTable.update({ where: { id: visit.tableId }, data: { status: 'CLEANING' } });
+  });
+
+  await audit({
+    actorId: staffId, action: 'PAYMENT', entityType: 'ORDER', entityId: visitId,
+    metadata: { table: visit.tableLabel, orders: plan.pay.length, total: plan.total, method: input.method, servedAtPayment: plan.serve.length },
+  });
+  publish({ type: 'table', tableId: visit.tableId });
+  plan.pay.forEach((o) => publish({ type: 'order', orderId: o.id, tableId: visit.tableId }));
+  return { total: plan.total, method: input.method, visit: visitSummary((await loadVisit(visitId))!) };
 }

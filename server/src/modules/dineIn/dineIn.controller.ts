@@ -78,6 +78,18 @@ export async function cleaned(req: Request, res: Response, next: NextFunction) {
   } catch (err) { next(err); }
 }
 
+export async function promptPay(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await service.getVisitPromptPay(req.params.id));
+  } catch (err) { next(err); }
+}
+
+export async function pay(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await service.payVisit(req.params.id, req.body, req.user!.userId));
+  } catch (err) { next(err); }
+}
+
 export async function confirm(req: Request, res: Response, next: NextFunction) {
   try {
     res.json(await service.confirmVisit(req.params.id, req.user!.userId, req.body.guests));

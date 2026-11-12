@@ -360,6 +360,15 @@ export const apiSlice = createApi({
       query: ({ id, ...body }) => ({ url: `/dine-in/visits/${id}/merge`, method: 'POST', body }),
       invalidatesTags: ['Floor', 'Visit', 'Order'],
     }),
+    // The table's bill, paid at the counter.
+    getVisitPromptPay: builder.query<PromptPayQr, string>({
+      query: (id) => `/dine-in/visits/${id}/promptpay`,
+      keepUnusedDataFor: 0, // the amount changes with every round
+    }),
+    payVisit: builder.mutation<{ total: number; method: PaymentMethod; visit: TableVisit }, { id: string; method: PaymentMethod; providerRef?: string; markServed?: boolean }>({
+      query: ({ id, ...body }) => ({ url: `/dine-in/visits/${id}/pay`, method: 'POST', body }),
+      invalidatesTags: ['Floor', 'Visit', 'Order', 'Finance'],
+    }),
     markTableCleaned: builder.mutation<void, string>({
       query: (tableId) => ({ url: `/dine-in/tables/${tableId}/cleaned`, method: 'POST' }),
       invalidatesTags: ['Floor'],
@@ -424,6 +433,8 @@ export const {
   useMoveVisitMutation,
   useMergeVisitsMutation,
   useMarkTableCleanedMutation,
+  useLazyGetVisitPromptPayQuery,
+  usePayVisitMutation,
 } = apiSlice;
 
 // --- Types ---

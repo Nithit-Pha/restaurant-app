@@ -38,5 +38,12 @@ router.post('/visits/:id/move', ...staff, validate(z.object({ tableId: z.string(
 router.post('/visits/:id/merge', ...staff, validate(z.object({ intoVisitId: z.string().uuid() })), ctrl.merge);
 router.post('/tables/:id/seat', ...staff, validate(guestsSchema), ctrl.seat);
 router.post('/tables/:id/cleaned', ...staff, ctrl.cleaned);
+// The table's bill, paid at the counter.
+router.get('/visits/:id/promptpay', ...staff, ctrl.promptPay);
+router.post('/visits/:id/pay', ...staff, validate(z.object({
+  method: z.enum(['CASH', 'PROMPTPAY']),
+  providerRef: z.string().trim().max(100).optional(),
+  markServed: z.boolean().optional(),
+})), ctrl.pay);
 
 export default router;

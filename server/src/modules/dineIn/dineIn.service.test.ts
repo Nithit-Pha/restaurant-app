@@ -4,7 +4,9 @@ const { prismaMock, tx, openStatus, syncMock } = vi.hoisted(() => {
   const tx = {
     $queryRaw: vi.fn(),
     tableSession: { findFirst: vi.fn(), findUnique: vi.fn(async () => ({ mergedIntoId: null })), create: vi.fn(), update: vi.fn() },
-    order: { create: vi.fn(), updateMany: vi.fn() },
+    order: { create: vi.fn(), updateMany: vi.fn(async () => ({ count: 1 })) },
+    orderStatusHistory: { create: vi.fn() },
+    payment: { create: vi.fn() },
     diningTable: { findUnique: vi.fn(), update: vi.fn() },
   };
   return {
@@ -21,7 +23,11 @@ const { prismaMock, tx, openStatus, syncMock } = vi.hoisted(() => {
 });
 
 vi.mock('../../config/db', () => ({ prisma: prismaMock }));
-vi.mock('../settings/settings.service', () => ({ getOpenStatus: openStatus }));
+vi.mock('../settings/settings.service', () => ({
+  getOpenStatus: openStatus,
+  getPaymentSettings: vi.fn(async () => ({ promptPayId: '0812345678', promptPayName: 'Baan Test' })),
+}));
+vi.mock('../../utils/auditLog', () => ({ audit: vi.fn() }));
 vi.mock('./tableStatus', () => ({ syncTableStatus: syncMock }));
 vi.mock('../orders/orders.service', () => ({
   itemsInclude: { include: { modifiers: { orderBy: { position: 'asc' } } } },
@@ -37,7 +43,7 @@ const { publishMock } = vi.hoisted(() => ({ publishMock: vi.fn() }));
 vi.mock('../../utils/events', () => ({ publish: publishMock }));
 
 import {
-  getVisitByKey, guestRequest, joinVisit, mergeVisits, moveVisit, placeTableOrder, seatGuests, visitSummary,
+  getVisitByKey, getVisitPromptPay, guestRequest, joinVisit, mergeVisits, moveVisit, payVisit, placeTableOrder, seatGuests, visitSummary,
 } from './dineIn.service';
 import { readVisitKey, signVisitKey } from './visitKey';
 
@@ -206,5 +212,59 @@ describe('staff at the table', () => {
     });
     const visit = await getVisitByKey(signVisitKey('visit-a'));
     expect(visit.id).toBe('visit-b');
+  });
+});
+
+describe('paying the table bill at the counter', () => {
+  const billVisit = (orders: Record<string, unknown>[]) =>
+    prismaMock.tableSession.findUnique.mockImplementation(async ({ where, include }: any) => (include
+      ? visitRow({ id: where.id, closedAt: new Date() })
+      : { id: where.id, tableId: 't4', tableLabel: 'T4', closedAt: null, orders }));
+
+  it('pays every unpaid order, closes the visit and sends the table to cleaning', async () => {
+    billVisit([
+      { id: 'o1', orderNumber: 41, status: 'DELIVERED', paymentStatus: 'UNPAID', total: 160 },
+      { id: 'o2', orderNumber: 42, status: 'CANCELLED', paymentStatus: 'UNPAID', total: 50 },
+      { id: 'o3', orderNumber: 43, status: 'DELIVERED', paymentStatus: 'UNPAID', total: 80 },
+    ]);
+    const res = await payVisit('visit-1', { method: 'PROMPTPAY', providerRef: 'TX-9' }, 'staff-1');
+    expect(res.total).toBe(240);
+    expect(tx.order.updateMany).toHaveBeenCalledTimes(2);
+    expect(tx.order.updateMany).toHaveBeenCalledWith({
+      where: { id: 'o1', paymentStatus: { in: ['UNPAID', 'PENDING'] } },
+      data: { paymentStatus: 'PAID', paymentMethod: 'PROMPTPAY', paidAt: expect.any(Date) },
+    });
+    expect(tx.payment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ orderId: 'o3', method: 'PROMPTPAY', status: 'PAID', amount: 80, providerRef: 'TX-9', confirmedById: 'staff-1' }) });
+    expect(tx.tableSession.update).toHaveBeenCalledWith({ where: { id: 'visit-1' }, data: { closedAt: expect.any(Date), staffCalledAt: null } });
+    expect(tx.diningTable.update).toHaveBeenCalledWith({ where: { id: 't4' }, data: { status: 'CLEANING' } });
+  });
+
+  it('with "mark served" first serves what is still cooking, with a history note', async () => {
+    billVisit([{ id: 'o1', orderNumber: 41, status: 'READY', paymentStatus: 'UNPAID', total: 100 }]);
+    await expect(payVisit('visit-1', { method: 'CASH' }, 'staff-1')).rejects.toMatchObject({ statusCode: 409, publicCode: 'NOT_SERVED' });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    await payVisit('visit-1', { method: 'CASH', markServed: true }, 'staff-1');
+    expect(tx.order.updateMany).toHaveBeenCalledWith({ where: { id: 'o1', status: 'READY' }, data: { status: 'DELIVERED', completedAt: expect.any(Date) } });
+    expect(tx.orderStatusHistory.create).toHaveBeenCalledWith({ data: expect.objectContaining({ fromStatus: 'READY', toStatus: 'DELIVERED', note: 'Served when the bill was paid' }) });
+  });
+
+  it('a second payment of the same bill is refused (closed visit, or someone was faster)', async () => {
+    prismaMock.tableSession.findUnique.mockResolvedValue({ id: 'visit-1', tableId: 't4', tableLabel: 'T4', closedAt: new Date(), orders: [] });
+    await expect(payVisit('visit-1', { method: 'CASH' }, 's')).rejects.toMatchObject({ statusCode: 409 });
+    billVisit([{ id: 'o1', orderNumber: 41, status: 'DELIVERED', paymentStatus: 'UNPAID', total: 100 }]);
+    tx.order.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(payVisit('visit-1', { method: 'CASH' }, 's')).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('makes a PromptPay QR for what is still unpaid on the table', async () => {
+    billVisit([
+      { id: 'o1', orderNumber: 41, status: 'DELIVERED', paymentStatus: 'UNPAID', total: 160 },
+      { id: 'o2', orderNumber: 42, status: 'PREPARING', paymentStatus: 'UNPAID', total: 80.25 },
+      { id: 'o3', orderNumber: 43, status: 'CANCELLED', paymentStatus: 'UNPAID', total: 999 },
+    ]);
+    const qr = await getVisitPromptPay('visit-1');
+    expect(qr.amount).toBe(240.25);
+    expect(qr.payload).toContain('0812345678'.slice(1)); // the PromptPay ID is in the payload
+    expect(qr.promptPayName).toBe('Baan Test');
   });
 });

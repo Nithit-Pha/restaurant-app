@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 
 export interface AppError extends Error {
   statusCode?: number;
+  /** A short code the client may act on, e.g. NOT_SERVED (never a database error code). */
+  publicCode?: string;
 }
 
 export function errorHandler(
@@ -19,5 +21,5 @@ export function errorHandler(
     console.error('[ERROR]', err);
   }
 
-  res.status(statusCode).json({ message });
+  res.status(statusCode).json({ message, ...(err.publicCode && statusCode < 500 ? { code: err.publicCode } : {}) });
 }

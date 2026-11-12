@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowRightLeft, BellRing, Check, Combine, Sparkles, UserPlus } from 'lucide-react';
+import { ArrowRightLeft, BellRing, Check, Combine, Receipt, Sparkles, UserPlus } from 'lucide-react';
 import {
   useConfirmVisitMutation, useGetStaffVisitQuery, useMarkTableCleanedMutation, useMergeVisitsMutation, useMoveVisitMutation,
   useSeatGuestsMutation, type DiningTable, type VisitBrief,
@@ -14,6 +14,7 @@ import OrderStatusBadge from '../orders/OrderStatusBadge';
 import { formatClock } from '../orders/orderDisplay';
 import { Alert, Button, Card, CardBody, Field, Input, LoadingBlock, Select, useToast } from '../../components/ui';
 import { STATUS_FILL, minutesSince } from './tableStatus';
+import BillDialog from './BillDialog';
 
 interface Props {
   table: DiningTable;
@@ -22,12 +23,10 @@ interface Props {
   /** Every table with its zone and open visit, for "move" and "merge". */
   allTables: { table: DiningTable; zoneName: string; visit?: VisitBrief }[];
   locale: string;
-  /** Slot for the bill (Step 1e). */
-  billAction?: React.ReactNode;
 }
 
 /** What staff see and can do for one table on the floor view. */
-export default function TablePanel({ table, zoneName, visit, allTables, locale, billAction }: Props) {
+export default function TablePanel({ table, zoneName, visit, allTables, locale }: Props) {
   const t = useTranslations('floorView');
   const tc = useTranslations('common');
   const toast = useToast();
@@ -40,6 +39,7 @@ export default function TablePanel({ table, zoneName, visit, allTables, locale, 
   const [move, { isLoading: moving }] = useMoveVisitMutation();
   const [merge, { isLoading: merging }] = useMergeVisitsMutation();
   const [cleaned, { isLoading: cleaning }] = useMarkTableCleanedMutation();
+  const [billOpen, setBillOpen] = useState(false);
 
   const run = async (action: () => Promise<unknown>, done: string) => {
     try {
@@ -120,7 +120,12 @@ export default function TablePanel({ table, zoneName, visit, allTables, locale, 
             )}
             {visit.billRequestedAt && <Alert tone="info" title={t('billTitle', { time: formatClock(visit.billRequestedAt) })}>{t('billText')}</Alert>}
 
-            {billAction}
+            {detail && detail.orders.some((o) => o.status !== 'CANCELLED') && (
+              <Button icon={Receipt} variant={visit.billRequestedAt ? 'primary' : 'secondary'} onClick={() => setBillOpen(true)}>
+                {t('billButton', { total: formatCurrency(detail.totals.total) })}
+              </Button>
+            )}
+            {detail && <BillDialog visit={detail} open={billOpen} onClose={() => setBillOpen(false)} onPaid={() => setBillOpen(false)} />}
 
             <section>
               <h3 className="mb-2 text-sm font-semibold text-fg">{t('rounds')}</h3>

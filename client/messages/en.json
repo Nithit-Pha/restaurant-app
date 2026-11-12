@@ -1019,7 +1019,8 @@
     "mergeHint": "Both tables become one bill.",
     "merge": "Merge",
     "merged": "Tables merged into one bill",
-    "pickTable": "Pick a table"
+    "pickTable": "Pick a table",
+    "billButton": "Bill & payment · {total}"
   },
   "kitchen": {
     "eyebrow": "Service",
@@ -1051,5 +1052,34 @@
       "late": "{minutes} min late"
     },
     "updateFailed": "Could not update the order"
+  },
+  "bill": {
+    "title": "Bill · Table {table}",
+    "description": "Seated since {since} · {rounds, plural, one {# order} other {# orders}}",
+    "lines": "Items",
+    "subtotal": "Before VAT",
+    "vat": "VAT",
+    "total": "Total",
+    "payment": "Payment",
+    "cash": "Cash",
+    "received": "Cash received",
+    "change": "Change: {amount}",
+    "tooLittle": "{amount} short",
+    "qrAlt": "PromptPay QR code for {total}",
+    "qrHint": "Show this on the tablet or print the bill with the QR. Check the transfer in your bank app before pressing Paid.",
+    "qrFailed": "Could not make the PromptPay QR code.",
+    "ref": "Transfer reference (optional)",
+    "refHint": "From the bank app, to find the payment later.",
+    "print": "Print bill",
+    "printBlocked": "The browser blocked the print window. Allow pop-ups for this site.",
+    "markPaid": "Paid {total}",
+    "paidToast": "Table {table} paid · {total}",
+    "paidHint": "The table now needs cleaning. Its QR code starts a new bill.",
+    "payFailed": "The bill was not closed",
+    "notServed": "Some dishes are not served yet.",
+    "notServedTitle": "Not everything is served",
+    "serveAndPay": "Mark served and close bill",
+    "slipTitle": "Table {table}",
+    "thanks": "Thank you! · ขอบคุณค่ะ"
   }
 }
