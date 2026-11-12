@@ -4,7 +4,8 @@ import { cn } from './cn';
 /** Scroll container + table. Use inside a Card or on its own. */
 export function Table({ className, ...rest }: HTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="w-full overflow-x-auto">
+    // relative: keeps sr-only labels inside the scroll box (no page-wide sideways scroll on phones)
+    <div className="relative w-full overflow-x-auto">
       <table className={cn('w-full border-collapse text-sm', className)} {...rest} />
     </div>
   );

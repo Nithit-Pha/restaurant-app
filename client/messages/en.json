@@ -1532,5 +1532,17 @@
         "hint": "Prices of deliveries and stock in; they create Finance expenses. Off by default."
       }
     }
+  },
+  "alerts": {
+    "label": "Alerts",
+    "labelCount": "Alerts ({count})",
+    "title": "Needs doing",
+    "none": "All clear. Nothing needs doing right now.",
+    "kind": {
+      "urgentStock": "{count, plural, one {# ingredient} other {# ingredients}} at the urgent level",
+      "draftsWaiting": "{count, plural, one {# draft order} other {# draft orders}} to check and send{extra, plural, =0 {} other { (# urgent)}}",
+      "deliveriesDue": "{count, plural, one {# delivery} other {# deliveries}} due{extra, plural, =0 { today} other { (# late)}}",
+      "priceMissing": "{count, plural, one {# delivery} other {# deliveries}} without a price"
+    }
   }
 }
