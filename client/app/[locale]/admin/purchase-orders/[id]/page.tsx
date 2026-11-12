@@ -3,19 +3,21 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowLeft, Ban, Download, RotateCcw, Save, SearchX, Send } from 'lucide-react';
+import { ArrowLeft, Ban, CheckCheck, Download, PackageCheck, Receipt, RotateCcw, Save, SearchX, Send } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { apiErrorMessage } from '@/lib/localized';
-import { useGetRestaurantQuery } from '../../../../../src/api/apiSlice';
+import { useGetMeQuery, useGetRestaurantQuery } from '../../../../../src/api/apiSlice';
+import PricesDialog from '../../../../../src/features/admin/purchasing/PricesDialog';
+import ReceiveDialog from '../../../../../src/features/admin/purchasing/ReceiveDialog';
 import { formatAmount, useGetIngredientsQuery, type Ingredient, type Unit } from '../../../../../src/features/admin/stock/stockApi';
 import { downloadOrderPdf } from '../../../../../src/features/admin/purchasing/orderPdf';
 import { buildOrderSheet, packText, STATUS_TONE } from '../../../../../src/features/admin/purchasing/poDisplay';
 import {
-  useCancelPurchaseOrderMutation, useGetPurchaseOrderQuery, useSendPurchaseOrderMutation, useUpdatePurchaseOrderMutation,
-  type PoLine, type PurchaseOrder,
+  useCancelPurchaseOrderMutation, useCompletePurchaseOrderMutation, useGetPurchaseOrderQuery, useSendPurchaseOrderMutation,
+  useUpdatePurchaseOrderMutation, type PoLine, type PurchaseDelivery, type PurchaseOrder,
 } from '../../../../../src/features/admin/purchasing/purchasingApi';
 import { orderDayLabel } from '../../../../../src/features/admin/suppliers/orderDays';
-import { formatDate } from '../../../../../src/lib/format';
+import { formatCurrency, formatDate } from '../../../../../src/lib/format';
 import { useRequireRole } from '../../../../../src/routes/useAuthGuard';
 import {
   Alert, Badge, Button, Card, CardHeader, Dialog, EmptyState, Field, Input, LoadingBlock, PageContainer, PageHeader,
@@ -30,14 +32,19 @@ interface Row {
   packSize: string;
   ingredient?: Ingredient; // current stock, when the ingredient still exists
   orderedPacks?: number; // on the saved order
+  received?: string; // arrived so far (sent orders)
 }
 
 interface LineEdit { ticked: boolean; packs: string }
 
-/** Owner: check a purchase order, tick what goes in, send it and get the PDF. */
+/**
+ * Owner: check a purchase order, tick what goes in, send it and get the PDF.
+ * Staff: see sent orders and record deliveries (Step 3d).
+ */
 export default function PurchaseOrderPage() {
   const t = useTranslations('purchasing');
-  const { ready } = useRequireRole('SUPER_ADMIN');
+  const { ready } = useRequireRole('STAFF');
+  const { data: me } = useGetMeQuery(undefined, { skip: !ready });
   const params = useParams<{ id: string }>();
   const { data: po, isLoading, isError } = useGetPurchaseOrderQuery(params.id, { skip: !ready });
   const { data: ingredients = [] } = useGetIngredientsQuery(undefined, { skip: !ready });
@@ -52,10 +59,10 @@ export default function PurchaseOrderPage() {
     );
   }
   // A fresh editor after every save, so its edits always start from the saved order.
-  return <Editor key={po.updatedAt} po={po} ingredients={ingredients} />;
+  return <Editor key={po.updatedAt} po={po} ingredients={ingredients} isOwner={me?.role === 'SUPER_ADMIN'} />;
 }
 
-function Editor({ po, ingredients }: { po: PurchaseOrder; ingredients: Ingredient[] }) {
+function Editor({ po, ingredients, isOwner }: { po: PurchaseOrder; ingredients: Ingredient[]; isOwner: boolean }) {
   const t = useTranslations('purchasing');
   const ts = useTranslations('stock');
   const tc = useTranslations('common');
@@ -65,14 +72,19 @@ function Editor({ po, ingredients }: { po: PurchaseOrder; ingredients: Ingredien
   const [update, { isLoading: saving }] = useUpdatePurchaseOrderMutation();
   const [send, { isLoading: sending }] = useSendPurchaseOrderMutation();
   const [cancel, { isLoading: cancelling }] = useCancelPurchaseOrderMutation();
-  const draft = po.status === 'DRAFT';
+  const [complete, { isLoading: completing }] = useCompletePurchaseOrderMutation();
+  // Only the owner edits a draft; staff see it read-only.
+  const draft = po.status === 'DRAFT' && isOwner;
+  const receivable = po.status === 'SENT' || po.status === 'PARTLY_RECEIVED';
+  const [receiving, setReceiving] = useState(false);
+  const [pricing, setPricing] = useState<{ delivery: PurchaseDelivery; no: number } | null>(null);
   const unit = (u: string) => ts(`unit.${u}`);
 
   const [edits, setEdits] = useState<Record<string, LineEdit>>({});
   const [expectedDate, setExpectedDate] = useState(po.expectedDate ?? '');
   const [note, setNote] = useState(po.note ?? '');
   const [error, setError] = useState('');
-  const [confirm, setConfirm] = useState<'send' | 'cancel' | null>(null);
+  const [confirm, setConfirm] = useState<'send' | 'cancel' | 'complete' | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
 
   // Drafts list every ingredient of the supplier (ticked or not); other orders only their lines.
@@ -80,7 +92,7 @@ function Editor({ po, ingredients }: { po: PurchaseOrder; ingredients: Ingredien
     const byId = new Map(ingredients.map((i) => [i.id, i]));
     const list: Row[] = po.items.map((it) => ({
       ingredientId: it.ingredientId, name: it.ingredientName, unit: it.unit, packName: it.packName, packSize: it.packSize,
-      ingredient: byId.get(it.ingredientId), orderedPacks: it.packs,
+      ingredient: byId.get(it.ingredientId), orderedPacks: it.packs, received: it.received,
     }));
     if (draft) {
       const onOrder = new Set(po.items.map((i) => i.ingredientId));
@@ -149,6 +161,16 @@ function Editor({ po, ingredients }: { po: PurchaseOrder; ingredients: Ingredien
     }
   };
 
+  const onComplete = async () => {
+    setConfirm(null);
+    try {
+      await complete(po.id).unwrap();
+      toast({ title: t('completedToast', { number: po.label }) });
+    } catch (err) {
+      setError(apiErrorMessage(err, locale, t('completeFailed')));
+    }
+  };
+
   const onCancel = async () => {
     setConfirm(null);
     try {
@@ -182,6 +204,7 @@ function Editor({ po, ingredients }: { po: PurchaseOrder; ingredients: Ingredien
             )}
             {draft && <Button variant="secondary" icon={Save} loading={saving} disabled={!dirty} onClick={onSave}>{t('save')}</Button>}
             {draft && <Button icon={Send} loading={sending} disabled={lines.length === 0} onClick={() => setConfirm('send')}>{t('send')}</Button>}
+            {receivable && <Button icon={PackageCheck} onClick={() => setReceiving(true)}>{t('receive.open')}</Button>}
           </div>
         }
       />
@@ -266,6 +289,11 @@ function Editor({ po, ingredients }: { po: PurchaseOrder; ingredients: Ingredien
                         {(!draft || l.ticked) && Number.isFinite(packs) && packs > 0
                           ? `${formatAmount(packs * Number(r.packSize), locale)} ${unit(r.unit)}`
                           : '—'}
+                        {r.received !== undefined && po.deliveries.length > 0 && (
+                          <p className={cn('text-xs', Number(r.received) >= packs * Number(r.packSize) - 1e-9 ? 'text-success' : 'text-fg-muted')}>
+                            {t('receivedSoFar', { amount: formatAmount(r.received, locale) })}
+                          </p>
+                        )}
                       </TD>
                     </TR>
                   );
@@ -306,7 +334,12 @@ function Editor({ po, ingredients }: { po: PurchaseOrder; ingredients: Ingredien
             )}
           </Card>
 
-          {(po.status === 'DRAFT' || po.status === 'SENT') && (
+          {isOwner && po.status === 'PARTLY_RECEIVED' && (
+            <Button variant="secondary" icon={CheckCheck} loading={completing} onClick={() => setConfirm('complete')} className="w-full">
+              {t('complete')}
+            </Button>
+          )}
+          {isOwner && (po.status === 'DRAFT' || po.status === 'SENT') && (
             <Button variant="ghost" icon={Ban} loading={cancelling} onClick={() => setConfirm('cancel')} className="w-full hover:!bg-danger-soft hover:!text-danger">
               {t('cancelOrder')}
             </Button>
@@ -314,19 +347,60 @@ function Editor({ po, ingredients }: { po: PurchaseOrder; ingredients: Ingredien
         </div>
       </div>
 
+      {po.deliveries.length > 0 && (
+        <Card className="mt-6 overflow-hidden">
+          <CardHeader title={t('deliveries.title', { count: po.deliveries.length })} description={isOwner ? t('deliveries.hintOwner') : undefined} />
+          <ul className="divide-y divide-line">
+            {po.deliveries.map((d, k) => (
+              <li key={d.id} className="flex flex-wrap items-start gap-3 px-5 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-fg">
+                    {t('deliveries.line', { no: k + 1, when: formatDate(d.receivedAt, locale), name: d.receivedBy?.name ?? '—' })}
+                  </p>
+                  <p className="text-sm text-fg-muted">
+                    {d.lines.map((l) => `${l.purchaseOrderItem.ingredientName} ${formatAmount(l.amount, locale)} ${unit(l.purchaseOrderItem.unit)}`).join(' · ')}
+                  </p>
+                  {d.note && <p className="text-xs text-fg-muted">{d.note}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {d.priceTotal === null
+                    ? <Badge tone="warning">{t('deliveries.priceMissing')}</Badge>
+                    : isOwner && <span className="text-sm font-semibold tabular-nums text-fg">{formatCurrency(Number(d.priceTotal))}</span>}
+                  {isOwner && (
+                    <Button variant="secondary" size="sm" icon={Receipt} onClick={() => setPricing({ delivery: d, no: k + 1 })}>
+                      {d.priceTotal === null ? t('deliveries.addPrice') : t('deliveries.editPrice')}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {receiving && <ReceiveDialog po={po} isOwner={isOwner} onDone={() => setReceiving(false)} />}
+      {pricing && (
+        <PricesDialog
+          poId={po.id}
+          delivery={pricing.delivery}
+          title={t('prices.title', { number: po.label, no: pricing.no })}
+          onDone={() => setPricing(null)}
+        />
+      )}
+
       {confirm && (
         <Dialog
           open
           size="sm"
           onClose={() => setConfirm(null)}
-          title={confirm === 'send' ? t('confirmSendTitle', { number: po.label }) : t('confirmCancelTitle', { number: po.label })}
-          description={confirm === 'send' ? t('confirmSendText', { supplier: s.name, count: lines.length }) : t('confirmCancelText')}
+          title={t(confirm === 'send' ? 'confirmSendTitle' : confirm === 'complete' ? 'confirmCompleteTitle' : 'confirmCancelTitle', { number: po.label })}
+          description={confirm === 'send' ? t('confirmSendText', { supplier: s.name, count: lines.length }) : confirm === 'complete' ? t('confirmCompleteText') : t('confirmCancelText')}
           footer={
             <>
               <Button variant="ghost" onClick={() => setConfirm(null)}>{tc('cancel')}</Button>
-              {confirm === 'send'
-                ? <Button icon={Send} onClick={onSend}>{t('confirmSend')}</Button>
-                : <Button variant="danger" icon={Ban} onClick={onCancel}>{t('confirmCancel')}</Button>}
+              {confirm === 'send' && <Button icon={Send} onClick={onSend}>{t('confirmSend')}</Button>}
+              {confirm === 'complete' && <Button icon={CheckCheck} onClick={onComplete}>{t('complete')}</Button>}
+              {confirm === 'cancel' && <Button variant="danger" icon={Ban} onClick={onCancel}>{t('confirmCancel')}</Button>}
             </>
           }
         />

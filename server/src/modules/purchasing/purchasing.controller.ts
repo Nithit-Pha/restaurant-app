@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import type { PurchaseOrderStatus } from '@prisma/client';
 import * as service from './purchasing.service';
+import * as receiving from './receiving.service';
 
 const STATUSES: PurchaseOrderStatus[] = ['DRAFT', 'SENT', 'PARTLY_RECEIVED', 'RECEIVED', 'CANCELLED'];
 
@@ -29,4 +30,18 @@ export async function send(req: Request, res: Response, next: NextFunction) {
 
 export async function cancel(req: Request, res: Response, next: NextFunction) {
   try { res.json(await service.cancelPurchaseOrder(req.params.id, req.user!.userId)); } catch (err) { next(err); }
+}
+
+// ---- Step 3d: deliveries
+
+export async function receive(req: Request, res: Response, next: NextFunction) {
+  try { res.status(201).json(await receiving.receiveDelivery(req.params.id, req.body, { userId: req.user!.userId, role: req.user!.role })); } catch (err) { next(err); }
+}
+
+export async function prices(req: Request, res: Response, next: NextFunction) {
+  try { res.json(await receiving.setDeliveryPrices(req.params.id, req.params.deliveryId, req.body, req.user!.userId)); } catch (err) { next(err); }
+}
+
+export async function complete(req: Request, res: Response, next: NextFunction) {
+  try { res.json(await receiving.completeOrder(req.params.id, req.user!.userId)); } catch (err) { next(err); }
 }

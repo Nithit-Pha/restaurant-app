@@ -19,12 +19,29 @@ const detailInclude = {
       isActive: true, leadTimeDays: true, cutOffTime: true, minOrder: true,
     },
   },
-  items: { orderBy: { ingredientName: 'asc' } },
+  items: { orderBy: { ingredientName: 'asc' }, include: { deliveryLines: { select: { amount: true } } } },
   createdBy: { select: { name: true } },
   sentBy: { select: { name: true } },
+  deliveries: {
+    orderBy: { receivedAt: 'asc' },
+    include: {
+      lines: { include: { purchaseOrderItem: { select: { ingredientName: true, unit: true, packSize: true } } } },
+      receivedBy: { select: { name: true } },
+      pricedBy: { select: { name: true } },
+    },
+  },
 } satisfies Prisma.PurchaseOrderInclude;
 
 const withLabel = <T extends { number: number }>(po: T) => ({ ...po, label: formatPoNumber(po.number) });
+
+/** Detail: each line also says how much has arrived so far (in the ingredient's unit). */
+const withReceived = <T extends { number: number; items: { deliveryLines: { amount: Prisma.Decimal }[] }[] }>(po: T) => withLabel({
+  ...po,
+  items: po.items.map(({ deliveryLines, ...item }) => ({
+    ...item,
+    received: deliveryLines.reduce((sum, l) => sum.plus(l.amount), new Prisma.Decimal(0)).toString(),
+  })),
+});
 
 /** Orders, newest first, optionally only some statuses. */
 export async function listPurchaseOrders(statuses?: PurchaseOrderStatus[]) {
@@ -32,15 +49,20 @@ export async function listPurchaseOrders(statuses?: PurchaseOrderStatus[]) {
     where: statuses?.length ? { status: { in: statuses } } : {},
     orderBy: { createdAt: 'desc' },
     take: 200,
-    include: { supplier: { select: { id: true, name: true } }, _count: { select: { items: true } } },
+    include: {
+      supplier: { select: { id: true, name: true } },
+      _count: { select: { items: true } },
+      deliveries: { where: { priceTotal: null }, select: { id: true } },
+    },
   });
-  return rows.map(({ _count, ...po }) => withLabel({ ...po, lineCount: _count.items }));
+  // priceMissing: a delivery came in and the owner has not added its price yet.
+  return rows.map(({ _count, deliveries, ...po }) => withLabel({ ...po, lineCount: _count.items, priceMissing: deliveries.length > 0 }));
 }
 
 export async function getPurchaseOrder(id: string) {
   const po = await prisma.purchaseOrder.findUnique({ where: { id }, include: detailInclude });
   if (!po) throw httpError(404, 'Purchase order not found');
-  return withLabel(po);
+  return withReceived(po);
 }
 
 /** Copies name, unit and pack of each ingredient onto the lines. */
@@ -86,7 +108,7 @@ export async function createPurchaseOrder(input: CreatePoInput, actorId: string)
   });
   publish({ type: 'purchasing' });
   await audit({ actorId, action: 'CREATE', entityType: 'PURCHASE_ORDER', entityId: po.id, metadata: { number: formatPoNumber(po.number), supplier: supplier.name, lines: po.items.length } });
-  return withLabel(po);
+  return withReceived(po);
 }
 
 export async function updatePurchaseOrder(id: string, patch: UpdatePoInput, actorId: string) {
@@ -113,7 +135,7 @@ export async function updatePurchaseOrder(id: string, patch: UpdatePoInput, acto
   });
   publish({ type: 'purchasing' });
   await audit({ actorId, action: 'UPDATE', entityType: 'PURCHASE_ORDER', entityId: id, metadata: { number: formatPoNumber(before.number), changed: Object.keys(patch), lines: po.items.length } });
-  return withLabel(po);
+  return withReceived(po);
 }
 
 export async function sendPurchaseOrder(id: string, actorId: string) {

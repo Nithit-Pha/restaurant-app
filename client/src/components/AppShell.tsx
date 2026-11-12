@@ -226,6 +226,7 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
         { href: '/kitchen', label: t('kitchen'), icon: ChefHat, prefix: true },
         { href: '/admin/menu', label: t('menuManagement'), icon: NotebookPen, prefix: true },
         { href: '/admin/stock', label: t('stock'), icon: Boxes, prefix: true, badge: lowStock, badgeTone: 'danger', badgeSr: t('lowSuffix') },
+        { href: '/admin/purchase-orders', label: t('purchaseOrders'), icon: FileText, prefix: true },
       ],
     });
   }
@@ -235,7 +236,6 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
       items: [
         { href: '/admin/tables', label: t('floorPlan'), icon: LayoutGrid, prefix: true },
         { href: '/admin/suppliers', label: t('suppliers'), icon: Truck, prefix: true },
-        { href: '/admin/purchase-orders', label: t('purchaseOrders'), icon: FileText, prefix: true },
         { href: '/admin/finance', label: t('finance'), icon: Wallet, prefix: true },
         { href: '/admin/audit-log', label: t('auditLog'), icon: History, prefix: true },
         { href: '/admin/settings', label: t('settings'), icon: Settings, prefix: true },

@@ -19,6 +19,7 @@ export interface PurchaseOrderSummary {
   updatedAt: string;
   supplier: { id: string; name: string };
   lineCount: number;
+  priceMissing: boolean; // a delivery came in without its price yet
 }
 
 export interface PurchaseOrderItem {
@@ -29,9 +30,28 @@ export interface PurchaseOrderItem {
   unit: Unit;
   packName: string | null;
   packSize: string;
+  received: string; // arrived so far, in the ingredient's unit
 }
 
-export interface PurchaseOrder extends Omit<PurchaseOrderSummary, 'supplier' | 'lineCount'> {
+export interface PurchaseDelivery {
+  id: string;
+  receivedAt: string;
+  receivedBy: { name: string } | null;
+  note: string | null;
+  priceTotal: string | null; // null = the owner has not added the price yet
+  pricedBy: { name: string } | null;
+  pricedAt: string | null;
+  expenseId: string | null;
+  lines: {
+    id: string;
+    purchaseOrderItemId: string;
+    amount: string;
+    price: string | null;
+    purchaseOrderItem: { ingredientName: string; unit: Unit; packSize: string };
+  }[];
+}
+
+export interface PurchaseOrder extends Omit<PurchaseOrderSummary, 'supplier' | 'lineCount' | 'priceMissing'> {
   supplier: {
     id: string; name: string; contactName: string | null; phone: string | null; lineId: string | null; email: string | null;
     address: string | null; note: string | null; isActive: boolean; leadTimeDays: number; cutOffTime: string | null; minOrder: string | null;
@@ -40,6 +60,8 @@ export interface PurchaseOrder extends Omit<PurchaseOrderSummary, 'supplier' | '
   createdBy: { name: string } | null;
   sentBy: { name: string } | null;
   cancelledAt: string | null;
+  receivedAt: string | null;
+  deliveries: PurchaseDelivery[];
 }
 
 export interface PoLine { ingredientId: string; packs: number }
@@ -71,10 +93,24 @@ const api = apiSlice.injectEndpoints({
       query: (id) => ({ url: `/purchase-orders/${id}/cancel`, method: 'POST' }),
       invalidatesTags: ['PurchaseOrder'],
     }),
+    // Step 3d: deliveries. Stock goes up (Stock); a priced delivery adds a Finance expense.
+    receiveDelivery: builder.mutation<PurchaseOrder, { id: string; lines: { itemId: string; amount: number; price?: number | null }[]; note?: string | null }>({
+      query: ({ id, ...body }) => ({ url: `/purchase-orders/${id}/deliveries`, method: 'POST', body }),
+      invalidatesTags: ['PurchaseOrder', 'Stock', 'Finance'],
+    }),
+    setDeliveryPrices: builder.mutation<PurchaseOrder, { id: string; deliveryId: string; lines: { lineId: string; price: number | null }[] }>({
+      query: ({ id, deliveryId, lines }) => ({ url: `/purchase-orders/${id}/deliveries/${deliveryId}/prices`, method: 'PUT', body: { lines } }),
+      invalidatesTags: ['PurchaseOrder', 'Stock', 'Finance'],
+    }),
+    completePurchaseOrder: builder.mutation<PurchaseOrder, string>({
+      query: (id) => ({ url: `/purchase-orders/${id}/complete`, method: 'POST' }),
+      invalidatesTags: ['PurchaseOrder'],
+    }),
   }),
 });
 
 export const {
   useGetPurchaseOrdersQuery, useGetPurchaseOrderQuery, useCreatePurchaseOrderMutation, useUpdatePurchaseOrderMutation,
-  useSendPurchaseOrderMutation, useCancelPurchaseOrderMutation,
+  useSendPurchaseOrderMutation, useCancelPurchaseOrderMutation, useReceiveDeliveryMutation, useSetDeliveryPricesMutation,
+  useCompletePurchaseOrderMutation,
 } = api;

@@ -1342,7 +1342,7 @@
     }
   },
   "purchasing": {
-    "eyebrow": "Business",
+    "eyebrow": "Service",
     "title": "Purchase orders",
     "description": "Orders to your suppliers: check the draft, send it, forward the PDF.",
     "newOrder": "New order",
@@ -1452,6 +1452,50 @@
       "page": "Page",
       "phone": "Tel."
     },
-    "orderDayLine": "Order day {day}"
+    "orderDayLine": "Order day {day}",
+    "receivedSoFar": "{amount} in",
+    "complete": "Nothing more coming",
+    "completedToast": "{number} closed as received",
+    "completeFailed": "Could not close the order.",
+    "confirmCompleteTitle": "Close {number}?",
+    "confirmCompleteText": "Part of the order came in. Close it as received; the rest is not coming.",
+    "receive": {
+      "open": "Receive delivery",
+      "title": "Delivery for {number}",
+      "descriptionStaff": "Tick what arrived and enter the real amount. Stock goes up at once; the owner adds the price.",
+      "descriptionOwner": "Tick what arrived and enter the real amount. Stock goes up at once. Prices can wait until you have the invoice.",
+      "submit": "{count, plural, =0 {Receive} one {Receive # line} other {Receive # lines}}",
+      "nothing": "Tick at least one line and enter what arrived.",
+      "invalid": "Check the numbers: amounts and prices cannot be below 0.",
+      "done": "Delivery for {number} recorded",
+      "doneAll": "Everything is in.",
+      "donePart": "Part is in; the order stays open for the rest.",
+      "failed": "Could not record the delivery.",
+      "tickFor": "{name} arrived",
+      "orderedLine": "Ordered {ordered} · in so far {received}",
+      "complete": "complete",
+      "amountFor": "Amount of {name} that arrived",
+      "priceFor": "Price of {name}",
+      "priceTotal": "Price in total",
+      "priceHint": "Makes one Food supply expense in Finance.",
+      "note": "Note",
+      "notePlaceholder": "e.g. Invoice no. 1234, rice 200 g short"
+    },
+    "deliveries": {
+      "title": "{count, plural, one {Delivery} other {Deliveries ({count})}}",
+      "hintOwner": "Each delivery makes one Food supply expense once its price is in.",
+      "line": "Delivery {no} · {when} · {name}",
+      "priceMissing": "Price missing",
+      "addPrice": "Add price",
+      "editPrice": "Edit price"
+    },
+    "prices": {
+      "title": "Prices · {number} delivery {no}",
+      "description": "What each line cost (from the invoice). Saving makes or updates the delivery's one Food supply expense.",
+      "save": "Save prices",
+      "saved": "Prices saved",
+      "savedHint": "Finance expense: {amount}",
+      "failed": "Could not save the prices."
+    }
   }
 }

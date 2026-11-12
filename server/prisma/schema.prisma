@@ -68,6 +68,8 @@ model User {
   stockMovements StockMovement[]
   purchaseOrdersCreated PurchaseOrder[] @relation("PoCreatedBy")
   purchaseOrdersSent    PurchaseOrder[] @relation("PoSentBy")
+  deliveriesReceived    PurchaseDelivery[] @relation("DeliveryReceivedBy")
+  deliveriesPriced      PurchaseDelivery[] @relation("DeliveryPricedBy")
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 }
@@ -300,6 +302,8 @@ model Expense {
   createdById String?
   // Stock in with a price creates the expense (Step 2).
   stockMovements StockMovement[]
+  // A priced delivery of a purchase order (Step 3d).
+  purchaseDelivery PurchaseDelivery?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -502,6 +506,9 @@ model StockMovement {
   // SALE / SALE_RETURN: the order that used (or gave back) the stock.
   order         Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
   orderId       String?
+  // PURCHASE from a delivery of a purchase order (Step 3d).
+  purchaseDelivery   PurchaseDelivery? @relation(fields: [purchaseDeliveryId], references: [id], onDelete: SetNull)
+  purchaseDeliveryId String?
   createdAt     DateTime      @default(now())
 
   @@index([ingredientId, createdAt])
@@ -557,7 +564,10 @@ model PurchaseOrder {
   sentById     String?
   sentAt       DateTime?
   cancelledAt  DateTime?
+  // All in, or the owner said nothing more is coming.
+  receivedAt   DateTime?
   items        PurchaseOrderItem[]
+  deliveries   PurchaseDelivery[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
@@ -578,6 +588,7 @@ model PurchaseOrderItem {
   unit            String
   packName        String?
   packSize        Decimal       @db.Decimal(12, 3)
+  deliveryLines   PurchaseDeliveryLine[]
 
   @@unique([purchaseOrderId, ingredientId])
   @@index([ingredientId])
@@ -593,4 +604,42 @@ model OrderDayCheck {
   checkedAt       DateTime @default(now())
 
   @@id([supplierId, orderDay])
+}
+
+// ---- Step 3d: receiving deliveries ---------------------------------------
+
+// One delivery of a purchase order (an order can come in several). Staff
+// record what arrived; the owner adds the prices, which makes one Finance
+// "Food supply" expense for the delivery.
+model PurchaseDelivery {
+  id              String                 @id @default(uuid())
+  purchaseOrder   PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrderId String
+  receivedBy      User?                  @relation("DeliveryReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  receivedById    String?
+  receivedAt      DateTime               @default(now())
+  note            String?
+  // Sum of the line prices, once the owner entered them.
+  priceTotal      Decimal?               @db.Decimal(10, 2)
+  pricedBy        User?                  @relation("DeliveryPricedBy", fields: [pricedById], references: [id], onDelete: SetNull)
+  pricedById      String?
+  pricedAt        DateTime?
+  expense         Expense?               @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  expenseId       String?                @unique
+  lines           PurchaseDeliveryLine[]
+  stockMovements  StockMovement[]
+
+  @@index([purchaseOrderId])
+}
+
+model PurchaseDeliveryLine {
+  id                  String            @id @default(uuid())
+  delivery            PurchaseDelivery  @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  deliveryId          String
+  purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Cascade)
+  purchaseOrderItemId String
+  amount              Decimal           @db.Decimal(12, 3) // in the ingredient's unit
+  price               Decimal?          @db.Decimal(10, 2) // what this line cost (THB)
+
+  @@unique([deliveryId, purchaseOrderItemId])
 }

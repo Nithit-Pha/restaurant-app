@@ -65,7 +65,7 @@ async function applyChange(
   ingredientId: string,
   change: Prisma.Decimal,
   type: StockMoveType,
-  extra: { reason?: string | null; userId?: string; expenseId?: string; orderId?: string },
+  extra: { reason?: string | null; userId?: string; expenseId?: string; orderId?: string; purchaseDeliveryId?: string },
 ) {
   const { quantity } = await tx.ingredient.update({
     where: { id: ingredientId },
@@ -76,8 +76,14 @@ async function applyChange(
     data: {
       ingredientId, type, change, quantityAfter: quantity,
       reason: extra.reason?.trim() || null, userId: extra.userId, expenseId: extra.expenseId, orderId: extra.orderId,
+      purchaseDeliveryId: extra.purchaseDeliveryId,
     },
   });
+}
+
+/** A delivery of a purchase order came in (Step 3d): stock up, linked to the delivery. */
+export function stockInFromDelivery(tx: Tx, ingredientId: string, amount: Prisma.Decimal, extra: { reason: string; userId: string; purchaseDeliveryId: string }) {
+  return applyChange(tx, ingredientId, amount, 'PURCHASE', extra);
 }
 
 const orderLabel = (n: number | null) => (n ? `#${String(n).padStart(3, '0')}` : null);
