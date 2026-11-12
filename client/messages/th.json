@@ -81,6 +81,9 @@
   },
   "nav": {
     "language": "ภาษา",
+    "switchLanguageTitle": "เปลี่ยนภาษา?",
+    "switchLanguageUnsaved": "หน้านี้มีการแก้ไขที่ยังไม่ได้บันทึก หากเปลี่ยนภาษา การแก้ไขจะหายไป",
+    "switchLanguageAnyway": "เปลี่ยนและทิ้งการแก้ไข",
     "lightTheme": "ธีมสว่าง",
     "darkTheme": "ธีมมืด",
     "tagline": "รับเองและจัดส่ง",

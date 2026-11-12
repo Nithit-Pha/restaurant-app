@@ -28,6 +28,7 @@ import {
 } from '../../../src/components/ui';
 
 import { newUuid } from '../../../src/lib/uuid';
+import { useUnsavedChanges } from '../../../src/lib/useUnsavedChanges';
 
 // Same rule as the server: digits, spaces, dashes, optional leading +.
 const PHONE_RE = /^\+?[0-9][0-9 -]{7,18}$/;
@@ -108,6 +109,12 @@ export default function CheckoutPage() {
     if (me?.phone && !phoneTouched.current) setPhone(me.phone);
   }, [me?.phone]);
   const phoneValid = PHONE_RE.test(phone.trim());
+
+  // Typed address, note, pin or phone would be lost by switching language.
+  useUnsavedChanges(
+    delivery.text.trim() !== '' || delivery.note.trim() !== '' || delivery.pin !== null || delivery.savedId !== null
+    || phone !== (me?.phone ?? ''),
+  );
 
   // Prices always come from the server (POST /orders/quote) — the same
   // calculation used when the order is placed, so the total shown here is

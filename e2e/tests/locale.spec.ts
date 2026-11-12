@@ -88,6 +88,47 @@ test('switching languages keeps the cart and shows the Thai dish name when avail
   }
 });
 
+test('switching language with unsaved changes asks first', async ({ page }) => {
+  // The language is part of the URL, so switching rebuilds the page and drops typed input.
+  await page.goto('/en/login');
+  await page.locator('input[autocomplete="username"]').fill(process.env.E2E_ADMIN_USERNAME || 'superadmin');
+  await page.locator('input[autocomplete="current-password"]').fill(process.env.E2E_ADMIN_PASSWORD || 'superadmin123');
+  await page.locator('button[type="submit"]').click();
+  // Sign-in opens the account's saved language; it is put back at the end.
+  await expect(page).toHaveURL(/\/(en|th)$/);
+  const accountLocale = new URL(page.url()).pathname.slice(1);
+
+  await page.goto('/en/admin/settings');
+  const tax = page.locator('#tax-rate');
+  await expect(tax).not.toHaveValue('');
+  const original = await tax.inputValue();
+  const changed = original === '42' ? '43' : '42';
+  await tax.fill(changed); // never saved
+
+  // Cancel keeps the page and the typed value.
+  await page.getByRole('button', { name: 'ภาษาไทย' }).click();
+  const ask = page.getByRole('dialog', { name: 'Switch language?' });
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await expect(ask).toBeHidden();
+  await expect(page).toHaveURL(/\/en\/admin\/settings$/);
+  await expect(tax).toHaveValue(changed);
+
+  // Confirming switches and drops the unsaved value.
+  await page.getByRole('button', { name: 'ภาษาไทย' }).click();
+  await ask.getByRole('button', { name: 'Switch and discard' }).click();
+  await expect(page).toHaveURL(/\/th\/admin\/settings$/);
+  await expect(page.locator('#tax-rate')).toHaveValue(original);
+
+  // Nothing unsaved: switches straight away.
+  await page.getByRole('button', { name: 'English' }).click();
+  await expect(page).toHaveURL(/\/en\/admin\/settings$/);
+
+  if (accountLocale === 'th') {
+    await page.getByRole('button', { name: 'ภาษาไทย' }).click();
+    await expect(page).toHaveURL(/\/th\/admin\/settings$/);
+  }
+});
+
 test('a category filter is kept as text in the menu structured data', async ({ page }) => {
   const category = '</script><span data-injected>test</span>';
   const response = await page.goto(`/th/menu?category=${encodeURIComponent(category)}`);

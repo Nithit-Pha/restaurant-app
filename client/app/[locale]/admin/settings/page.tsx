@@ -19,6 +19,7 @@ import {
   type StaffUser,
 } from '../../../../src/api/apiSlice';
 import { useRequireRole } from '../../../../src/routes/useAuthGuard';
+import { useUnsavedChanges } from '../../../../src/lib/useUnsavedChanges';
 import PaymentSettingsSection from '../../../../src/features/admin/settings/PaymentSettingsSection';
 import {
   Alert, Badge, Button, Card, CardBody, CardFooter, CardHeader, Dialog, Field, IconButton, Input, LoadingBlock, PageContainer,
@@ -144,6 +145,23 @@ export default function SettingsPage() {
       setSameAsStr(restaurant.sameAs.join('\n'));
     }
   }, [restaurant]);
+
+  // Typed values that differ from what the server has (saving refetches and resets them).
+  const dirty = Boolean(
+    (settings && (
+      taxPct !== String(Math.round(settings.TAX_RATE * 100))
+      || baseFee !== String(settings.DELIVERY_BASE_FEE)
+      || feePerKm !== String(settings.DELIVERY_FEE_PER_KM)
+      || freeKm !== String(settings.DELIVERY_FREE_KM)
+      || maxKm !== String(settings.DELIVERY_MAX_KM)
+    ))
+    || (restaurant && profile && (
+      JSON.stringify(profile) !== JSON.stringify(restaurant)
+      || cuisineStr !== restaurant.servesCuisine.join(', ')
+      || sameAsStr !== restaurant.sameAs.join('\n')
+    )),
+  );
+  useUnsavedChanges(dirty);
 
   const saved = (title: string) => toast({ title });
   const failed = (title: string, err?: unknown) =>

@@ -11,6 +11,7 @@ import FloorEditor from '../../../../src/features/admin/tables/FloorEditor';
 import { ConfirmDialog, ZoneDialog } from '../../../../src/features/admin/tables/ZoneDialogs';
 import { labelKey } from '../../../../src/features/admin/tables/layoutRules';
 import { useRequireRole } from '../../../../src/routes/useAuthGuard';
+import { useUnsavedChanges } from '../../../../src/lib/useUnsavedChanges';
 import {
   Button, EmptyState, IconButton, LoadingBlock, PageContainer, PageHeader, buttonClasses, cn, useToast,
 } from '../../../../src/components/ui';
@@ -44,13 +45,8 @@ export default function FloorPlanPage() {
     [zones, active?.id],
   );
 
-  // Warn before leaving the page with unsaved changes.
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  // Warn before closing the tab or switching language with unsaved changes.
+  useUnsavedChanges(dirty);
 
   const onDirtyChange = useCallback((d: boolean) => setDirty(d), []);
 

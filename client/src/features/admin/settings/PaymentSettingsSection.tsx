@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { apiErrorMessage } from '@/lib/localized';
+import { useUnsavedChanges } from '@/lib/useUnsavedChanges';
 import { useGetPaymentSettingsQuery, useSetPaymentSettingsMutation } from '../../../api/apiSlice';
 import { Alert, Badge, Button, Card, CardBody, CardFooter, CardHeader, Field, Input } from '../../../components/ui';
 
@@ -22,6 +23,7 @@ export default function PaymentSettingsSection({ onSaved, id }: { onSaved: (msg:
       setPromptPayName(data.promptPayName);
     }
   }, [data]);
+  useUnsavedChanges(Boolean(data && (promptPayId !== data.promptPayId || promptPayName !== data.promptPayName)));
 
   const submit = async () => {
     setError('');

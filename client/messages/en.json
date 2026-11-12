@@ -81,6 +81,9 @@
   },
   "nav": {
     "language": "Language",
+    "switchLanguageTitle": "Switch language?",
+    "switchLanguageUnsaved": "This page has changes that are not saved yet. Switching language loses them.",
+    "switchLanguageAnyway": "Switch and discard",
     "lightTheme": "Light theme",
     "darkTheme": "Dark theme",
     "tagline": "Pickup & delivery",
