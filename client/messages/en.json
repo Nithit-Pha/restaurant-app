@@ -557,6 +557,7 @@
     "costMissing": "cost missing",
     "availableLabel": "{name} available to order",
     "optionsFor": "Options for {name}",
+    "recipeFor": "Recipe for {name}",
     "edit": "Edit {name}",
     "delete": "Delete {name}",
     "deleteTitle": "Delete {name}?",
@@ -1189,7 +1190,7 @@
     "saveFailed": "Could not save. Check the values and try again.",
     "nameRequired": "Give the ingredient a name.",
     "nameTaken": "There is already an ingredient called \"{name}\".",
-    "unitLocked": "The unit cannot change once stock was recorded. Add a new ingredient instead.",
+    "unitLocked": "The unit cannot change once stock was recorded or a recipe uses it. Add a new ingredient instead.",
     "amountInvalid": "Enter an amount (up to 100,000, at most 3 decimals).",
     "priceInvalid": "Enter a price above 0, or leave it empty.",
     "reasonRequired": "Say why it was thrown away.",
@@ -1202,5 +1203,19 @@
       "countDiff": "Difference: {diff} {unit}",
       "waste": "{amount} {unit} {name} taken out as waste"
     }
+  },
+  "recipe": {
+    "title": "Recipe: {name}",
+    "description": "How much of each ingredient one portion uses. Accepting an order takes these amounts out of stock.",
+    "empty": "No recipe yet: this dish does not change the stock.",
+    "add": "Add ingredient",
+    "save": "Save recipe",
+    "saved": "Recipe for {name} saved",
+    "hint": "Amounts are per portion, in the ingredient's unit (e.g. 0.15 kg). Options such as \"extra egg\" are not counted yet.",
+    "ingredientN": "Ingredient {n}",
+    "amountN": "Amount {n}",
+    "removeN": "Remove ingredient {n}",
+    "noIngredients": "Add ingredients on the Stock page first.",
+    "toStock": "Go to Stock"
   }
 }

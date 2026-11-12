@@ -3,7 +3,7 @@ import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/requireRole';
 import { validate } from '../../middleware/validate';
 import * as ctrl from './stock.controller';
-import { countSchema, ingredientPatchSchema, ingredientSchema, stockInSchema, wasteSchema } from './stock.validation';
+import { countSchema, ingredientPatchSchema, ingredientSchema, recipeSchema, stockInSchema, wasteSchema } from './stock.validation';
 
 const router = Router();
 
@@ -18,5 +18,8 @@ router.post('/ingredients/:id/waste', validate(wasteSchema), ctrl.waste);
 // Only the owner adds ingredients or changes them.
 router.post('/ingredients', requireRole('SUPER_ADMIN'), validate(ingredientSchema), ctrl.create);
 router.patch('/ingredients/:id', requireRole('SUPER_ADMIN'), validate(ingredientPatchSchema), ctrl.update);
+// Recipes: staff may look, only the owner changes them.
+router.get('/recipes/:menuItemId', ctrl.recipe);
+router.put('/recipes/:menuItemId', requireRole('SUPER_ADMIN'), validate(recipeSchema), ctrl.saveRecipe);
 
 export default router;

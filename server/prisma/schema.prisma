@@ -102,6 +102,8 @@ model MenuItem {
   isAvailable  Boolean     @default(true)
   orderItems   OrderItem[]
   modifierGroups ModifierGroup[]
+  // Ingredients one portion uses; accepting an order takes them out of stock.
+  recipe       RecipeItem[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -175,6 +177,11 @@ model Order {
   paymentStatus   PaymentStatus @default(UNPAID)
   paidAt          DateTime?
   payments        Payment[]
+  // Stock: taken out when staff accepted the order, put back once if it was
+  // cancelled afterwards (the SALE / SALE_RETURN movements point here).
+  stockDeductedAt DateTime?
+  stockReturnedAt DateTime?
+  stockMovements  StockMovement[]
   statusHistory   OrderStatusHistory[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -420,6 +427,7 @@ model Ingredient {
   // Deactivated, never deleted: the history keeps pointing at it.
   isActive     Boolean  @default(true)
   movements    StockMovement[]
+  recipeItems  RecipeItem[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -437,8 +445,25 @@ model StockMovement {
   // Stock in with a price: the Finance expense it created.
   expense       Expense?      @relation(fields: [expenseId], references: [id], onDelete: SetNull)
   expenseId     String?
+  // SALE / SALE_RETURN: the order that used (or gave back) the stock.
+  order         Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId       String?
   createdAt     DateTime      @default(now())
 
   @@index([ingredientId, createdAt])
   @@index([createdAt])
+  @@index([orderId])
+}
+
+// How much of an ingredient one portion of a menu item uses (in the
+// ingredient's unit). Options ("extra egg") have no recipe yet.
+model RecipeItem {
+  menuItem     MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  menuItemId   String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  ingredientId String
+  amount       Decimal    @db.Decimal(12, 3)
+
+  @@id([menuItemId, ingredientId])
+  @@index([ingredientId])
 }

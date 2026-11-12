@@ -2,10 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ListChecks, Pencil, Plus, Search, Trash2, UtensilsCrossed } from 'lucide-react';
-import { useGetMenuItemsQuery, useDeleteMenuItemMutation, useToggleAvailabilityMutation, type MenuItem } from '../../../../src/api/apiSlice';
+import { CookingPot, ListChecks, Pencil, Plus, Search, Trash2, UtensilsCrossed } from 'lucide-react';
+import {
+  useGetMeQuery, useGetMenuItemsQuery, useDeleteMenuItemMutation, useToggleAvailabilityMutation, type MenuItem,
+} from '../../../../src/api/apiSlice';
 import MenuItemForm from '../../../../src/features/admin/MenuItemForm';
 import ItemOptionsEditor from '../../../../src/features/admin/ItemOptionsEditor';
+import RecipeDialog from '../../../../src/features/admin/stock/RecipeDialog';
 import { formatCurrency } from '../../../../src/lib/format';
 import { useRequireRole } from '../../../../src/routes/useAuthGuard';
 import {
@@ -26,6 +29,9 @@ export default function AdminMenuPage() {
   const [creating, setCreating] = useState(false);
   const [removing, setRemoving] = useState<MenuItem | null>(null);
   const [optionsFor, setOptionsFor] = useState<MenuItem | null>(null);
+  const [recipeFor, setRecipeFor] = useState<MenuItem | null>(null);
+  const { data: me } = useGetMeQuery(undefined, { skip: !ready });
+  const isOwner = me?.role === 'SUPER_ADMIN';
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
 
@@ -177,6 +183,7 @@ export default function AdminMenuPage() {
                     </TD>
                     <TD numeric>
                       <div className="flex justify-end gap-1">
+                        {isOwner && <IconButton icon={CookingPot} label={t('recipeFor', { name: item.name })} size="sm" onClick={() => setRecipeFor(item)} />}
                         <IconButton icon={ListChecks} label={t('optionsFor', { name: item.name })} size="sm" onClick={() => setOptionsFor(item)} />
                         <IconButton icon={Pencil} label={t('edit', { name: item.name })} size="sm" onClick={() => setEditing(item)} />
                         <IconButton
@@ -205,6 +212,7 @@ export default function AdminMenuPage() {
       )}
 
       {optionsFor && <ItemOptionsEditor key={optionsFor.id} item={optionsFor} onDone={() => setOptionsFor(null)} />}
+      {recipeFor && <RecipeDialog key={recipeFor.id} item={recipeFor} onDone={() => setRecipeFor(null)} />}
 
       <Dialog
         open={!!removing}

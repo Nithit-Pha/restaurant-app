@@ -26,6 +26,8 @@ const { prismaMock, txOrderCreate, txQueryRaw, txUserUpdate, tx } = vi.hoisted((
 vi.mock('../../config/db', () => ({ prisma: prismaMock }));
 const { syncTableStatus } = vi.hoisted(() => ({ syncTableStatus: vi.fn() }));
 vi.mock('../dineIn/tableStatus', () => ({ syncTableStatus }));
+const { deductForOrder, returnForOrder } = vi.hoisted(() => ({ deductForOrder: vi.fn(), returnForOrder: vi.fn() }));
+vi.mock('../stock/stock.service', () => ({ deductForOrder, returnForOrder }));
 // Key-aware: tax rate 0.07, and DELIVERY_MAX_KM = 0 (no limit) by default.
 // Restaurant location used as the delivery origin (Springfield, IL).
 const RESTAURANT_GEO = { latitude: 39.7817, longitude: -89.6501 };
@@ -280,6 +282,16 @@ describe('changeOrderStatus', () => {
     expect(tx.orderStatusHistory.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ orderId: 'o1', fromStatus: 'PENDING', toStatus: 'PREPARING', actorId: 'staff-1' }),
     });
+    // Accepting takes the recipe ingredients out of stock, in the same transaction.
+    expect(deductForOrder).toHaveBeenCalledWith(tx, 'o1', 'staff-1');
+    expect(returnForOrder).not.toHaveBeenCalled();
+  });
+
+  it('cancelling puts the stock of an accepted order back, in the same transaction', async () => {
+    prismaMock.order.findUnique.mockResolvedValueOnce({ status: 'PREPARING', type: 'PICKUP' });
+    await changeOrderStatus('o1', { to: 'CANCELLED', actorId: 'staff-1', cancelReason: 'SOLD_OUT' });
+    expect(returnForOrder).toHaveBeenCalledWith(tx, 'o1', 'staff-1');
+    expect(deductForOrder).not.toHaveBeenCalled();
   });
 
   it('accepting a dine-in order also confirms the table visit and updates the table', async () => {

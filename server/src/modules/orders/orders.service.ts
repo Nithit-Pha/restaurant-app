@@ -9,6 +9,7 @@ import { planPayment, type PaymentAction, type PaymentMethod, type PaymentStatus
 import { buildPromptPayPayload } from '../../utils/promptpay';
 import { priceLine } from './lineOptions';
 import { syncTableStatus } from '../dineIn/tableStatus';
+import { deductForOrder, returnForOrder } from '../stock/stock.service';
 import { publish } from '../../utils/events';
 
 // Distance assumed when the customer shares no location and no max delivery
@@ -331,6 +332,10 @@ export async function changeOrderStatus(id: string, change: StatusChange) {
         note: change.cancelNote?.trim() || null,
       },
     });
+    // Stock: accepting takes the recipe ingredients out, cancelling an
+    // accepted order puts them back (both at most once per order).
+    if (change.to === 'PREPARING') await deductForOrder(tx, id, change.actorId);
+    if (change.to === 'CANCELLED') await returnForOrder(tx, id, change.actorId);
     if (order.tableSessionId) {
       // Accepting a dine-in order also confirms that the guests are really at the table.
       if (change.to === 'PREPARING' && !order.tableSession?.confirmedAt) {

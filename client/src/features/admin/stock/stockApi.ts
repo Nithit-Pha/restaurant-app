@@ -29,6 +29,12 @@ export interface StockMovement {
   user: { name: string } | null;
 }
 
+export interface RecipeLine {
+  ingredientId: string;
+  amount: string; // per portion, in the ingredient's unit
+  ingredient: { name: string; unit: Unit; isActive: boolean };
+}
+
 export interface IngredientInput {
   name: string;
   unit: Unit;
@@ -42,7 +48,7 @@ export type IngredientPatch = Partial<Omit<IngredientInput, 'openingStock' | 'st
   isActive?: boolean;
 };
 
-const stockApi = apiSlice.enhanceEndpoints({ addTagTypes: ['Stock', 'Finance'] }).injectEndpoints({
+const stockApi = apiSlice.enhanceEndpoints({ addTagTypes: ['Stock', 'Finance', 'MenuItem'] }).injectEndpoints({
   endpoints: (builder) => ({
     getIngredients: builder.query<Ingredient[], { all?: boolean } | void>({
       query: (arg) => `/stock/ingredients${arg?.all ? '?all=true' : ''}`,
@@ -79,6 +85,15 @@ const stockApi = apiSlice.enhanceEndpoints({ addTagTypes: ['Stock', 'Finance'] }
       query: ({ id, ...body }) => ({ url: `/stock/ingredients/${id}/waste`, method: 'POST', body }),
       invalidatesTags: ['Stock'],
     }),
+    getRecipe: builder.query<RecipeLine[], string>({
+      query: (menuItemId) => `/stock/recipes/${menuItemId}`,
+      providesTags: (_r, _e, menuItemId) => [{ type: 'Stock', id: `recipe-${menuItemId}` }],
+    }),
+    // A recipe decides whether a dish is sold out, so the menu reloads too.
+    saveRecipe: builder.mutation<RecipeLine[], { menuItemId: string; items: { ingredientId: string; amount: number }[] }>({
+      query: ({ menuItemId, items }) => ({ url: `/stock/recipes/${menuItemId}`, method: 'PUT', body: { items } }),
+      invalidatesTags: (_r, _e, { menuItemId }) => [{ type: 'Stock', id: `recipe-${menuItemId}` }, 'MenuItem'],
+    }),
   }),
 });
 
@@ -90,6 +105,8 @@ export const {
   useStockInMutation,
   useCountStockMutation,
   useWasteStockMutation,
+  useGetRecipeQuery,
+  useSaveRecipeMutation,
 } = stockApi;
 
 /** "2.5" -> "2.5", "2.500" -> "2.5", "-0.250" -> "−0.25": up to 3 decimals, no trailing zeros. */

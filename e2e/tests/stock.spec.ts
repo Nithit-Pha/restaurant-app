@@ -102,3 +102,79 @@ test('owner adds an ingredient; stock in, count and waste update stock and histo
   expect(expense?.category).toBe('FOOD_SUPPLY');
   expect(Number(expense?.amount)).toBe(450);
 });
+
+// Step 2b: a recipe set in the menu screen; accepting an order takes the
+// ingredients out of stock, cancelling it puts them back.
+test.describe('recipes and orders', () => {
+  const EGG = `E2E Egg ${Date.now()}`;
+  const DISH = `E2E Omelette ${Date.now()}`;
+  let eggId = '';
+  let dishId = '';
+  let hoursWereEnforced = true;
+
+  const stockOf = async () => {
+    const list = await (await api.get('/api/stock/ingredients?all=true', { headers: auth })).json();
+    return Number(list.find((i: { id: string }) => i.id === eggId).quantity);
+  };
+
+  test.beforeAll(async () => {
+    const settings = await (await api.get('/api/settings', { headers: auth })).json();
+    hoursWereEnforced = settings.ORDERING_HOURS_ENFORCED !== 0;
+    await api.put('/api/settings/ordering', { data: { hoursEnforced: false }, headers: auth });
+    await api.put('/api/settings/busy', { data: { mode: 'NORMAL' }, headers: auth });
+    const egg = await api.post('/api/stock/ingredients', { data: { name: EGG, unit: 'pcs', reorderLevel: 0, openingStock: 10 }, headers: auth });
+    expect(egg.ok(), 'create ingredient').toBeTruthy();
+    eggId = (await egg.json()).id;
+    const dish = await api.post('/api/menu', { data: { name: DISH, category: `e2e-stock-${Date.now()}`, sellingPrice: 60 }, headers: auth });
+    expect(dish.ok(), 'create menu item').toBeTruthy();
+    dishId = (await dish.json()).id;
+  });
+
+  test.afterAll(async () => {
+    await api.put('/api/settings/ordering', { data: { hoursEnforced: hoursWereEnforced }, headers: auth });
+    if (dishId) await api.delete(`/api/menu/${dishId}`, { headers: auth }); // hidden, since it has orders
+    if (eggId) await api.patch(`/api/stock/ingredients/${eggId}`, { data: { isActive: false }, headers: auth });
+    await api.post('/revalidate', { failOnStatusCode: false }).catch(() => undefined);
+  });
+
+  test('accepting takes the recipe out of stock, cancelling puts it back', async ({ page }) => {
+    // --- Owner sets the recipe: 2 eggs per omelette ------------------------
+    await page.goto('/en/login');
+    await page.locator('input[autocomplete="username"]').fill(ADMIN.username);
+    await page.locator('input[autocomplete="current-password"]').fill(ADMIN.password);
+    await page.locator('button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/(en|th)$/);
+    await page.goto('/en/admin/menu');
+    await page.getByLabel('Search dishes').fill(DISH);
+    await page.getByRole('button', { name: `Recipe for ${DISH}` }).click();
+    const dialog = page.getByRole('dialog', { name: `Recipe: ${DISH}` });
+    await expect(dialog.getByText('No recipe yet')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Add ingredient' }).click();
+    await dialog.getByLabel('Ingredient 1', { exact: true }).selectOption({ label: EGG });
+    await dialog.getByLabel('Amount 1', { exact: true }).fill('2');
+    await dialog.getByRole('button', { name: 'Save recipe' }).click();
+    await expect(dialog).toBeHidden();
+    const recipe = await (await api.get(`/api/stock/recipes/${dishId}`, { headers: auth })).json();
+    expect(recipe.map((r: { ingredientId: string; amount: string }) => [r.ingredientId, Number(r.amount)])).toEqual([[eggId, 2]]);
+
+    // --- Order 3 omelettes: nothing happens until staff accept -------------
+    const placed = await api.post('/api/orders', {
+      headers: auth,
+      data: { items: [{ menuItemId: dishId, quantity: 3 }], type: 'PICKUP', customerPhone: '0811111111' },
+    });
+    expect(placed.ok(), `place order: ${await placed.text()}`).toBeTruthy();
+    const order = await placed.json();
+    expect(await stockOf()).toBe(10);
+
+    const accept = await api.patch(`/api/orders/${order.id}/status`, { headers: auth, data: { status: 'PREPARING', prepMinutes: 10 } });
+    expect(accept.ok(), 'accept').toBeTruthy();
+    expect(await stockOf()).toBe(4); // 10 - 3 × 2
+
+    const cancel = await api.patch(`/api/orders/${order.id}/status`, { headers: auth, data: { status: 'CANCELLED', cancelReason: 'SOLD_OUT' } });
+    expect(cancel.ok(), 'cancel').toBeTruthy();
+    expect(await stockOf()).toBe(10);
+
+    const moves = await (await api.get(`/api/stock/movements?ingredientId=${eggId}`, { headers: auth })).json();
+    expect(moves.slice(0, 2).map((m: { type: string; change: string }) => `${m.type} ${Number(m.change)}`)).toEqual(['SALE_RETURN 6', 'SALE -6']);
+  });
+});

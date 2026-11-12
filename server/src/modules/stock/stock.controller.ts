@@ -39,6 +39,18 @@ export async function waste(req: Request, res: Response, next: NextFunction) {
   } catch (err) { next(err); }
 }
 
+export async function recipe(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await service.getRecipe(req.params.menuItemId));
+  } catch (err) { next(err); }
+}
+
+export async function saveRecipe(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await service.setRecipe(req.params.menuItemId, req.body.items, req.user!.userId));
+  } catch (err) { next(err); }
+}
+
 export async function movements(req: Request, res: Response, next: NextFunction) {
   try {
     const ingredientId = typeof req.query.ingredientId === 'string' ? req.query.ingredientId : undefined;

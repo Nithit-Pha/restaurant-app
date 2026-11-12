@@ -2,7 +2,8 @@ import { Prisma, StockMoveType } from '@prisma/client';
 import { prisma } from '../../config/db';
 import { audit } from '../../utils/auditLog';
 import { countChange, isLow, stockInExpenseText } from './stock.rules';
-import type { CountInput, IngredientInput, IngredientPatch, StockInInput, WasteInput } from './stock.validation';
+import { planReturn, planSale } from './stock.plan';
+import type { CountInput, IngredientInput, IngredientPatch, RecipeInput, StockInInput, WasteInput } from './stock.validation';
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 
@@ -42,7 +43,7 @@ async function applyChange(
   ingredientId: string,
   change: Prisma.Decimal,
   type: StockMoveType,
-  extra: { reason?: string | null; userId?: string; expenseId?: string },
+  extra: { reason?: string | null; userId?: string; expenseId?: string; orderId?: string },
 ) {
   const { quantity } = await tx.ingredient.update({
     where: { id: ingredientId },
@@ -52,9 +53,75 @@ async function applyChange(
   return tx.stockMovement.create({
     data: {
       ingredientId, type, change, quantityAfter: quantity,
-      reason: extra.reason?.trim() || null, userId: extra.userId, expenseId: extra.expenseId,
+      reason: extra.reason?.trim() || null, userId: extra.userId, expenseId: extra.expenseId, orderId: extra.orderId,
     },
   });
+}
+
+const orderLabel = (n: number | null) => (n ? `#${String(n).padStart(3, '0')}` : null);
+
+/**
+ * Staff accepted the order: take the recipe ingredients out of stock. Runs in
+ * the same transaction as the status change; never twice for one order.
+ */
+export async function deductForOrder(tx: Tx, orderId: string, actorId?: string) {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    select: { orderNumber: true, stockDeductedAt: true, items: { select: { menuItemId: true, quantity: true } } },
+  });
+  if (!order || order.stockDeductedAt) return [];
+  const recipes = await tx.recipeItem.findMany({ where: { menuItemId: { in: order.items.map((i) => i.menuItemId) } } });
+  const moves = planSale(order.items, recipes);
+  for (const m of moves) {
+    await applyChange(tx, m.ingredientId, m.change, 'SALE', { orderId, userId: actorId, reason: orderLabel(order.orderNumber) });
+  }
+  await tx.order.update({ where: { id: orderId }, data: { stockDeductedAt: new Date() } });
+  return moves;
+}
+
+/** The order was cancelled after it was accepted: give back exactly what it took, once. */
+export async function returnForOrder(tx: Tx, orderId: string, actorId?: string) {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    select: { orderNumber: true, stockDeductedAt: true, stockReturnedAt: true },
+  });
+  if (!order?.stockDeductedAt || order.stockReturnedAt) return [];
+  const sales = await tx.stockMovement.findMany({ where: { orderId, type: 'SALE' }, select: { ingredientId: true, change: true } });
+  const moves = planReturn(sales);
+  for (const m of moves) {
+    await applyChange(tx, m.ingredientId, m.change, 'SALE_RETURN', { orderId, userId: actorId, reason: orderLabel(order.orderNumber) });
+  }
+  await tx.order.update({ where: { id: orderId }, data: { stockReturnedAt: new Date() } });
+  return moves;
+}
+
+/** A menu item's recipe: ingredients and the amount one portion uses. */
+export async function getRecipe(menuItemId: string) {
+  const item = await prisma.menuItem.findUnique({ where: { id: menuItemId }, select: { id: true } });
+  if (!item) throw httpError(404, 'Menu item not found');
+  return prisma.recipeItem.findMany({
+    where: { menuItemId },
+    select: { ingredientId: true, amount: true, ingredient: { select: { name: true, unit: true, isActive: true } } },
+    orderBy: { ingredient: { name: 'asc' } },
+  });
+}
+
+/** Replace a menu item's whole recipe (an empty list removes it). */
+export async function setRecipe(menuItemId: string, items: RecipeInput['items'], actorId: string) {
+  const item = await prisma.menuItem.findUnique({ where: { id: menuItemId }, select: { id: true, name: true } });
+  if (!item) throw httpError(404, 'Menu item not found');
+  const ids = items.map((i) => i.ingredientId);
+  if (new Set(ids).size !== ids.length) throw httpError(400, 'Each ingredient can be in the recipe only once.');
+  const found = await prisma.ingredient.count({ where: { id: { in: ids } } });
+  if (found !== ids.length) throw httpError(400, 'An ingredient in the recipe does not exist.');
+  await prisma.$transaction([
+    prisma.recipeItem.deleteMany({ where: { menuItemId } }),
+    prisma.recipeItem.createMany({
+      data: items.map((i) => ({ menuItemId, ingredientId: i.ingredientId, amount: new Prisma.Decimal(i.amount) })),
+    }),
+  ]);
+  await audit({ actorId, action: 'UPDATE', entityType: 'MENU_ITEM', entityId: menuItemId, metadata: { name: item.name, recipe: items } });
+  return getRecipe(menuItemId);
 }
 
 export async function createIngredient(input: IngredientInput, actorId: string) {
@@ -77,9 +144,14 @@ export async function updateIngredient(id: string, patch: IngredientPatch, actor
   if (!before) throw httpError(404, 'Ingredient not found');
   if (patch.name && patch.name.toLowerCase() !== before.name.toLowerCase()) await assertNameFree(patch.name, id);
   if (patch.unit && patch.unit !== before.unit) {
-    // Amounts already recorded (and recipes later) are in the old unit.
-    const used = await prisma.stockMovement.count({ where: { ingredientId: id } });
-    if (used > 0) throw httpError(409, 'The unit cannot change once stock was recorded. Add a new ingredient instead.');
+    // Amounts already recorded and recipe amounts are in the old unit.
+    const [moves, recipes] = await Promise.all([
+      prisma.stockMovement.count({ where: { ingredientId: id } }),
+      prisma.recipeItem.count({ where: { ingredientId: id } }),
+    ]);
+    if (moves + recipes > 0) {
+      throw httpError(409, 'The unit cannot change once stock was recorded or a recipe uses it. Add a new ingredient instead.');
+    }
   }
   const updated = await prisma.ingredient.update({ where: { id }, data: patch });
   const action = patch.isActive === false && before.isActive ? 'DEACTIVATE'

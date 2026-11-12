@@ -44,7 +44,16 @@ export const wasteSchema = z.object({
   reason: z.string().trim().min(1, 'Say why it was thrown away').max(200),
 });
 
+// The whole recipe of one menu item; an empty list removes it.
+export const recipeSchema = z.object({
+  items: z.array(z.object({
+    ingredientId: z.string().uuid(),
+    amount, // per portion, in the ingredient's unit
+  })).max(30, 'At most 30 ingredients per dish'),
+});
+
 export type IngredientInput = z.infer<typeof ingredientSchema>;
+export type RecipeInput = z.infer<typeof recipeSchema>;
 export type IngredientPatch = z.infer<typeof ingredientPatchSchema>;
 export type StockInInput = z.infer<typeof stockInSchema>;
 export type CountInput = z.infer<typeof countSchema>;
