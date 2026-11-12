@@ -11,6 +11,7 @@ import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
 import { selectCartCount, toggleCart } from '../features/cart/cartSlice';
 import { useGetAdminOrdersQuery, useGetMeQuery, type User } from '../api/apiSlice';
+import { useGetPermissionsQuery } from '../features/permissions/permissionsApi';
 import { useGetIngredientsQuery } from '../features/admin/stock/stockApi';
 import TopBarControls from './TopBarControls';
 import { LiveUpdatesProvider } from './LiveUpdates';
@@ -196,6 +197,9 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
   const { data: user } = useGetMeQuery(undefined, { skip: !token });
   const role = token ? user?.role : undefined;
   const isStaff = hasMin(role, 'STAFF');
+  // Staff allowed to edit suppliers (Settings → Permissions) get the page in their menu.
+  const { data: perms } = useGetPermissionsQuery(undefined, { skip: role !== 'STAFF' });
+  const staffSuppliers = role === 'STAFF' && !!perms?.mine['suppliers.edit'];
 
   // New (unaccepted) orders, for the badge next to "Orders". Shares the cache
   // with the staff orders screen, which refreshes it on every status change.
@@ -227,6 +231,7 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
         { href: '/admin/menu', label: t('menuManagement'), icon: NotebookPen, prefix: true },
         { href: '/admin/stock', label: t('stock'), icon: Boxes, prefix: true, badge: lowStock, badgeTone: 'danger', badgeSr: t('lowSuffix') },
         { href: '/admin/purchase-orders', label: t('purchaseOrders'), icon: FileText, prefix: true },
+        ...(staffSuppliers ? [{ href: '/admin/suppliers', label: t('suppliers'), icon: Truck, prefix: true }] : []),
       ],
     });
   }

@@ -1339,7 +1339,9 @@
       "minOrder": "Minimum order (฿)",
       "minOrderHint": "Optional.",
       "active": "Supplier is on"
-    }
+    },
+    "noAccess": "Suppliers are managed by the owner",
+    "noAccessHint": "The owner can allow staff on Settings → Permissions."
   },
   "purchasing": {
     "eyebrow": "Service",
@@ -1496,6 +1498,39 @@
       "saved": "Prices saved",
       "savedHint": "Finance expense: {amount}",
       "failed": "Could not save the prices."
+    }
+  },
+  "permissions": {
+    "eyebrow": "Settings",
+    "title": "Permissions",
+    "back": "Settings",
+    "description": "What staff accounts may do. The owner may always do everything.",
+    "save": "Save",
+    "saved": "Permissions saved",
+    "saveFailed": "Could not save the permissions.",
+    "loading": "Loading…",
+    "ownerNote": "Changes apply at once, also to staff who are signed in (their buttons update when the page reloads). Every change is in the audit log.",
+    "item": {
+      "orders_purchase": {
+        "title": "Make and send purchase orders",
+        "hint": "Start, change, send, cancel and close orders to suppliers. Off by default."
+      },
+      "suppliers_edit": {
+        "title": "Edit suppliers and ingredients",
+        "hint": "Add and change suppliers, ingredients, packs and order levels. Off by default."
+      },
+      "deliveries_receive": {
+        "title": "Receive deliveries",
+        "hint": "Record what arrived on a sent order; stock goes up. On by default."
+      },
+      "stock_moves": {
+        "title": "Stock in, count and waste",
+        "hint": "Record stock in (without price), counts and waste. On by default."
+      },
+      "prices_enter": {
+        "title": "Enter purchase prices",
+        "hint": "Prices of deliveries and stock in; they create Finance expenses. Off by default."
+      }
     }
   }
 }

@@ -27,6 +27,17 @@ vi.mock('../../config/db', () => ({ prisma: prismaMock }));
 vi.mock('../../utils/auditLog', () => ({ audit: auditMock }));
 const { notifyMock } = vi.hoisted(() => ({ notifyMock: vi.fn() }));
 vi.mock('./stock.notify', () => ({ notifyStockChanged: notifyMock }));
+// Permissions (Step 3e): the real rules with the default staff settings.
+vi.mock('../permissions/permissions.service', async () => {
+  const r = await vi.importActual<typeof import('../permissions/permissions.rules')>('../permissions/permissions.rules');
+  const staff = r.parsePermissions(null);
+  return {
+    actorCan: async (actor: { role?: string }, p: Parameters<typeof r.can>[2]) => r.can(actor.role, staff, p),
+    assertCan: async (actor: { role?: string }, p: Parameters<typeof r.can>[2], message: string) => {
+      if (!r.can(actor.role, staff, p)) throw Object.assign(new Error(message), { statusCode: 403 });
+    },
+  };
+});
 
 import {
   countStock, createIngredient, deductForOrder, listIngredients, returnForOrder, setRecipe, stockIn, updateIngredient, wasteStock,

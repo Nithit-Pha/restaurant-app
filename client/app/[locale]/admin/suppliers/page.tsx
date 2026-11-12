@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { CalendarClock, Mail, MessageCircle, Pencil, Phone, Plus, Truck } from 'lucide-react';
+import { CalendarClock, Lock, Mail, MessageCircle, Pencil, Phone, Plus, Truck } from 'lucide-react';
+import { usePermissions } from '../../../../src/features/permissions/permissionsApi';
 import { useGetIngredientsQuery } from '../../../../src/features/admin/stock/stockApi';
 import SupplierDialog from '../../../../src/features/admin/suppliers/SupplierDialog';
 import { orderDayLabel, scheduleSummary } from '../../../../src/features/admin/suppliers/orderDays';
@@ -13,17 +14,23 @@ import {
   Badge, Button, Card, EmptyState, IconButton, LoadingBlock, PageContainer, PageHeader, Switch, cn,
 } from '../../../../src/components/ui';
 
-/** Owner: the suppliers, when each is ordered from, and which ingredients it delivers. */
+/** Owner (or staff when allowed): the suppliers, when each is ordered from, and which ingredients it delivers. */
 export default function SuppliersPage() {
   const t = useTranslations('suppliers');
   const locale = useLocale();
-  const { ready } = useRequireRole('SUPER_ADMIN');
+  const { ready: signedIn } = useRequireRole('STAFF');
+  const { can, loading } = usePermissions();
+  const allowed = can('suppliers.edit');
+  const ready = signedIn && allowed;
   const [showInactive, setShowInactive] = useState(false);
   const { data: suppliers = [], isLoading } = useGetSuppliersQuery({ all: showInactive }, { skip: !ready });
   const { data: ingredients = [], isLoading: ingredientsLoading } = useGetIngredientsQuery(undefined, { skip: !ready });
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [creating, setCreating] = useState(false);
 
+  if (signedIn && !loading && !allowed) {
+    return <PageContainer><EmptyState icon={Lock} title={t('noAccess')} description={t('noAccessHint')} /></PageContainer>;
+  }
   if (!ready) return null;
 
   const unassigned = ingredients.filter((i) => !i.supplierId).length;

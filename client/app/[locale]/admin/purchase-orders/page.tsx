@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { ClipboardList, Plus } from 'lucide-react';
-import { useGetMeQuery } from '../../../../src/api/apiSlice';
+import { usePermissions } from '../../../../src/features/permissions/permissionsApi';
 import { Link } from '@/i18n/navigation';
 import { useGetIngredientsQuery } from '../../../../src/features/admin/stock/stockApi';
 import NewOrderDialog from '../../../../src/features/admin/purchasing/NewOrderDialog';
@@ -34,8 +34,9 @@ export default function PurchaseOrdersPage() {
   const t = useTranslations('purchasing');
   const locale = useLocale();
   const { ready } = useRequireRole('STAFF');
-  const { data: me } = useGetMeQuery(undefined, { skip: !ready });
-  const isOwner = me?.role === 'SUPER_ADMIN';
+  const { can } = usePermissions();
+  const isOwner = can('orders.purchase'); // make orders
+  const canPrice = can('prices.enter');
   const [filter, setFilter] = useState<Filter>('open');
   const { data: orders = [], isLoading } = useGetPurchaseOrdersQuery({ status: FILTERS[filter] }, { skip: !ready });
   const { data: ingredients = [] } = useGetIngredientsQuery(undefined, { skip: !ready });
@@ -97,7 +98,7 @@ export default function PurchaseOrdersPage() {
                   <TD>
                     <div className="flex flex-wrap gap-1.5">
                       <Badge tone={STATUS_TONE[o.status]}>{t(`status.${o.status}`)}</Badge>
-                      {isOwner && o.priceMissing && <Badge tone="warning">{t('deliveries.priceMissing')}</Badge>}
+                      {canPrice && o.priceMissing && <Badge tone="warning">{t('deliveries.priceMissing')}</Badge>}
                     </div>
                   </TD>
                   <TD numeric muted className="hidden sm:table-cell tabular-nums">{o.lineCount}</TD>

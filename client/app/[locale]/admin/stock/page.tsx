@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Boxes, ClipboardCheck, History, PackagePlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
-import { useGetMeQuery } from '../../../../src/api/apiSlice';
+import { usePermissions } from '../../../../src/features/permissions/permissionsApi';
 import IngredientDialog from '../../../../src/features/admin/stock/IngredientDialog';
 import StockMoveDialog, { type MoveKind } from '../../../../src/features/admin/stock/StockMoveDialog';
 import {
@@ -25,8 +25,10 @@ export default function StockPage() {
   const t = useTranslations('stock');
   const locale = useLocale();
   const { ready } = useRequireRole('STAFF');
-  const { data: me } = useGetMeQuery(undefined, { skip: !ready });
-  const isOwner = me?.role === 'SUPER_ADMIN';
+  // Settings → Permissions: the owner may always; staff as allowed.
+  const { can } = usePermissions();
+  const isOwner = can('suppliers.edit'); // add and change ingredients
+  const canMove = can('stock.moves');
   const [showInactive, setShowInactive] = useState(false);
   const { data: ingredients = [], isLoading } = useGetIngredientsQuery({ all: showInactive }, { skip: !ready });
   const [historyFor, setHistoryFor] = useState<Ingredient | null>(null);
@@ -135,7 +137,7 @@ export default function StockPage() {
                     </TD>
                     <TD numeric>
                       <div className="flex justify-end gap-1">
-                        {i.isActive && (
+                        {i.isActive && canMove && (
                           <>
                             <IconButton icon={PackagePlus} label={t('inFor', { name: i.name })} size="sm" onClick={() => setMove({ kind: 'in', ingredient: i })} />
                             <IconButton icon={ClipboardCheck} label={t('countFor', { name: i.name })} size="sm" onClick={() => setMove({ kind: 'count', ingredient: i })} />
@@ -213,7 +215,7 @@ export default function StockPage() {
           key={`${move.kind}-${move.ingredient.id}`}
           kind={move.kind}
           ingredient={move.ingredient}
-          isOwner={isOwner}
+          isOwner={can('prices.enter')}
           onDone={() => setMove(null)}
         />
       )}

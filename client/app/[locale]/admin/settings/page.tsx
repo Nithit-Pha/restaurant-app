@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { apiErrorMessage } from '@/lib/localized';
-import { Eye, EyeOff, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, Plus, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
+import { Link } from '@/i18n/navigation';
 import {
   useGetSettingsQuery,
   useSetTaxRateMutation,
@@ -24,7 +25,7 @@ import { useUnsavedChanges } from '../../../../src/lib/useUnsavedChanges';
 import PaymentSettingsSection from '../../../../src/features/admin/settings/PaymentSettingsSection';
 import {
   Alert, Badge, Button, Card, CardBody, CardFooter, CardHeader, Dialog, Field, IconButton, Input, LoadingBlock, PageContainer,
-  PageHeader, Select, Switch, Table, TBody, TD, TH, THead, TR, Textarea, cn, useToast,
+  PageHeader, Select, Switch, Table, TBody, TD, TH, THead, TR, Textarea, buttonClasses, cn, useToast,
 } from '../../../../src/components/ui';
 
 const SECTIONS = ['profile', 'ordering', 'payments', 'tax', 'delivery', 'staff'] as const;
@@ -96,6 +97,7 @@ const EMPTY_STAFF = { name: '', username: '', email: '', password: '', confirmPa
 
 export default function SettingsPage() {
   const t = useTranslations('settings');
+  const tp = useTranslations('permissions');
   const tc = useTranslations('common');
   const locale = useLocale();
   const tnav = useTranslations('nav');
@@ -263,7 +265,17 @@ export default function SettingsPage() {
 
   return (
     <PageContainer wide>
-      <PageHeader eyebrow={t('eyebrow')} title={t('title')} description={t('description')} />
+      <PageHeader
+        eyebrow={t('eyebrow')}
+        title={t('title')}
+        description={t('description')}
+        actions={
+          // Sub pages (Step 3e/3g)
+          <Link href="/admin/settings/permissions" className={buttonClasses('secondary')}>
+            <ShieldCheck size={16} aria-hidden /> {tp('title')}
+          </Link>
+        }
+      />
 
       <div className="grid items-start gap-8 lg:grid-cols-[11rem_minmax(0,1fr)]">
         {/* In-page index */}

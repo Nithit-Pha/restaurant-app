@@ -5,6 +5,7 @@ import { countChange, isLow, stockInExpenseText } from './stock.rules';
 import { planReturn, planSale } from './stock.plan';
 import { notifyStockChanged } from './stock.notify';
 import { isEmergency, levelProblem, packsToOrder } from '../suppliers/ordering';
+import { assertCan } from '../permissions/permissions.service';
 import type { CountInput, IngredientInput, IngredientPatch, RecipeInput, StockInInput, WasteInput } from './stock.validation';
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
@@ -211,9 +212,7 @@ async function activeIngredient(id: string) {
 
 /** Stock arrived. With a price (owner only) it is also a Finance "Food supply" expense. */
 export async function stockIn(id: string, input: StockInInput, actor: Actor) {
-  if (input.price !== undefined && actor.role !== 'SUPER_ADMIN') {
-    throw httpError(403, 'Only the owner can enter purchase prices.');
-  }
+  if (input.price !== undefined) await assertCan(actor, 'prices.enter', 'Only the owner can enter purchase prices.');
   const ing = await activeIngredient(id);
   const move = await prisma.$transaction(async (tx) => {
     const expense = input.price !== undefined

@@ -6,7 +6,8 @@ import { useLocale, useTranslations } from 'next-intl';
 import { ArrowLeft, Ban, CheckCheck, Download, PackageCheck, Receipt, RotateCcw, Save, SearchX, Send } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { apiErrorMessage } from '@/lib/localized';
-import { useGetMeQuery, useGetRestaurantQuery } from '../../../../../src/api/apiSlice';
+import { useGetRestaurantQuery } from '../../../../../src/api/apiSlice';
+import { usePermissions, type Permission } from '../../../../../src/features/permissions/permissionsApi';
 import PricesDialog from '../../../../../src/features/admin/purchasing/PricesDialog';
 import ReceiveDialog from '../../../../../src/features/admin/purchasing/ReceiveDialog';
 import { formatAmount, useGetIngredientsQuery, type Ingredient, type Unit } from '../../../../../src/features/admin/stock/stockApi';
@@ -44,7 +45,7 @@ interface LineEdit { ticked: boolean; packs: string }
 export default function PurchaseOrderPage() {
   const t = useTranslations('purchasing');
   const { ready } = useRequireRole('STAFF');
-  const { data: me } = useGetMeQuery(undefined, { skip: !ready });
+  const { can } = usePermissions();
   const params = useParams<{ id: string }>();
   const { data: po, isLoading, isError } = useGetPurchaseOrderQuery(params.id, { skip: !ready });
   const { data: ingredients = [] } = useGetIngredientsQuery(undefined, { skip: !ready });
@@ -59,10 +60,13 @@ export default function PurchaseOrderPage() {
     );
   }
   // A fresh editor after every save, so its edits always start from the saved order.
-  return <Editor key={po.updatedAt} po={po} ingredients={ingredients} isOwner={me?.role === 'SUPER_ADMIN'} />;
+  return <Editor key={po.updatedAt} po={po} ingredients={ingredients} can={can} />;
 }
 
-function Editor({ po, ingredients, isOwner }: { po: PurchaseOrder; ingredients: Ingredient[]; isOwner: boolean }) {
+function Editor({ po, ingredients, can }: { po: PurchaseOrder; ingredients: Ingredient[]; can: (p: Permission) => boolean }) {
+  // Settings → Permissions: the owner may always; staff as allowed.
+  const isOwner = can('orders.purchase');
+  const canPrice = can('prices.enter');
   const t = useTranslations('purchasing');
   const ts = useTranslations('stock');
   const tc = useTranslations('common');
@@ -73,7 +77,7 @@ function Editor({ po, ingredients, isOwner }: { po: PurchaseOrder; ingredients: 
   const [send, { isLoading: sending }] = useSendPurchaseOrderMutation();
   const [cancel, { isLoading: cancelling }] = useCancelPurchaseOrderMutation();
   const [complete, { isLoading: completing }] = useCompletePurchaseOrderMutation();
-  // Only the owner edits a draft; staff see it read-only.
+  // Only those allowed to make orders edit a draft; others see it read-only.
   const draft = po.status === 'DRAFT' && isOwner;
   const receivable = po.status === 'SENT' || po.status === 'PARTLY_RECEIVED';
   const [receiving, setReceiving] = useState(false);
@@ -204,7 +208,7 @@ function Editor({ po, ingredients, isOwner }: { po: PurchaseOrder; ingredients: 
             )}
             {draft && <Button variant="secondary" icon={Save} loading={saving} disabled={!dirty} onClick={onSave}>{t('save')}</Button>}
             {draft && <Button icon={Send} loading={sending} disabled={lines.length === 0} onClick={() => setConfirm('send')}>{t('send')}</Button>}
-            {receivable && <Button icon={PackageCheck} onClick={() => setReceiving(true)}>{t('receive.open')}</Button>}
+            {receivable && can('deliveries.receive') && <Button icon={PackageCheck} onClick={() => setReceiving(true)}>{t('receive.open')}</Button>}
           </div>
         }
       />
@@ -349,7 +353,7 @@ function Editor({ po, ingredients, isOwner }: { po: PurchaseOrder; ingredients: 
 
       {po.deliveries.length > 0 && (
         <Card className="mt-6 overflow-hidden">
-          <CardHeader title={t('deliveries.title', { count: po.deliveries.length })} description={isOwner ? t('deliveries.hintOwner') : undefined} />
+          <CardHeader title={t('deliveries.title', { count: po.deliveries.length })} description={canPrice ? t('deliveries.hintOwner') : undefined} />
           <ul className="divide-y divide-line">
             {po.deliveries.map((d, k) => (
               <li key={d.id} className="flex flex-wrap items-start gap-3 px-5 py-3">
@@ -365,8 +369,8 @@ function Editor({ po, ingredients, isOwner }: { po: PurchaseOrder; ingredients: 
                 <div className="flex items-center gap-2">
                   {d.priceTotal === null
                     ? <Badge tone="warning">{t('deliveries.priceMissing')}</Badge>
-                    : isOwner && <span className="text-sm font-semibold tabular-nums text-fg">{formatCurrency(Number(d.priceTotal))}</span>}
-                  {isOwner && (
+                    : canPrice && <span className="text-sm font-semibold tabular-nums text-fg">{formatCurrency(Number(d.priceTotal))}</span>}
+                  {canPrice && (
                     <Button variant="secondary" size="sm" icon={Receipt} onClick={() => setPricing({ delivery: d, no: k + 1 })}>
                       {d.priceTotal === null ? t('deliveries.addPrice') : t('deliveries.editPrice')}
                     </Button>
@@ -378,7 +382,7 @@ function Editor({ po, ingredients, isOwner }: { po: PurchaseOrder; ingredients: 
         </Card>
       )}
 
-      {receiving && <ReceiveDialog po={po} isOwner={isOwner} onDone={() => setReceiving(false)} />}
+      {receiving && <ReceiveDialog po={po} isOwner={canPrice} onDone={() => setReceiving(false)} />}
       {pricing && (
         <PricesDialog
           poId={po.id}

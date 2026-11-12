@@ -8,6 +8,7 @@ import { publish } from '../../utils/events';
 import { stockInFromDelivery } from '../stock/stock.service';
 import { notifyStockChanged } from '../stock/stock.notify';
 import { formatPoNumber } from './purchasing.rules';
+import { assertCan } from '../permissions/permissions.service';
 import { getPurchaseOrder } from './purchasing.service';
 import { canReceive, deliveryExpenseText, orderedAmount, packPrice, round2, statusAfterDeliveries } from './receiving.rules';
 import type { PricesInput, ReceiveInput } from './receiving.validation';
@@ -79,7 +80,7 @@ async function applyPrices(tx: Tx, deliveryId: string, actorId: string) {
 
 export async function receiveDelivery(poId: string, input: ReceiveInput, actor: Actor) {
   const pricesGiven = input.lines.some((l) => l.price !== undefined && l.price !== null);
-  if (pricesGiven && actor.role !== 'SUPER_ADMIN') throw httpError(403, 'Only the owner can enter purchase prices.');
+  if (pricesGiven) await assertCan(actor, 'prices.enter', 'Only the owner can enter purchase prices.');
 
   const po = await prisma.purchaseOrder.findUnique({ where: { id: poId }, include: { items: true } });
   if (!po) throw httpError(404, 'Purchase order not found');
