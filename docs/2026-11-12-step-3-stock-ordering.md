@@ -1,6 +1,6 @@
 # Step 3 — Stock ordering (raw material purchasing)
 
-Status: approved 2026-11-12 · Branch: `main`
+Status: **done** 2026-11-12 (slices 3a–3g, see "Built" at the end) · Branch: `main`
 Source: [ideas-dine-in-kitchen-stock.md](ideas-dine-in-kitchen-stock.md), Step 3. Builds on
 [Step 2 — Ingredient stock](2026-11-12-step-2-stock.md).
 
@@ -101,3 +101,19 @@ staff on **Settings → Permissions**.
 - The PDF is a picture (not searchable): fine for suppliers.
 - Another session works in this folder: Step 3 lives in its own files
   (`suppliers/`, `purchasing/`), shared files only get small hooks.
+
+## Built (2026-11-12)
+
+| Slice | Commit | Notes |
+| --- | --- | --- |
+| 3a Suppliers and ordering settings | d838527 | Pure rules in `suppliers/ordering.ts` (not `orderDays.ts`). |
+| 3b Purchase orders by hand + PDF | f4df130 | PDF drawn on a canvas with the app's fonts and wrapped by a small PDF writer (no new package). File name keeps only the Latin part of the supplier name (browsers may drop Thai file names). |
+| 3c Order-day and urgent drafts | 6c67c83 | Each order day checked once (`OrderDayCheck`): removed lines stay removed; an open draft gets the missing lines instead of a second draft; nothing low = no empty draft; closed the day before = 18:00. Urgent once per drop (`Ingredient.urgentSince`). Suggestions leave out ingredients already on a sent order. |
+| 3d Receiving deliveries | dda505a | Prices stay owner-only (chosen 2026-11-12): staff deliveries show "Price missing" until the owner adds line prices → one Food supply expense per delivery, dated on the delivery day. "Nothing more coming" closes a partly received order. Purchase orders moved to the Service menu. |
+| 3e Settings → Permissions | f07e6cd | Five switches for Staff (orders, suppliers/ingredients, receive, stock moves, prices). |
+| 3f Alert bell | 1ee776a | Worked out from the current state; each person sees only what they may act on. |
+| 3g LINE and email | a3cae69 | LINE Messaging API (LINE Notify ended 2025). Email through a small built-in SMTP client (SSL 465 / STARTTLS 587), so `start.bat` needs no new `npm install`. Deliveries due: one message a day after 08:00. |
+
+Not done here: the end-to-end Playwright test from "Tests" above (unit tests and
+browser checks against a stand-in API were run for every slice; the server
+automation and receiving were tested with an in-memory database).
