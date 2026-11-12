@@ -92,6 +92,14 @@ The client is a single unified Next.js 16 app (App Router, React 18):
 
 See [`docs/restaurant-app-plan.md`](docs/restaurant-app-plan.md) §10 for the full migration rationale and SEO strategy.
 
+## Dine-in (Step 1)
+
+Guests scan the QR code on their table, order from their phone without an
+account (several rounds on one bill), and pay at the counter. Staff pages:
+**Floor plan** and **QR codes** (Super Admin), **Floor** (live table states,
+seat / move / merge, bill and payment) and **Kitchen** (tickets with timers).
+Details: [`docs/2026-11-12-step-1-dine-in.md`](docs/2026-11-12-step-1-dine-in.md).
+
 ## Order workflow (Phase 0)
 
 `PENDING → PREPARING → READY → (OUT_FOR_DELIVERY →) DELIVERED`, or `CANCELLED` with a reason.

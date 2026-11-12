@@ -1,6 +1,6 @@
 # Step 1 — Dine-in + kitchen display page
 
-Status: approved 2026-11-12 · Branch: `main` (one branch only; every slice is committed to `main`)
+Status: **done 2026-11-12** (slices 1a-1f) · Branch: `main` (one branch only; every slice is committed to `main`)
 Source: [ideas-dine-in-kitchen-stock.md](ideas-dine-in-kitchen-stock.md), Step 1.
 
 ## Goal
@@ -115,3 +115,40 @@ all other local branches deleted. From now on all work goes straight to `main`.
   order of each visit stops pranks.
 - One stream connection per staff device: fine for one restaurant.
 - Tax per round (D1) can differ by a satang from taxing the whole bill.
+
+## Result (2026-11-12)
+
+| Slice | Commit | Notes |
+| --- | --- | --- |
+| 1a Floor plan editor | `c04be7e` | + fix `75ef7b6` (turned table against a wall), stairs `bd5ca4f`, turning 0-315 degrees for every item `58ea88e` |
+| 1b QR codes + guest ordering | `6c54c58` | migration `20261112010000_dine_in_visits` |
+| 1c Live updates + floor view | `32b0682` | migration `20261112020000_visit_merge` (merge two tables into one bill) |
+| 1d Kitchen page | `dd65ea1` | |
+| 1e Bill + payment at the counter | `69471d6` | |
+| 1f Final checks | this commit | end-to-end test `e2e/tests/dine-in.spec.ts`, docs |
+
+Checks: 192 server unit tests, client type check and production build; the
+guest page, floor view (incl. live updates through the Next.js `/api`
+forwarding, ~0.3 s), kitchen page and bill were tried in a browser against a
+stand-in API. English and Thai have the same 951 text keys. The new
+end-to-end test needs the real database, so run it on the PC:
+`cd e2e && npx playwright test tests/dine-in.spec.ts` (app running).
+
+Changes against the plan:
+- Rotation: every item turns in 45 degree steps all the way round (0-315), one
+  formula for any angle (asked for during 1b).
+- Stairs as decor type.
+- Merging tables keeps guests' QR keys working (`TableSession.mergedIntoId`).
+- Paying a bill with dishes still cooking answers `409` with code `NOT_SERVED`;
+  staff can "mark served and close" (history note "Served when the bill was paid").
+- Live events unsubscribe on the response's `close` event (the request's
+  `close` fires right after the request is read since Node 16).
+
+How to try it:
+1. Pull, then once: `cd server && npm install && npx prisma generate`, `cd client && npm install`.
+2. `start.bat` (applies the 3 new migrations).
+3. Super Admin: **Floor plan** - add a zone, tables (or a template), Save; **QR codes** - set the address phones can reach, print.
+4. Scan a table's QR code with a phone on the same Wi-Fi and order.
+5. Staff: **Kitchen** (accept, ready, served) and **Floor** (bill, paid, table clean).
+
+Next (roadmap): Step 2 ingredient stock.

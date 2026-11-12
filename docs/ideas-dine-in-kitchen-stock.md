@@ -1,6 +1,6 @@
 # Ideas after Phase 1: dine-in, kitchen, stock and stock ordering
 
-Status: **ideas, decisions made, not built yet** (started 2026-11-11, combined 2026-11-12)
+Status: **Step 1 built** (2026-11-12, see [2026-11-12-step-1-dine-in.md](2026-11-12-step-1-dine-in.md)); Steps 2-4 are ideas with decisions made
 
 This file replaces the three separate idea docs
 (`idea-dine-in-table-layout.md`, `idea-kitchen-display.md`, `idea-stock-ordering.md`).
@@ -20,7 +20,7 @@ This file replaces the three separate idea docs
 
 Decided 2026-11-12. Order after Phase 1 (Phase 1 is finished and being tested):
 
-1. **Dine-in table layout + kitchen display page**
+1. **Dine-in table layout + kitchen display page** - done 2026-11-12
 2. **Ingredient stock**
 3. **Stock ordering**
 4. **Fridge/freezer sensors**
