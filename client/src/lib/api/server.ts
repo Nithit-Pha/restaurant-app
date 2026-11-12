@@ -5,7 +5,7 @@ import 'server-only';
 import type { MenuItem } from '../../api/apiSlice';
 import { DEFAULT_RESTAURANT, type Restaurant } from '../site';
 
-const API_ORIGIN = process.env.API_ORIGIN || 'http://localhost:3001';
+const API_ORIGIN = process.env.API_ORIGIN || 'http://127.0.0.1:3001';
 
 async function apiFetch<T>(path: string, revalidateSeconds = 300): Promise<T | null> {
   try {

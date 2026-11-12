@@ -4,7 +4,9 @@ const createNextIntlPlugin = require('next-intl/plugin');
 // Thai / English: loads messages/<locale>.json for each request.
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
-const API_ORIGIN = process.env.API_ORIGIN || 'http://localhost:3001';
+// 127.0.0.1, not localhost: the API listens on IPv4 only, and on Windows
+// localhost resolves to IPv6 ::1 first.
+const API_ORIGIN = process.env.API_ORIGIN || 'http://127.0.0.1:3001';
 
 const nextConfig = {
   reactStrictMode: true,

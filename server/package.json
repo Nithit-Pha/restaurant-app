@@ -10,6 +10,7 @@
     "db:generate": "prisma generate",
     "db:seed": "ts-node prisma/seed.ts",
     "db:studio": "prisma studio",
+    "set-password": "ts-node scripts/set-password.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",

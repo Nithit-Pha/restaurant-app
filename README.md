@@ -30,13 +30,50 @@ npm run dev           # http://localhost:5173
 ### Backend (`server/.env`)
 - `DATABASE_URL` — PostgreSQL connection string
 - `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` — change before production
+- `HOST` — address the API listens on, default `127.0.0.1` (only this PC; the website proxies `/api` to it). Set `0.0.0.0` only if other machines must call the API directly
 - `TAX_RATE` — default `0.07` (7%)
 - `BUSINESS_TIMEZONE` — default `Asia/Bangkok`; business day, daily order numbers and opening hours use it
 - `SEED_SUPERADMIN_PASSWORD` / `SEED_ADMIN_PASSWORD` — optional passwords for the sample accounts (the seed refuses to run with `NODE_ENV=production` unless `ALLOW_SEED=1`)
 
 ### Frontend (`client/.env.local`)
-- `SITE_URL` — canonical site URL used for metadata, sitemap, robots, JSON-LD (default `http://localhost:5173`)
-- `API_ORIGIN` — backend origin the Next.js rewrites/server fetches proxy to (default `http://localhost:3001`)
+- `SITE_URL` — canonical site URL used for metadata, sitemap, robots, JSON-LD and the table QR codes (default `http://localhost:5173`). In the shop: `http://<this PC's IP>:5173`
+- `API_ORIGIN` — backend origin the Next.js rewrites/server fetches proxy to (default `http://127.0.0.1:3001`)
+
+## Running in the shop
+
+The whole app runs on one PC in the restaurant. Customers and staff use it on the
+shop Wi-Fi; nothing is on the internet. Plan and reasons:
+[`docs/2026-11-12-shop-network-setup.md`](docs/2026-11-12-shop-network-setup.md).
+
+One-time setup:
+
+1. Run `start.bat` once (installs packages, creates `server\.env`, sample data), then `stop.bat`.
+2. **Router:** give the PC a fixed IP (DHCP reservation). Printed table QR codes contain this address.
+3. **Passwords:** change both sample logins (they are public, see [Sign-in](#sign-in)):
+   ```bash
+   cd server
+   npm run set-password -- superadmin
+   npm run set-password -- admin
+   ```
+   The same command resets any staff password. It also signs that user out on every device.
+4. **`client\.env.local`:** add `SITE_URL=http://<this PC's IP>:5173` (for example `http://192.168.1.32:5173`).
+5. **Windows:** set the shop Wi-Fi to a *Private* network. Allow only the website port through the firewall
+   (PowerShell as administrator):
+   ```powershell
+   New-NetFirewallRule -DisplayName "Restaurant website" -Direction Inbound -Protocol TCP -LocalPort 5173 -Action Allow -Profile Private
+   ```
+   Keep ports 3001 (API) and 5432 (database) closed; the app only listens on them for this PC anyway.
+6. **Windows:** turn off sleep, so the PC stays reachable.
+7. **Wi-Fi:** customers and staff on the same network (no guest isolation, or phones cannot reach the PC).
+   Use WPA3 if the router supports it.
+
+Every day: run `start-shop.bat`. It builds and starts the production version and shows the address
+to open on a phone. Stop with `stop.bat`. (`start.bat` is the development version and only works
+on this PC: Next.js dev mode blocks other devices.)
+
+Known limits: the site is plain `http` on the Wi-Fi, so someone on the same Wi-Fi with the right tools
+can read a staff login; "Use my location" at checkout needs `https` and does not work from phones.
+Both go away with the Cloudflare step in the plan.
 
 ## Structure
 ```
@@ -77,8 +114,9 @@ they register; for staff accounts the email is optional.
 | `superadmin` | `superadmin123` |
 | `admin`      | `superadmin123` |
 
-These passwords are public. Change them (or set `SEED_SUPERADMIN_PASSWORD` /
-`SEED_ADMIN_PASSWORD` before seeding) before the app is reachable from other devices.
+These passwords are public. Change them with `npm run set-password -- <username>` (in `server/`),
+or set `SEED_SUPERADMIN_PASSWORD` / `SEED_ADMIN_PASSWORD` before seeding, before the app is
+reachable from other devices.
 
 Users created before the username change got a username from the part of their email
 before `@` (lowercased, other characters removed, a number added on clashes), e.g.

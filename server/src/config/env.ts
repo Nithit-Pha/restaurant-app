@@ -8,6 +8,9 @@ function required(key: string): string {
 
 export const env = {
   port: parseInt(process.env.PORT ?? '3001', 10),
+  // Network address the API listens on. 127.0.0.1 = only this PC (the website
+  // proxies /api to it), so other devices on the Wi-Fi cannot call it directly.
+  host: process.env.HOST ?? '127.0.0.1',
   nodeEnv: process.env.NODE_ENV ?? 'development',
   clientUrl: process.env.CLIENT_URL ?? 'http://localhost:5173',
 
