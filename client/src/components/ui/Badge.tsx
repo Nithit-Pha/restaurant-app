@@ -6,7 +6,7 @@ export type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'in
 
 const tones: Record<Tone, { box: string; dot: string }> = {
   neutral: { box: 'bg-neutral-soft text-neutral', dot: 'bg-neutral' },
-  accent: { box: 'bg-accent-soft text-accent dark:text-accent', dot: 'bg-accent' },
+  accent: { box: 'bg-accent-soft text-accent', dot: 'bg-accent' },
   success: { box: 'bg-success-soft text-success', dot: 'bg-success' },
   warning: { box: 'bg-warning-soft text-warning', dot: 'bg-warning' },
   danger: { box: 'bg-danger-soft text-danger', dot: 'bg-danger' },

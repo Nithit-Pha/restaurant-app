@@ -33,7 +33,8 @@ export function Dialog({ open, onClose, title, description, footer, size = 'md',
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descId = useId();
-  useOverlay(open, onClose, panel);
+  // Wait for the portal: focus and the focus trap need the panel to exist.
+  useOverlay(open && ready, onClose, panel);
 
   if (!open || !ready) return null;
 
@@ -94,7 +95,8 @@ export function Drawer({ open, onClose, title, side = 'right', width = 'max-w-sm
   const ready = usePortalReady();
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  useOverlay(open, onClose, panel);
+  // Wait for the portal: focus and the focus trap need the panel to exist.
+  useOverlay(open && ready, onClose, panel);
 
   if (!open || !ready) return null;
 

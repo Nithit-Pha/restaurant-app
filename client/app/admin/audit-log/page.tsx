@@ -126,7 +126,7 @@ export default function AuditLogPage() {
                     </TD>
                     <TD className="whitespace-nowrap">
                       <span className="text-fg">{humanize(log.entityType)}</span>
-                      {log.entityId && <span className="ml-1.5 font-mono text-xs text-fg-subtle">#{log.entityId.slice(0, 8)}</span>}
+                      {log.entityId && <span className="ml-1.5 font-mono text-xs text-fg-muted">#{log.entityId.slice(0, 8)}</span>}
                     </TD>
                     <TD muted className="max-w-sm truncate text-xs" title={details}>{details}</TD>
                   </TR>
