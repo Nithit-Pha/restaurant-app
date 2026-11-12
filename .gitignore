@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+# The top folder has no packages; a lock file there only appears after
+# running "npm install" in the wrong folder (use server/ and client/).
+/package-lock.json
 
 # Build output
 dist/
@@ -46,3 +49,10 @@ Thumbs.db
 # Playwright
 test-results/
 playwright-report/
+
+# Leftovers from interrupted installs or downloads (e.g. a locked Prisma engine)
+*.tmp
+*.tmp[0-9]*
+
+# One-click setup: generated database passwords (docs/windows-setup-plan.md)
+server/.setup/
