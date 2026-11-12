@@ -31,7 +31,7 @@ const { db, prismaMock, publishMock } = vi.hoisted(() => {
       findFirst: async ({ where }: Row) => [...db.orders].reverse().find((o) => o.supplierId === where.supplierId && o.status === where.status && inList(o.source, where.source)) ?? null,
       create: async ({ data }: Row) => {
         if (data.orderDay && db.orders.some((o) => o.supplierId === data.supplierId && o.orderDay === data.orderDay)) throw clash();
-        const o = { id: `po${++n}`, status: 'DRAFT', source: 'MANUAL', orderDay: null, ...data };
+        const o = { id: `po${++n}`, number: n, status: 'DRAFT', source: 'MANUAL', orderDay: null, ...data };
         db.orders.push(o);
         return o;
       },
@@ -65,6 +65,7 @@ const { db, prismaMock, publishMock } = vi.hoisted(() => {
 });
 vi.mock('../../config/db', () => ({ prisma: prismaMock }));
 vi.mock('../../utils/events', () => ({ publish: publishMock }));
+vi.mock('../notifications/notifications.service', () => ({ notify: vi.fn(), checkDeliveriesDue: vi.fn() }));
 vi.mock('../settings/settings.service', () => ({
   getRestaurantProfile: async () => ({ openingHours: [{ dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], opens: '11:00', closes: '21:00' }] }),
 }));
@@ -86,31 +87,44 @@ beforeEach(() => {
 });
 
 describe('order-day drafts', () => {
+  it('tells the owner what was made (LINE / email)', async () => {
+    db.ingredients[0].emergencyLevel = D(5);
+    const urgent = await checkUrgent(at('2026-11-16T20:00'));
+    expect(urgent.notices).toEqual([
+      { kind: 'urgent', items: [{ name: 'rice', quantity: '4', unit: 'kg' }] },
+      expect.objectContaining({ kind: 'draft', supplier: 'Market', lines: 1, urgent: true, added: false }),
+    ]);
+    db.ingredients[1].quantity = D(3); // chicken low now, not urgent
+    const days = await checkOrderDays(at('2026-11-16T21:00'));
+    // rice is on the urgent draft already; chicken is added to that open draft
+    expect(days.notices).toEqual([expect.objectContaining({ kind: 'draft', lines: 1, added: true })]);
+  });
+
   it('waits for closing time the day before', async () => {
-    expect(await checkOrderDays(at('2026-11-16T20:55'))).toBe(0);
+    expect((await checkOrderDays(at('2026-11-16T20:55'))).changed).toBe(0);
     expect(db.orders).toHaveLength(0);
   });
 
   it('makes one draft with the low ingredients, once per order day', async () => {
-    expect(await checkOrderDays(at('2026-11-16T21:00'))).toBe(1);
+    expect((await checkOrderDays(at('2026-11-16T21:00'))).changed).toBe(1);
     expect(db.orders).toEqual([expect.objectContaining({ source: 'SCHEDULED', orderDay: '2026-11-17', expectedDate: '2026-11-18' })]);
     expect(db.items.map((i) => [i.ingredientId, i.packs])).toEqual([['rice', 5]]); // 21 kg missing → 5 bags of 5 kg
     // Owner removes the line; later runs must not put it back.
     db.items.length = 0;
-    expect(await checkOrderDays(at('2026-11-16T21:05'))).toBe(0);
-    expect(await checkOrderDays(at('2026-11-17T08:00'))).toBe(0);
+    expect((await checkOrderDays(at('2026-11-16T21:05'))).changed).toBe(0);
+    expect((await checkOrderDays(at('2026-11-17T08:00'))).changed).toBe(0);
     expect(db.items).toHaveLength(0);
     expect(db.orders).toHaveLength(1);
   });
 
   it('catches up on the order day after the server was off', async () => {
-    expect(await checkOrderDays(at('2026-11-17T09:30'))).toBe(1);
+    expect((await checkOrderDays(at('2026-11-17T09:30'))).changed).toBe(1);
     expect(db.orders[0]).toMatchObject({ orderDay: '2026-11-17', expectedDate: '2026-11-18' });
   });
 
   it('makes no empty draft when nothing is low, but still marks the day as checked', async () => {
     db.ingredients[0].quantity = D(30);
-    expect(await checkOrderDays(at('2026-11-16T21:00'))).toBe(0);
+    expect((await checkOrderDays(at('2026-11-16T21:00'))).changed).toBe(0);
     expect(db.orders).toHaveLength(0);
     expect(db.checks).toEqual([expect.objectContaining({ supplierId: 's1', orderDay: '2026-11-17', purchaseOrderId: null })]);
   });
@@ -118,7 +132,7 @@ describe('order-day drafts', () => {
   it('adds to an open draft instead of making a second one, keeping the owner\'s lines', async () => {
     db.orders.push({ id: 'mine', supplierId: 's1', status: 'DRAFT', source: 'MANUAL', orderDay: null });
     db.items.push({ purchaseOrderId: 'mine', ingredientId: 'chicken', packs: 2 });
-    expect(await checkOrderDays(at('2026-11-16T21:00'))).toBe(1);
+    expect((await checkOrderDays(at('2026-11-16T21:00'))).changed).toBe(1);
     expect(db.orders).toHaveLength(1);
     expect(db.items.map((i) => [i.ingredientId, i.packs])).toEqual([['chicken', 2], ['rice', 5]]);
   });
@@ -126,7 +140,7 @@ describe('order-day drafts', () => {
   it('leaves out ingredients already on a sent order', async () => {
     db.orders.push({ id: 'sent', supplierId: 's1', status: 'SENT', source: 'MANUAL', orderDay: null });
     db.items.push({ purchaseOrderId: 'sent', ingredientId: 'rice', packs: 5 });
-    expect(await checkOrderDays(at('2026-11-16T21:00'))).toBe(0);
+    expect((await checkOrderDays(at('2026-11-16T21:00'))).changed).toBe(0);
     expect(db.orders).toHaveLength(1);
   });
 });
@@ -134,14 +148,14 @@ describe('order-day drafts', () => {
 describe('urgent drafts', () => {
   it('adds an ingredient once when it falls to its urgent level', async () => {
     db.ingredients[0].emergencyLevel = D(5); // rice: 4 kg ≤ 5
-    expect(await checkUrgent(at('2026-11-12T14:00'))).toBe(1);
+    expect((await checkUrgent(at('2026-11-12T14:00'))).changed).toBe(1);
     expect(db.orders).toEqual([expect.objectContaining({ source: 'EMERGENCY', supplierId: 's1', expectedDate: '2026-11-13' })]);
     expect(db.items.map((i) => [i.ingredientId, i.packs])).toEqual([['rice', 5]]);
     expect(db.ingredients[0].urgentSince).toBeInstanceOf(Date);
 
     // Owner removes it from the draft: it does not come back while still urgent.
     db.items.length = 0;
-    expect(await checkUrgent(at('2026-11-12T14:05'))).toBe(0);
+    expect((await checkUrgent(at('2026-11-12T14:05'))).changed).toBe(0);
     expect(db.items).toHaveLength(0);
 
     // Back above, then down again: a new drop, added again to the open urgent draft.
@@ -149,7 +163,7 @@ describe('urgent drafts', () => {
     await checkUrgent(at('2026-11-12T15:00'));
     expect(db.ingredients[0].urgentSince).toBeNull();
     db.ingredients[0].quantity = D(2);
-    expect(await checkUrgent(at('2026-11-12T16:00'))).toBe(1);
+    expect((await checkUrgent(at('2026-11-12T16:00'))).changed).toBe(1);
     expect(db.orders).toHaveLength(1);
     expect(db.items.map((i) => i.ingredientId)).toEqual(['rice']);
   });
@@ -159,7 +173,7 @@ describe('urgent drafts', () => {
     db.ingredients.push(ingredient('salt', 0, { supplierId: null, emergencyLevel: D(1) }));
     db.orders.push({ id: 'sent', supplierId: 's1', status: 'SENT', source: 'MANUAL', orderDay: null });
     db.items.push({ purchaseOrderId: 'sent', ingredientId: 'rice', packs: 5 });
-    expect(await checkUrgent(at('2026-11-12T14:00'))).toBe(0);
+    expect((await checkUrgent(at('2026-11-12T14:00'))).changed).toBe(0);
     expect(db.orders).toHaveLength(1);
     expect(db.ingredients.find((i) => i.id === 'salt')!.urgentSince).toBeInstanceOf(Date); // still counted as urgent (bell, 3f)
   });

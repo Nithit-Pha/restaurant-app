@@ -15,7 +15,8 @@ export interface Alert {
 const api = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     // Stock and purchase order changes (also live events) reload it.
-    getAlerts: builder.query<Alert[], void>({
+    // web: false = the owner switched the bell off (Settings → Notifications).
+    getAlerts: builder.query<{ web: boolean; items: Alert[] }, void>({
       query: () => '/alerts',
       providesTags: ['Stock', 'PurchaseOrder', 'Settings'],
     }),

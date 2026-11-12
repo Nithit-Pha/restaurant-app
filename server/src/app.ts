@@ -22,6 +22,7 @@ import suppliersRoutes from './modules/suppliers/suppliers.routes';
 import purchasingRoutes from './modules/purchasing/purchasing.routes';
 import permissionsRoutes from './modules/permissions/permissions.routes';
 import alertsRoutes from './modules/alerts/alerts.routes';
+import notificationsRoutes from './modules/notifications/notifications.routes';
 import { authenticate } from './middleware/auth';
 import { requireRole } from './middleware/requireRole';
 import { profitReportHandler } from './modules/orders/orders.controller';
@@ -93,6 +94,7 @@ app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/purchase-orders', purchasingRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/alerts', alertsRoutes);
+app.use('/api/notifications', notificationsRoutes);
 app.get('/api/admin/reports/profit', authenticate, requireRole('SUPER_ADMIN'), profitReportHandler);
 
 // Error handler (must be last)

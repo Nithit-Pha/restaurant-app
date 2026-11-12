@@ -24,7 +24,8 @@ export default function AlertBell() {
   const { data: me } = useGetMeQuery(undefined, { skip: !token });
   const staff = me?.role === 'STAFF' || me?.role === 'SUPER_ADMIN';
   // Every minute as well: "due today" changes with the clock.
-  const { data: alerts = [] } = useGetAlertsQuery(undefined, { skip: !staff, pollingInterval: 60_000 });
+  const { data } = useGetAlertsQuery(undefined, { skip: !staff, pollingInterval: 60_000 });
+  const alerts = data?.items ?? [];
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -37,7 +38,7 @@ export default function AlertBell() {
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
   }, [open]);
 
-  if (!staff) return null;
+  if (!staff || !data?.web) return null;
   const total = alerts.reduce((sum, a) => sum + a.count, 0);
   const urgent = alerts.some((a) => a.tone === 'danger');
 

@@ -13,7 +13,9 @@ import { businessDate, zonedParts } from '../../utils/businessTime';
 import { publish } from '../../utils/events';
 import { getRestaurantProfile } from '../settings/settings.service';
 import { packsToOrder } from '../suppliers/ordering';
-import { expectedDelivery, suggestLines } from './purchasing.rules';
+import { expectedDelivery, formatPoNumber, suggestLines } from './purchasing.rules';
+import type { Notice } from '../notifications/notifications.rules';
+import { checkDeliveriesDue, notify } from '../notifications/notifications.service';
 import { dueOrderDays, urgentChanges } from './schedule.rules';
 
 type Tx = Prisma.TransactionClient;
@@ -59,13 +61,16 @@ const openDraftOf = (tx: Tx, supplierId: string, source?: 'EMERGENCY') =>
   tx.purchaseOrder.findFirst({
     where: { supplierId, status: 'DRAFT', ...(source ? { source } : {}) },
     orderBy: { createdAt: 'desc' },
-    select: { id: true },
+    select: { id: true, number: true },
   });
+
+/** What a check did: how many orders changed, and what to tell the owner (LINE / email). */
+export interface CheckResult { changed: number; notices: Notice[] }
 
 const isUniqueClash = (err: unknown) => err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
 
-/** Makes the drafts of order days that are due. Returns how many orders changed. */
-export async function checkOrderDays(now = new Date()): Promise<number> {
+/** Makes the drafts of order days that are due. */
+export async function checkOrderDays(now = new Date()): Promise<CheckResult> {
   const tz = env.businessTimeZone;
   const p = zonedParts(now, tz);
   const moment = { ymd: businessDate(now, tz), minute: p.hour * 60 + p.minute };
@@ -77,6 +82,7 @@ export async function checkOrderDays(now = new Date()): Promise<number> {
   });
 
   let changed = 0;
+  const notices: Notice[] = [];
   for (const s of suppliers) {
     for (const day of dueOrderDays(s, openingHours ?? [], moment)) {
       try {
@@ -89,13 +95,18 @@ export async function checkOrderDays(now = new Date()): Promise<number> {
           let poId: string | null = null;
           if (open) {
             // Already a draft for this supplier: add what is missing, keep the owner's lines.
-            if (await addLines(tx, open.id, lines)) poId = open.id;
+            const added = await addLines(tx, open.id, lines);
+            if (added) {
+              poId = open.id;
+              notices.push({ kind: 'draft', label: formatPoNumber(open.number), supplier: s.name, lines: added, urgent: false, added: true });
+            }
           } else if (lines.length) {
             const po = await tx.purchaseOrder.create({
               data: { supplierId: s.id, source: 'SCHEDULED', orderDay: day, expectedDate: expectedDelivery(day < today ? today : day, s.leadTimeDays) },
             });
             await addLines(tx, po.id, lines);
             poId = po.id;
+            notices.push({ kind: 'draft', label: formatPoNumber(po.number), supplier: s.name, lines: lines.length, urgent: false, added: false });
           }
           if (poId) await tx.orderDayCheck.update({ where: { supplierId_orderDay: { supplierId: s.id, orderDay: day } }, data: { purchaseOrderId: poId } });
           return poId ? 1 : 0;
@@ -105,22 +116,26 @@ export async function checkOrderDays(now = new Date()): Promise<number> {
       }
     }
   }
-  return changed;
+  return { changed, notices };
 }
 
-/** Starts and ends urgent spells; new ones go onto the supplier's urgent draft. Returns how many orders changed. */
-export async function checkUrgent(now = new Date()): Promise<number> {
+/** Starts and ends urgent spells; new ones go onto the supplier's urgent draft. */
+export async function checkUrgent(now = new Date()): Promise<CheckResult> {
   const ingredients = await prisma.ingredient.findMany({
     where: { OR: [{ emergencyLevel: { not: null } }, { urgentSince: { not: null } }] },
-    include: { supplier: { select: { id: true, isActive: true, leadTimeDays: true } } },
+    include: { supplier: { select: { id: true, name: true, isActive: true, leadTimeDays: true } } },
   });
   const { start, end } = urgentChanges(ingredients);
-  if (!start.length && !end.length) return 0;
+  if (!start.length && !end.length) return { changed: 0, notices: [] };
 
   if (end.length) await prisma.ingredient.updateMany({ where: { id: { in: end.map((i) => i.id) } }, data: { urgentSince: null } });
-  if (!start.length) return 0;
+  if (!start.length) return { changed: 0, notices: [] };
 
-  return prisma.$transaction(async (tx) => {
+  const notices: Notice[] = [{
+    kind: 'urgent',
+    items: start.map((i) => ({ name: i.name, quantity: Number(i.quantity.toString()).toString(), unit: i.unit })),
+  }];
+  const changed = await prisma.$transaction(async (tx) => {
     await tx.ingredient.updateMany({ where: { id: { in: start.map((i) => i.id) }, urgentSince: null }, data: { urgentSince: now } });
     // Already on an open order (draft or sent)? Then it is taken care of.
     const onOrders = new Set((await tx.purchaseOrderItem.findMany({
@@ -128,36 +143,48 @@ export async function checkUrgent(now = new Date()): Promise<number> {
       select: { ingredientId: true },
     })).map((i) => i.ingredientId));
 
-    const bySupplier = new Map<string, { leadTimeDays: number; lines: { ingredientId: string; packs: number }[] }>();
+    const bySupplier = new Map<string, { name: string; leadTimeDays: number; lines: { ingredientId: string; packs: number }[] }>();
     for (const i of start) {
       if (!i.supplier?.isActive || onOrders.has(i.id)) continue;
-      const entry = bySupplier.get(i.supplier.id) ?? { leadTimeDays: i.supplier.leadTimeDays, lines: [] };
+      const entry = bySupplier.get(i.supplier.id) ?? { name: i.supplier.name, leadTimeDays: i.supplier.leadTimeDays, lines: [] };
       entry.lines.push({ ingredientId: i.id, packs: Math.max(1, packsToOrder(i)) });
       bySupplier.set(i.supplier.id, entry);
     }
 
     let changed = 0;
     const today = businessDate(now, env.businessTimeZone);
-    for (const [supplierId, { leadTimeDays, lines }] of bySupplier) {
-      const open = await openDraftOf(tx, supplierId, 'EMERGENCY');
-      const poId = open?.id ?? (await tx.purchaseOrder.create({
+    for (const [supplierId, { name, leadTimeDays, lines }] of bySupplier) {
+      const po = await openDraftOf(tx, supplierId, 'EMERGENCY') ?? await tx.purchaseOrder.create({
         data: { supplierId, source: 'EMERGENCY', expectedDate: expectedDelivery(today, leadTimeDays) },
-      })).id;
-      if (await addLines(tx, poId, lines)) changed++;
+        select: { id: true, number: true },
+      });
+      const added = await addLines(tx, po.id, lines);
+      if (added) {
+        changed++;
+        notices.push({ kind: 'draft', label: formatPoNumber(po.number), supplier: name, lines: added, urgent: true, added: false });
+      }
     }
     return changed;
   });
+  return { changed, notices };
 }
 
 /** Both checks, one at a time; tells staff screens when drafts changed. Never throws. */
 export function runPurchasingChecks(reason: string): Promise<void> {
   return serial(async () => {
     try {
-      const changed = (await checkOrderDays()) + (await checkUrgent());
+      const days = await checkOrderDays();
+      const urgent = await checkUrgent();
+      const changed = days.changed + urgent.changed;
       if (changed) {
         console.log(`[purchasing] ${changed} draft order(s) made or updated (${reason})`);
         publish({ type: 'purchasing' });
       }
+      // LINE / email (Step 3g): urgent stock first, then the drafts; once a day the deliveries due.
+      const notices = [...urgent.notices, ...days.notices];
+      const due = await checkDeliveriesDue();
+      if (due) notices.push(due);
+      if (notices.length) void notify(notices);
     } catch (err) {
       console.error('[purchasing] Automatic draft check failed:', err instanceof Error ? err.message : err);
     }

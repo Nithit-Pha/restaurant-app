@@ -1544,5 +1544,63 @@
       "deliveriesDue": "{count, plural, one {# delivery} other {# deliveries}} due{extra, plural, =0 { today} other { (# late)}}",
       "priceMissing": "{count, plural, one {# delivery} other {# deliveries}} without a price"
     }
+  },
+  "notifications": {
+    "eyebrow": "Settings",
+    "title": "Notifications",
+    "back": "Settings",
+    "description": "How you hear about urgent stock, new draft orders and deliveries: the bell in the app, LINE and email.",
+    "save": "Save",
+    "saved": "Notifications saved",
+    "saveFailed": "Could not save the notifications.",
+    "loading": "Loading…",
+    "web": {
+      "title": "Alert bell in the app",
+      "hint": "The bell in the top bar for you and your staff. On by default."
+    },
+    "events": {
+      "title": "What goes out by LINE and email",
+      "hint": "LINE and email only send these, once each time they happen.",
+      "urgentStock": "Urgent stock",
+      "urgentStockHint": "An ingredient falls to its urgent level.",
+      "newDrafts": "New draft orders",
+      "newDraftsHint": "A draft order was made or got more lines (order days and urgent).",
+      "deliveriesDue": "Deliveries due today",
+      "deliveriesDueHint": "Every morning after 08:00, when something is due or late."
+    },
+    "language": "Language of the messages",
+    "line": {
+      "name": "LINE",
+      "enable": "Send by LINE",
+      "hint": "Off until you switch it on. Messages come from your restaurant's LINE Official Account.",
+      "step1": "In the LINE Developers console, create a LINE Official Account with a Messaging API channel (free).",
+      "step2": "On the channel's Messaging API tab, issue a channel access token (long-lived) and paste it below.",
+      "step3": "Add the account as a friend on your phone. Your user ID is on the channel's Basic settings tab.",
+      "token": "Channel access token",
+      "to": "Send to (user or group ID)",
+      "toHint": "Starts with U (a person) or C (a group)."
+    },
+    "email": {
+      "name": "Email",
+      "enable": "Send by email",
+      "hint": "Off until you switch it on. Sent through your own mail account.",
+      "preset": "Use {name}",
+      "gmailHint": "Gmail: turn on 2-step verification and create an app password; use it here, not your normal password.",
+      "host": "Mail server",
+      "port": "Port",
+      "portHint": "465 or 587",
+      "user": "User name",
+      "pass": "Password (app password)",
+      "from": "Sender address",
+      "to": "Send to",
+      "toHint": "Several: separate with commas."
+    },
+    "secretSaved": "Saved. Leave empty to keep it.",
+    "sendTest": "Send test",
+    "testSent": "Test sent by {channel}",
+    "testFailed": "The test could not be sent.",
+    "lastOk": "Last message sent {when}",
+    "lastFailed": "Last try {when} failed: {error}",
+    "storageNote": "The token and password are stored in the app's database on this PC and are never shown again. Every change is in the audit log."
   }
 }

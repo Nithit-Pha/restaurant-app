@@ -6,6 +6,7 @@ import { getStaffPermissions } from '../permissions/permissions.service';
 import { formatPoNumber } from '../purchasing/purchasing.rules';
 import { isEmergency } from '../suppliers/ordering';
 import { buildAlerts, type AlertState } from './alerts.rules';
+import { getNotificationSettings } from '../notifications/notifications.service';
 
 /** Everything the bell needs, read fresh. */
 export async function alertState(): Promise<AlertState> {
@@ -27,8 +28,10 @@ export async function alertState(): Promise<AlertState> {
   };
 }
 
-/** The bell for one signed-in staff member or owner. */
+/** The bell for one signed-in staff member or owner (web: off = no bell, Settings → Notifications). */
 export async function alertsFor(role: string) {
+  const { web } = await getNotificationSettings();
+  if (!web) return { web, items: [] };
   const [state, staff] = await Promise.all([alertState(), getStaffPermissions()]);
-  return buildAlerts(state, permissionsFor(role, staff), businessDate(new Date(), env.businessTimeZone));
+  return { web, items: buildAlerts(state, permissionsFor(role, staff), businessDate(new Date(), env.businessTimeZone)) };
 }
