@@ -171,7 +171,7 @@ function Editor({ po, ingredients }: { po: PurchaseOrder; ingredients: Ingredien
         eyebrow={t('eyebrow')}
         title={`${po.label} · ${s.name}`}
         description={[
-          t(`source.${po.source}`),
+          po.orderDay ? t('orderDayLine', { day: orderDayLabel(po.orderDay, locale) }) : t(`source.${po.source}`),
           po.sentAt ? t('sentLine', { when: formatDate(po.sentAt, locale), name: po.sentBy?.name ?? '—' }) : t('createdLine', { when: formatDate(po.createdAt, locale) }),
         ].join(' · ')}
         actions={

@@ -2,6 +2,8 @@ import { Prisma, type PurchaseOrderStatus } from '@prisma/client';
 import { prisma } from '../../config/db';
 import { env } from '../../config/env';
 import { audit } from '../../utils/auditLog';
+import { publish } from '../../utils/events';
+import { ingredientsOnTheWay } from './automation';
 import { businessDate } from '../../utils/businessTime';
 import { canCancel, canEdit, expectedDelivery, formatPoNumber, sendProblem, suggestLines } from './purchasing.rules';
 import type { CreatePoInput, PoLine, UpdatePoInput } from './purchasing.validation';
@@ -65,7 +67,9 @@ export async function createPurchaseOrder(input: CreatePoInput, actorId: string)
   if (!supplier) throw httpError(404, 'Supplier not found');
   if (!supplier.isActive) throw httpError(400, 'That supplier is switched off.');
   const today = businessDate(new Date(), env.businessTimeZone);
-  const lines = input.items ?? suggestLines(supplier.ingredients);
+  // Suggested: low ingredients that are not already on a sent order.
+  const coming = input.items ? new Set<string>() : await ingredientsOnTheWay();
+  const lines = input.items ?? suggestLines(supplier.ingredients.filter((i) => !coming.has(i.id)));
 
   const po = await prisma.$transaction(async (tx) => {
     const items = await buildLines(tx, lines);
@@ -80,6 +84,7 @@ export async function createPurchaseOrder(input: CreatePoInput, actorId: string)
       include: detailInclude,
     });
   });
+  publish({ type: 'purchasing' });
   await audit({ actorId, action: 'CREATE', entityType: 'PURCHASE_ORDER', entityId: po.id, metadata: { number: formatPoNumber(po.number), supplier: supplier.name, lines: po.items.length } });
   return withLabel(po);
 }
@@ -106,6 +111,7 @@ export async function updatePurchaseOrder(id: string, patch: UpdatePoInput, acto
     if (count === 0) throw httpError(409, 'Only a draft can be changed.');
     return tx.purchaseOrder.findUniqueOrThrow({ where: { id }, include: detailInclude });
   });
+  publish({ type: 'purchasing' });
   await audit({ actorId, action: 'UPDATE', entityType: 'PURCHASE_ORDER', entityId: id, metadata: { number: formatPoNumber(before.number), changed: Object.keys(patch), lines: po.items.length } });
   return withLabel(po);
 }
@@ -120,6 +126,7 @@ export async function sendPurchaseOrder(id: string, actorId: string) {
     data: { status: 'SENT', sentAt: new Date(), sentById: actorId },
   });
   if (count === 0) throw httpError(409, 'Only a draft can be sent.');
+  publish({ type: 'purchasing' });
   await audit({ actorId, action: 'STATUS_CHANGE', entityType: 'PURCHASE_ORDER', entityId: id, metadata: { number: formatPoNumber(po.number), from: 'DRAFT', to: 'SENT' } });
   return getPurchaseOrder(id);
 }
@@ -133,6 +140,7 @@ export async function cancelPurchaseOrder(id: string, actorId: string) {
     data: { status: 'CANCELLED', cancelledAt: new Date() },
   });
   if (count === 0) throw httpError(409, 'This order can no longer be cancelled.');
+  publish({ type: 'purchasing' });
   await audit({ actorId, action: 'STATUS_CHANGE', entityType: 'PURCHASE_ORDER', entityId: id, metadata: { number: formatPoNumber(po.number), from: po.status, to: 'CANCELLED' } });
   return getPurchaseOrder(id);
 }

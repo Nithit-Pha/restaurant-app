@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 export interface LiveEvent {
-  type: 'order' | 'table' | 'floor' | 'stock';
+  type: 'order' | 'table' | 'floor' | 'stock' | 'purchasing';
   orderId?: string;
   tableId?: string | null;
 }

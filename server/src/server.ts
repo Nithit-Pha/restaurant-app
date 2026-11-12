@@ -4,6 +4,7 @@ import path from 'path';
 import app from './app';
 import { env } from './config/env';
 import { prisma } from './config/db';
+import { startPurchasingTimer } from './modules/purchasing/automation';
 
 // Ensure uploads directory exists
 const uploadsDir = path.resolve(env.uploadDir);
@@ -18,6 +19,7 @@ async function main() {
   app.listen(env.port, env.host, () => {
     console.log(`✓ Server running on http://${env.host}:${env.port} [${env.nodeEnv}]`);
   });
+  startPurchasingTimer(); // order-day and urgent draft orders (Step 3c)
 }
 
 main().catch((err) => {

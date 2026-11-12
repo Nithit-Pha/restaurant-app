@@ -1304,7 +1304,7 @@
     "movesFrom": "moves from {name}",
     "draftAtClose": "At closing time",
     "draftAtTime": "At a set time",
-    "draftAtCloseHint": "On the day before each order day, the draft order is made at closing time (from your opening hours).",
+    "draftAtCloseHint": "On the day before each order day, the draft order is made at closing time (from your opening hours), or at 18:00 if you are closed that day. Only low ingredients go on it.",
     "draftAtTimeHint": "On the day before each order day, the draft order is made at this time.",
     "field": {
       "name": "Name",
@@ -1444,6 +1444,7 @@
       "orderedBy": "Ordered by",
       "page": "Page",
       "phone": "Tel."
-    }
+    },
+    "orderDayLine": "Order day {day}"
   }
 }

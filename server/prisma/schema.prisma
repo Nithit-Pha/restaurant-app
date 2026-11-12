@@ -440,6 +440,9 @@ model Ingredient {
   movements    StockMovement[]
   recipeItems  RecipeItem[]
   purchaseItems PurchaseOrderItem[]
+  // Step 3c: when stock first fell to the urgent level (null = not urgent).
+  // An urgent draft line is added once per such drop.
+  urgentSince  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -478,6 +481,7 @@ model Supplier {
   minOrder     Decimal?       @db.Decimal(12, 2) // THB
   ingredients  Ingredient[]
   purchaseOrders PurchaseOrder[]
+  orderDayChecks OrderDayCheck[]
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 }
@@ -577,4 +581,16 @@ model PurchaseOrderItem {
 
   @@unique([purchaseOrderId, ingredientId])
   @@index([ingredientId])
+}
+
+// Step 3c: each order day of a supplier is checked once (draft made, lines
+// added to an open draft, or nothing low), so removed lines do not come back.
+model OrderDayCheck {
+  supplier        Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierId      String
+  orderDay        String // YYYY-MM-DD (Bangkok)
+  purchaseOrderId String?
+  checkedAt       DateTime @default(now())
+
+  @@id([supplierId, orderDay])
 }

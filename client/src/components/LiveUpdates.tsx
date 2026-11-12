@@ -10,7 +10,7 @@ const LiveContext = createContext({ connected: false });
 /** True while staff screens get live updates; pages poll more often when it is false. */
 export const useLiveConnected = () => useContext(LiveContext).connected;
 
-type Tag = 'Order' | 'Floor' | 'Visit' | 'Stock' | 'MenuItem';
+type Tag = 'Order' | 'Floor' | 'Visit' | 'Stock' | 'MenuItem' | 'PurchaseOrder';
 
 /**
  * For staff: listens to /api/events and reloads what changed (orders, floor,
@@ -29,6 +29,7 @@ export function LiveUpdatesProvider({ enabled, children }: { enabled: boolean; c
       pending.current.add('Stock');
       pending.current.add('MenuItem');
     } else if (e.type === 'order') pending.current.add('Order');
+    else if (e.type === 'purchasing') pending.current.add('PurchaseOrder'); // drafts made, sent or cancelled
     if (e.type === 'table' || e.type === 'floor' || (e.type === 'order' && e.tableId)) {
       pending.current.add('Floor');
       pending.current.add('Visit');

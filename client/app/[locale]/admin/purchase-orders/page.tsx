@@ -12,7 +12,7 @@ import { orderDayLabel } from '../../../../src/features/admin/suppliers/orderDay
 import { formatDate } from '../../../../src/lib/format';
 import { useRequireRole } from '../../../../src/routes/useAuthGuard';
 import {
-  Badge, Button, Card, ChipGroup, EmptyState, LoadingBlock, PageContainer, PageHeader, Table, TBody, TD, TH, THead, TR,
+  Badge, Button, Card, ChipGroup, EmptyState, LoadingBlock, PageContainer, PageHeader, Table, TBody, TD, TH, THead, TR, cn,
 } from '../../../../src/components/ui';
 
 type Filter = 'open' | 'draft' | 'sent' | 'done' | 'cancelled' | 'all';
@@ -81,7 +81,11 @@ export default function PurchaseOrdersPage() {
                 <TR key={o.id}>
                   <TD className="py-2.5">
                     <Link href={`/admin/purchase-orders/${o.id}`} className="font-medium text-fg underline-offset-2 hover:underline">{o.label}</Link>
-                    {o.source !== 'MANUAL' && <p className="text-xs text-fg-muted">{t(`source.${o.source}`)}</p>}
+                    {o.source !== 'MANUAL' && (
+                      <p className={cn('text-xs', o.source === 'EMERGENCY' ? 'font-medium text-danger' : 'text-fg-muted')}>
+                        {o.orderDay ? t('orderDayLine', { day: orderDayLabel(o.orderDay, locale) }) : t(`source.${o.source}`)}
+                      </p>
+                    )}
                   </TD>
                   <TD>{o.supplier.name}</TD>
                   <TD><Badge tone={STATUS_TONE[o.status]}>{t(`status.${o.status}`)}</Badge></TD>
