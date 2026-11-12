@@ -1,6 +1,6 @@
 # Step 1 — Dine-in + kitchen display page
 
-Status: approved 2026-11-12 · Branch: `step-1-dine-in` (from `main` after Phase 1 and UI redesign are merged)
+Status: approved 2026-11-12 · Branch: `main` (one branch only; every slice is committed to `main`)
 Source: [ideas-dine-in-kitchen-stock.md](ideas-dine-in-kitchen-stock.md), Step 1.
 
 ## Goal
@@ -13,9 +13,8 @@ table for the next guests. Only the Super Admin can draw the floor plan.
 
 ## Before starting
 
-Merge `phase-1-real-orders` (1d item options, 1e map + addresses, 1f Thai/English)
-and `ui-redesign` (slice 6, accessibility) into `main`, then branch
-`step-1-dine-in`.
+Done 2026-11-12: `phase-1-real-orders` and `ui-redesign` merged into `main`;
+all other local branches deleted. From now on all work goes straight to `main`.
 
 ## Decisions (approved)
 
