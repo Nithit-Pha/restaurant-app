@@ -48,7 +48,7 @@ restaurant-app/
 
 ## Frontend architecture (Next.js)
 
-The client is a single unified Next.js 14 app (App Router):
+The client is a single unified Next.js 16 app (App Router, React 18):
 - **Public, SEO-critical pages** (`/`, `/menu`) are server-rendered with `generateMetadata`, JSON-LD structured data, ISR caching, and fetch the menu directly from the API on the server.
 - **Authenticated/interactive pages** (cart, checkout, orders, login/register, all `/admin/*`) are client components (`'use client'`) backed by Redux Toolkit + RTK Query, gated by `useRequireAuth()` / `useRequireRole()` route guards.
 - **SEO infrastructure**: `app/robots.ts`, `app/sitemap.ts`, and a dynamic `app/llms.txt` route (with AI-crawler allowlisting per the project plan §10.5) are generated automatically from live menu/category data.

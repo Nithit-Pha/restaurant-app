@@ -11,9 +11,10 @@ import { Card, PageContainer, buttonClasses } from '../../src/components/ui';
 
 export const revalidate = 3600;
 
-type Props = { params: { locale: string } };
+type Props = { params: Promise<{ locale: string }> }; // a Promise since Next.js 15
 
-export async function generateMetadata({ params: { locale } }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
   const [r, tm] = await Promise.all([getRestaurant(), getTranslations({ locale, namespace: 'meta' })]);
   return {
     title: tm('title', { name: r.name }),
@@ -37,7 +38,8 @@ function InfoRow({ icon: Icon, label, children }: { icon: typeof Clock; label: s
   );
 }
 
-export default async function HomePage({ params: { locale } }: Props) {
+export default async function HomePage({ params }: Props) {
+  const { locale } = await params;
   setRequestLocale(locale);
   const [items, RESTAURANT, t] = await Promise.all([getMenuItems(), getRestaurant(), getTranslations('home')]);
   const featured = items.slice(0, 3);

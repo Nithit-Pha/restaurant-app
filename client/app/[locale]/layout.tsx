@@ -18,13 +18,15 @@ import '@fontsource/ibm-plex-sans-thai/thai-500.css';
 import '@fontsource/ibm-plex-sans-thai/thai-600.css';
 import '../globals.css';
 
-type Props = { children: React.ReactNode; params: { locale: string } };
+// Next.js 15+: route params arrive as a Promise.
+type Props = { children: React.ReactNode; params: Promise<{ locale: string }> };
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
 }
 
-export async function generateMetadata({ params: { locale } }: Omit<Props, 'children'>): Promise<Metadata> {
+export async function generateMetadata({ params }: Omit<Props, 'children'>): Promise<Metadata> {
+  const { locale } = await params;
   const r = await getRestaurant();
   const t = await getTranslations({ locale, namespace: 'meta' });
   const logo = `${SITE_URL}/favicon.svg`;
@@ -75,7 +77,8 @@ const themeInitScript = `
 })();
 `;
 
-export default async function LocaleLayout({ children, params: { locale } }: Props) {
+export default async function LocaleLayout({ children, params }: Props) {
+  const { locale } = await params;
   // The [locale] segment also catches unknown addresses like /xx/menu.
   if (!isLocale(locale)) notFound();
   setRequestLocale(locale); // lets the pages below render statically

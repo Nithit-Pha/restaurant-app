@@ -13,13 +13,14 @@ import { EmptyState, PageContainer, PageHeader } from '../../../src/components/u
 
 export const revalidate = 300; // ISR: re-fetch the menu at most every 5 minutes
 
+// Both arrive as Promises since Next.js 15.
 interface PageProps {
-  params: { locale: string };
-  searchParams: { category?: string };
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ category?: string }>;
 }
 
-export async function generateMetadata({ params: { locale }, searchParams }: PageProps): Promise<Metadata> {
-  const category = searchParams.category;
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
+  const [{ locale }, { category }] = await Promise.all([params, searchParams]);
   const [r, t] = await Promise.all([getRestaurant(), getTranslations({ locale, namespace: 'menu' })]);
   const title = category ? t('metaTitleCategory', { category }) : t('title');
   const description = category
@@ -35,9 +36,9 @@ export async function generateMetadata({ params: { locale }, searchParams }: Pag
   };
 }
 
-export default async function MenuPage({ params: { locale }, searchParams }: PageProps) {
+export default async function MenuPage({ params, searchParams }: PageProps) {
+  const [{ locale }, { category }] = await Promise.all([params, searchParams]);
   setRequestLocale(locale);
-  const category = searchParams.category;
   const [items, categories, r, t] = await Promise.all([
     getMenuItems(category),
     getCategories(),
