@@ -17,7 +17,8 @@ export default function TopBarControls({ className }: { className?: string }) {
       <LanguageSwitch />
       <IconButton
         icon={dark ? Sun : Moon}
-        label={dark ? t('lightTheme') : t('darkTheme')}
+        // A toggle keeps one name; aria-pressed says whether it is on.
+        label={t('darkTheme')}
         aria-pressed={dark}
         onClick={toggle}
       />

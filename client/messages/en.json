@@ -398,6 +398,7 @@
     "previousDay": "Previous day",
     "nextDay": "Next day",
     "pickDate": "Pick a date",
+    "orderDetails": "Order {number} details",
     "updateFailed": "Could not update the order. Please try again.",
     "all": "All",
     "emptyStatus": "No orders with status “{status}”",

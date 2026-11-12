@@ -36,31 +36,6 @@ module.exports = {
         danger: { DEFAULT: token('danger'), soft: token('danger-soft'), hover: token('danger-hover') },
         info: { DEFAULT: token('info'), soft: token('info-soft') },
         neutral: { DEFAULT: token('neutral'), soft: token('neutral-soft') },
-
-        // Transitional: pages not yet restyled use `gray-*` and `brand-*`.
-        // Remapped to the warm grays and olive so they already match.
-        gray: {
-          50: '#F6F3EC',
-          100: '#EEEAE1',
-          200: '#E2DCD0',
-          300: '#CFC7B8',
-          400: '#A39A8C',
-          500: '#7C756A',
-          600: '#625C53',
-          700: '#47423B',
-          800: '#2C2A26',
-          900: '#1B1A17',
-          950: '#141311',
-        },
-        brand: {
-          50: '#F1F3EA',
-          100: '#E6E9DA',
-          300: '#B4C08A',
-          400: '#A9B57E',
-          500: '#5C6B3C',
-          600: '#4D5A32',
-          700: '#3F4A29',
-        },
       },
       fontFamily: {
         sans: ['"IBM Plex Sans"', '"IBM Plex Sans Thai"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],

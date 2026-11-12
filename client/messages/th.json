@@ -398,6 +398,7 @@
     "previousDay": "วันก่อนหน้า",
     "nextDay": "วันถัดไป",
     "pickDate": "เลือกวันที่",
+    "orderDetails": "รายละเอียดออเดอร์ {number}",
     "updateFailed": "อัปเดตออเดอร์ไม่สำเร็จ โปรดลองอีกครั้ง",
     "all": "ทั้งหมด",
     "emptyStatus": "ไม่มีออเดอร์สถานะ “{status}”",

@@ -108,7 +108,7 @@ function SidebarContent({ restaurantName, pathname, groups, user, signedIn, cart
       <nav aria-label={t('main')} className="flex-1 overflow-y-auto px-3 pb-4 pt-2">
         {groups.map((g) => (
           <div key={g.label} className="mb-5 last:mb-0">
-            <p className="mb-1 px-3 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">{g.label}</p>
+            <p className="mb-1 px-3 text-[11px] font-medium uppercase tracking-wider text-fg-muted">{g.label}</p>
             <ul className="space-y-0.5">
               {g.items.map((item) => (
                 <li key={item.href}>

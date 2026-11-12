@@ -50,7 +50,7 @@ export default function MenuItemCard({ item }: Props) {
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col py-3 pl-4 sm:p-4">
-        <h3 itemProp="name" className="font-medium leading-snug text-fg">{name}</h3>
+        <h2 itemProp="name" className="text-base font-medium leading-snug text-fg">{name}</h2>
         {description && (
           <p itemProp="description" className="mt-1 line-clamp-2 text-sm sm:line-clamp-3 text-fg-muted">{description}</p>
         )}

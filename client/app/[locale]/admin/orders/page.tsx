@@ -230,7 +230,8 @@ function DayStepper({ day, setDay }: { day: string; setDay: (fn: (d: string) => 
   return (
     <div className="flex items-center gap-1">
       <IconButton icon={ChevronLeft} label={t('previousDay')} variant="secondary" onClick={() => setDay((d) => (d ? shiftDay(d, -1) : today))} />
-      <div className="relative">
+      {/* The date input is invisible on top of the label, so the label shows its keyboard focus. */}
+      <div className="relative rounded-control has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-canvas">
         <span className="inline-flex h-9 min-w-[8.5rem] cursor-pointer select-none items-center justify-center gap-2 rounded-control border border-line-strong/60 bg-surface px-3 text-sm font-medium text-fg">
           <CalendarDays size={ICON_SM} strokeWidth={ICON_STROKE} className="text-fg-muted" aria-hidden />
           {label}
@@ -465,10 +466,16 @@ export default function AdminOrdersPage() {
                         open && 'bg-surface-hover',
                       )}
                       onClick={() => setExpanded(open ? null : order.id)}
-                      aria-expanded={open}
                     >
                       <TD className="whitespace-nowrap font-semibold tabular-nums">
-                        <span className="inline-flex items-center gap-1.5">
+                        {/* The whole row opens the details; this button makes it reachable by keyboard. */}
+                        <button
+                          type="button"
+                          aria-expanded={open}
+                          aria-label={t('orderDetails', { number: formatOrderNumber(order) })}
+                          onClick={(e) => { e.stopPropagation(); setExpanded(open ? null : order.id); }}
+                          className="-mx-1 inline-flex items-center gap-1.5 rounded-control px-1 font-semibold"
+                        >
                           <ChevronRight
                             size={ICON_SM}
                             strokeWidth={ICON_STROKE}
@@ -476,7 +483,7 @@ export default function AdminOrdersPage() {
                             className={cn('text-fg-subtle transition-transform duration-150', open && 'rotate-90')}
                           />
                           {formatOrderNumber(order)}
-                        </span>
+                        </button>
                         {/* Narrower screens: time sits under the number instead of its own column. */}
                         <span className="ml-[1.375rem] block text-xs font-normal text-fg-muted min-[1400px]:hidden">
                           {formatClock(order.createdAt)}
