@@ -144,7 +144,12 @@ export default function AdminMenuPage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className={cn('truncate font-medium', item.isAvailable ? 'text-fg' : 'text-fg-muted')}>{item.name}</p>
+                          <p className={cn('flex items-center gap-2 truncate font-medium', item.isAvailable ? 'text-fg' : 'text-fg-muted')}>
+                            <span className="truncate">{item.name}</span>
+                            {item.soldOut && (
+                              <span title={t('soldOutTitle')}><Badge tone="danger">{t('soldOut')}</Badge></span>
+                            )}
+                          </p>
                           {item.nameTh && <p lang="th" className="max-w-xs truncate text-xs text-fg-muted">{item.nameTh}</p>}
                           {item.description && <p className="max-w-xs truncate text-xs text-fg-muted">{item.description}</p>}
                           {!!item.modifierGroups?.length && (

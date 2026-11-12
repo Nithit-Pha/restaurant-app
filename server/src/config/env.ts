@@ -13,6 +13,8 @@ export const env = {
   host: process.env.HOST ?? '127.0.0.1',
   nodeEnv: process.env.NODE_ENV ?? 'development',
   clientUrl: process.env.CLIENT_URL ?? 'http://localhost:5173',
+  // The website's hook that regenerates the cached menu pages (a dish became sold out).
+  revalidateUrl: process.env.REVALIDATE_URL ?? 'http://127.0.0.1:5173/revalidate',
 
   jwt: {
     accessSecret: required('JWT_ACCESS_SECRET'),

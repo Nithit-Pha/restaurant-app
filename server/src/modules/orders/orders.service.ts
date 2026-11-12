@@ -10,6 +10,8 @@ import { buildPromptPayPayload } from '../../utils/promptpay';
 import { priceLine } from './lineOptions';
 import { syncTableStatus } from '../dineIn/tableStatus';
 import { deductForOrder, returnForOrder } from '../stock/stock.service';
+import { notifyStockChanged } from '../stock/stock.notify';
+import { soldOutItems } from '../stock/stock.plan';
 import { publish } from '../../utils/events';
 
 // Distance assumed when the customer shares no location and no max delivery
@@ -72,11 +74,15 @@ async function buildLines(items: CartItemInput[]) {
         orderBy: { sortOrder: 'asc' },
         include: { modifiers: { orderBy: { sortOrder: 'asc' } } },
       },
+      recipe: { select: { menuItemId: true, ingredientId: true, amount: true, ingredient: { select: { quantity: true, isActive: true } } } },
     },
   });
+  // Not enough stock for even one portion: the dish is sold out.
+  const soldOut = soldOutItems(menuItems.flatMap((m) => m.recipe ?? []));
   return items.map((item) => {
     const mi = menuItems.find((m) => m.id === item.menuItemId);
     if (!mi) throw badRequest('One or more items are unavailable');
+    if (soldOut.has(mi.id)) throw httpError(409, `Sorry, ${mi.name} is sold out. Please remove it from your order.`);
     const { unitPrice, options } = priceLine(
       {
         name: mi.name,
@@ -350,6 +356,7 @@ export async function changeOrderStatus(id: string, change: StatusChange) {
     return { from: order.status as OrderStatus, order: updated! };
   });
   publish({ type: 'order', orderId: id, ...(order.tableSessionId ? { tableId: await tableOfVisit(order.tableSessionId) } : {}) });
+  if (change.to === 'PREPARING' || change.to === 'CANCELLED') void notifyStockChanged();
   return result;
 }
 

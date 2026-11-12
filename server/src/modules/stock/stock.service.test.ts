@@ -25,6 +25,8 @@ const { prismaMock, auditMock } = vi.hoisted(() => ({
 
 vi.mock('../../config/db', () => ({ prisma: prismaMock }));
 vi.mock('../../utils/auditLog', () => ({ audit: auditMock }));
+const { notifyMock } = vi.hoisted(() => ({ notifyMock: vi.fn() }));
+vi.mock('./stock.notify', () => ({ notifyStockChanged: notifyMock }));
 
 import {
   countStock, createIngredient, deductForOrder, listIngredients, returnForOrder, setRecipe, stockIn, updateIngredient, wasteStock,

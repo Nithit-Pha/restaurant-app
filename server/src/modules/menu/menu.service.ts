@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/db';
+import { soldOutItems } from '../stock/stock.plan';
 
 /** Option groups in display order. The public menu only sees available options. */
 const optionsInclude = (availableOnly: boolean) => ({
@@ -14,19 +15,32 @@ const optionsInclude = (availableOnly: boolean) => ({
   },
 });
 
+// Only what the sold-out rule needs; recipe amounts are not sent to the client.
+const recipeInclude = {
+  recipe: { select: { menuItemId: true, ingredientId: true, amount: true, ingredient: { select: { quantity: true, isActive: true } } } },
+};
+
+/** Adds `soldOut` (an ingredient does not cover one portion) and drops the recipe. */
+function withSoldOut<T extends { id: string; recipe: Parameters<typeof soldOutItems>[0] }>(item: T) {
+  const { recipe, ...rest } = item;
+  return { ...rest, soldOut: soldOutItems(recipe ?? []).has(item.id) };
+}
+
 export async function getMenuItems(category?: string, availableOnly = true) {
-  return prisma.menuItem.findMany({
+  const items = await prisma.menuItem.findMany({
     where: {
       ...(availableOnly ? { isAvailable: true } : {}),
       ...(category ? { category } : {}),
     },
-    include: optionsInclude(availableOnly),
+    include: { ...optionsInclude(availableOnly), ...recipeInclude },
     orderBy: [{ category: 'asc' }, { name: 'asc' }],
   });
+  return items.map(withSoldOut);
 }
 
 export async function getMenuItem(id: string, availableOnly = true) {
-  return prisma.menuItem.findUnique({ where: { id }, include: optionsInclude(availableOnly) });
+  const item = await prisma.menuItem.findUnique({ where: { id }, include: { ...optionsInclude(availableOnly), ...recipeInclude } });
+  return item ? withSoldOut(item) : null;
 }
 
 export interface OptionGroupInput {

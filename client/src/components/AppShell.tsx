@@ -11,6 +11,7 @@ import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
 import { selectCartCount, toggleCart } from '../features/cart/cartSlice';
 import { useGetAdminOrdersQuery, useGetMeQuery, type User } from '../api/apiSlice';
+import { useGetIngredientsQuery } from '../features/admin/stock/stockApi';
 import TopBarControls from './TopBarControls';
 import { LiveUpdatesProvider } from './LiveUpdates';
 import { Drawer } from './ui/Dialog';
@@ -28,6 +29,10 @@ interface NavItem {
   /** Highlight for sub-paths too (e.g. /orders/123). */
   prefix?: boolean;
   badge?: number;
+  /** Red for problems (low stock); amber (default) for new things. */
+  badgeTone?: 'warning' | 'danger';
+  /** Read after the number by screen readers (default "new"). */
+  badgeSr?: string;
 }
 
 interface NavGroup {
@@ -74,9 +79,14 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
       />
       <span className="flex-1 truncate">{item.label}</span>
       {item.badge != null && item.badge > 0 && (
-        <span className="min-w-[1.25rem] rounded-full bg-warning-soft px-1.5 text-center text-xs font-medium leading-5 tabular-nums text-warning">
+        <span
+          className={cn(
+            'min-w-[1.25rem] rounded-full px-1.5 text-center text-xs font-medium leading-5 tabular-nums',
+            item.badgeTone === 'danger' ? 'bg-danger-soft text-danger' : 'bg-warning-soft text-warning',
+          )}
+        >
           {item.badge}
-          <span className="sr-only"> {t('newSuffix')}</span>
+          <span className="sr-only"> {item.badgeSr ?? t('newSuffix')}</span>
         </span>
       )}
     </Link>
@@ -190,6 +200,9 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
   // New (unaccepted) orders, for the badge next to "Orders". Shares the cache
   // with the staff orders screen, which refreshes it on every status change.
   const { data: pending } = useGetAdminOrdersQuery({ status: 'PENDING' }, { skip: !isStaff, pollingInterval: 30000 });
+  // Low-stock ingredients, for the counter next to "Stock" (refreshed by the live "stock" event).
+  const { data: ingredients } = useGetIngredientsQuery(undefined, { skip: !isStaff, pollingInterval: 120000 });
+  const lowStock = ingredients?.filter((i) => i.low).length;
 
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => setMobileOpen(false), [pathname]);
@@ -212,7 +225,7 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
         { href: '/admin/floor', label: t('floor'), icon: Armchair, prefix: true },
         { href: '/kitchen', label: t('kitchen'), icon: ChefHat, prefix: true },
         { href: '/admin/menu', label: t('menuManagement'), icon: NotebookPen, prefix: true },
-        { href: '/admin/stock', label: t('stock'), icon: Boxes, prefix: true },
+        { href: '/admin/stock', label: t('stock'), icon: Boxes, prefix: true, badge: lowStock, badgeTone: 'danger', badgeSr: t('lowSuffix') },
       ],
     });
   }

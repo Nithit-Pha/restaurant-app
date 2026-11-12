@@ -30,6 +30,7 @@ npm run dev           # http://localhost:5173
 ### Backend (`server/.env`)
 - `DATABASE_URL` — PostgreSQL connection string
 - `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` — change before production
+- `REVALIDATE_URL` — the website's hook the API calls when a dish becomes sold out or available again, so the cached menu pages refresh (default `http://127.0.0.1:5173/revalidate`)
 - `HOST` — address the API listens on, default `127.0.0.1` (only this PC; the website proxies `/api` to it). Set `0.0.0.0` only if other machines must call the API directly
 - `TAX_RATE` — default `0.07` (7%)
 - `BUSINESS_TIMEZONE` — default `Asia/Bangkok`; business day, daily order numbers and opening hours use it

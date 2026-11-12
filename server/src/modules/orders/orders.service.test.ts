@@ -28,6 +28,8 @@ const { syncTableStatus } = vi.hoisted(() => ({ syncTableStatus: vi.fn() }));
 vi.mock('../dineIn/tableStatus', () => ({ syncTableStatus }));
 const { deductForOrder, returnForOrder } = vi.hoisted(() => ({ deductForOrder: vi.fn(), returnForOrder: vi.fn() }));
 vi.mock('../stock/stock.service', () => ({ deductForOrder, returnForOrder }));
+const { notifyStockChanged } = vi.hoisted(() => ({ notifyStockChanged: vi.fn() }));
+vi.mock('../stock/stock.notify', () => ({ notifyStockChanged }));
 // Key-aware: tax rate 0.07, and DELIVERY_MAX_KM = 0 (no limit) by default.
 // Restaurant location used as the delivery origin (Springfield, IL).
 const RESTAURANT_GEO = { latitude: 39.7817, longitude: -89.6501 };
@@ -67,6 +69,25 @@ beforeEach(() => {
   txQueryRaw.mockResolvedValue([{ value: 42 }]);
   prismaMock.order.findUnique.mockResolvedValue(null); // no earlier order with this idempotency key
   (getOpenStatus as any).mockResolvedValue({ isOpen: true, enforced: true, nextOpening: null, timeZone: 'Asia/Bangkok' });
+});
+
+describe('sold out', () => {
+  it('refuses a dish whose recipe ingredient does not cover one portion', async () => {
+    prismaMock.menuItem.findMany.mockImplementationOnce(async (args: any) => MENU
+      .filter((m) => args.where.id.in.includes(m.id))
+      .map((m) => (m.id === 'burger'
+        ? { ...m, recipe: [{ menuItemId: 'burger', ingredientId: 'bun', amount: 1, ingredient: { quantity: 0.5, isActive: true } }] }
+        : m)));
+    await expect(quoteOrder({ type: 'PICKUP', items: [{ menuItemId: 'burger', quantity: 1 }] }))
+      .rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining('sold out') });
+  });
+
+  it('still sells it when the short ingredient is switched off', async () => {
+    prismaMock.menuItem.findMany.mockImplementationOnce(async (args: any) => MENU
+      .filter((m) => args.where.id.in.includes(m.id))
+      .map((m) => ({ ...m, recipe: [{ menuItemId: m.id, ingredientId: 'bun', amount: 1, ingredient: { quantity: 0, isActive: false } }] })));
+    await expect(quoteOrder({ type: 'PICKUP', items: [{ menuItemId: 'burger', quantity: 1 }] })).resolves.toBeDefined();
+  });
 });
 
 describe('quoteOrder', () => {

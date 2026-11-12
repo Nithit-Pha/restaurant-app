@@ -3,6 +3,7 @@ import { prisma } from '../../config/db';
 import { audit } from '../../utils/auditLog';
 import { countChange, isLow, stockInExpenseText } from './stock.rules';
 import { planReturn, planSale } from './stock.plan';
+import { notifyStockChanged } from './stock.notify';
 import type { CountInput, IngredientInput, IngredientPatch, RecipeInput, StockInInput, WasteInput } from './stock.validation';
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
@@ -121,6 +122,7 @@ export async function setRecipe(menuItemId: string, items: RecipeInput['items'],
     }),
   ]);
   await audit({ actorId, action: 'UPDATE', entityType: 'MENU_ITEM', entityId: menuItemId, metadata: { name: item.name, recipe: items } });
+  void notifyStockChanged(); // a new recipe can make the dish sold out
   return getRecipe(menuItemId);
 }
 
@@ -136,6 +138,7 @@ export async function createIngredient(input: IngredientInput, actorId: string) 
     return tx.ingredient.findUniqueOrThrow({ where: { id: created.id } });
   });
   await audit({ actorId, action: 'CREATE', entityType: 'INGREDIENT', entityId: ingredient.id, metadata: { ...input } });
+  void notifyStockChanged();
   return withLow(ingredient);
 }
 
@@ -160,6 +163,7 @@ export async function updateIngredient(id: string, patch: IngredientPatch, actor
     actorId, action, entityType: 'INGREDIENT', entityId: id,
     metadata: { name: before.name, before: { name: before.name, unit: before.unit, reorderLevel: before.reorderLevel, storage: before.storage, isActive: before.isActive }, after: patch },
   });
+  void notifyStockChanged(); // low level or on/off changes the low count and sold-out dishes
   return withLow(updated);
 }
 
@@ -195,6 +199,7 @@ export async function stockIn(id: string, input: StockInInput, actor: Actor) {
     actorId: actor.userId, action: 'UPDATE', entityType: 'INGREDIENT', entityId: id,
     metadata: { name: ing.name, move: 'PURCHASE', change: input.amount, quantityAfter: move.quantityAfter, price: input.price },
   });
+  void notifyStockChanged();
   return move;
 }
 
@@ -220,6 +225,7 @@ export async function countStock(id: string, input: CountInput, actor: Actor) {
     actorId: actor.userId, action: 'UPDATE', entityType: 'INGREDIENT', entityId: id,
     metadata: { name: ing.name, move: 'COUNT_ADJUST', counted: input.counted, change: change.toString() },
   });
+  void notifyStockChanged();
   return move;
 }
 
@@ -233,6 +239,7 @@ export async function wasteStock(id: string, input: WasteInput, actor: Actor) {
     actorId: actor.userId, action: 'UPDATE', entityType: 'INGREDIENT', entityId: id,
     metadata: { name: ing.name, move: 'WASTE', change: -input.amount, reason: input.reason },
   });
+  void notifyStockChanged();
   return move;
 }
 

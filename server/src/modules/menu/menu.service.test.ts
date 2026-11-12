@@ -69,3 +69,19 @@ describe('setItemOptions', () => {
     await expect(setItemOptions('nope', [])).rejects.toMatchObject({ statusCode: 404 });
   });
 });
+
+describe('sold out on the menu', () => {
+  it('flags a dish whose ingredient does not cover one portion and never sends the recipe', async () => {
+    const findMany = vi.fn().mockResolvedValue([
+      { id: 'a', name: 'Omelette', recipe: [{ menuItemId: 'a', ingredientId: 'egg', amount: 2, ingredient: { quantity: 1, isActive: true } }] },
+      { id: 'b', name: 'Rice', recipe: [{ menuItemId: 'b', ingredientId: 'rice', amount: 0.2, ingredient: { quantity: 3, isActive: true } }] },
+      { id: 'c', name: 'Water', recipe: [] },
+    ]);
+    (prismaMock as any).menuItem = { findMany };
+    const { getMenuItems } = await import('./menu.service');
+    const items = await getMenuItems();
+    expect(items.map((i) => [i.id, i.soldOut])).toEqual([['a', true], ['b', false], ['c', false]]);
+    expect(items.every((i) => !('recipe' in i))).toBe(true);
+    expect(findMany.mock.calls[0][0].include.recipe).toBeDefined();
+  });
+});

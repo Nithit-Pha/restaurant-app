@@ -99,6 +99,7 @@
     "kitchen": "ครัว",
     "menuManagement": "จัดการเมนู",
     "stock": "สต็อก",
+    "lowSuffix": "รายการใกล้หมด",
     "floorPlan": "ผังร้าน",
     "finance": "การเงิน",
     "auditLog": "บันทึกการเปลี่ยนแปลง",
@@ -129,7 +130,8 @@
     "emptyTitle": "ไม่มีรายการในหมวดนี้",
     "emptyDescription": "ลองหมวดอื่น หรือดูเมนูทั้งหมด",
     "add": "เพิ่ม",
-    "addLabel": "เพิ่ม {name}"
+    "addLabel": "เพิ่ม {name}",
+    "soldOut": "หมดแล้ว"
   },
   "home": {
     "eyebrow": "รับเองและจัดส่ง",
@@ -555,6 +557,8 @@
     "optionsList": "ตัวเลือก: {names}",
     "costMissingTitle": "พนักงานเป็นผู้เพิ่ม กรอกต้นทุนเพื่อให้ตัวเลขกำไรถูกต้อง",
     "costMissing": "ยังไม่มีต้นทุน",
+    "soldOut": "หมดแล้ว",
+    "soldOutTitle": "วัตถุดิบในสูตรเหลือไม่พอสำหรับหนึ่งที่ เพิ่มสต็อกได้ที่หน้าสต็อก",
     "availableLabel": "{name} เปิดให้สั่ง",
     "optionsFor": "ตัวเลือกของ {name}",
     "recipeFor": "สูตรของ {name}",
@@ -933,6 +937,7 @@
     "all": "ทั้งหมด",
     "add": "เพิ่ม",
     "addLabel": "เพิ่ม {name}",
+    "soldOut": "หมดแล้ว",
     "added": "เพิ่ม {name} แล้ว",
     "itemsCount": "{count} รายการ",
     "reviewOrder": "ดูออเดอร์",

@@ -99,6 +99,7 @@
     "kitchen": "Kitchen",
     "menuManagement": "Menu management",
     "stock": "Stock",
+    "lowSuffix": "low on stock",
     "floorPlan": "Floor plan",
     "finance": "Finance",
     "auditLog": "Audit log",
@@ -129,7 +130,8 @@
     "emptyTitle": "No items in this category.",
     "emptyDescription": "Try another category, or look at the whole menu.",
     "add": "Add",
-    "addLabel": "Add {name}"
+    "addLabel": "Add {name}",
+    "soldOut": "Sold out"
   },
   "home": {
     "eyebrow": "Pickup & delivery",
@@ -555,6 +557,8 @@
     "optionsList": "Options: {names}",
     "costMissingTitle": "Added by staff; enter the cost to get correct profit figures",
     "costMissing": "cost missing",
+    "soldOut": "Sold out",
+    "soldOutTitle": "An ingredient in its recipe does not cover one portion. Add stock on the Stock page.",
     "availableLabel": "{name} available to order",
     "optionsFor": "Options for {name}",
     "recipeFor": "Recipe for {name}",
@@ -933,6 +937,7 @@
     "all": "All",
     "add": "Add",
     "addLabel": "Add {name}",
+    "soldOut": "Sold out",
     "added": "{name} added",
     "itemsCount": "{count, plural, one {# item} other {# items}}",
     "reviewOrder": "Review order",

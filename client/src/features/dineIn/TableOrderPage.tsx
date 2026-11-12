@@ -15,7 +15,7 @@ import { formatCurrency } from '../../lib/format';
 import { newUuid } from '../../lib/uuid';
 import { itemDescription, itemName } from '../../lib/localized';
 import {
-  Alert, Button, Card, CardBody, ChipGroup, Dialog, Drawer, EmptyState, IconButton, LoadingBlock, PageContainer, cn, useToast,
+  Alert, Badge, Button, Card, CardBody, ChipGroup, Dialog, Drawer, EmptyState, IconButton, LoadingBlock, PageContainer, cn, useToast,
 } from '../../components/ui';
 import { GuestApiError, guestApi, store, type TableInfo, type Visit } from './guestApi';
 
@@ -295,10 +295,14 @@ export default function TableOrderPage({ qrToken }: { qrToken: string }) {
                   {description && <p className="mt-0.5 line-clamp-2 text-sm text-fg-muted">{description}</p>}
                   <div className="mt-auto flex items-center justify-between gap-2 pt-2">
                     <span className="font-semibold tabular-nums text-fg">{formatCurrency(item.sellingPrice)}</span>
-                    <Button size="sm" variant="secondary" icon={Plus} aria-label={t('addLabel', { name })}
-                      onClick={() => (item.modifierGroups?.length ? setChoosing(item) : add(item))}>
-                      {t('add')}
-                    </Button>
+                    {item.soldOut ? (
+                      <Badge tone="neutral">{t('soldOut')}</Badge>
+                    ) : (
+                      <Button size="sm" variant="secondary" icon={Plus} aria-label={t('addLabel', { name })}
+                        onClick={() => (item.modifierGroups?.length ? setChoosing(item) : add(item))}>
+                        {t('add')}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </li>

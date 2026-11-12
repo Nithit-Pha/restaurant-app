@@ -8,7 +8,7 @@ import type { MenuItem } from '../../api/apiSlice';
 import { useAppDispatch } from '../../app/hooks';
 import { addItem, openCart, type CartOption } from '../cart/cartSlice';
 import { CURRENCY, formatCurrency } from '../../lib/format';
-import { Button } from '../../components/ui';
+import { Badge, Button } from '../../components/ui';
 import ItemOptionsDialog from './ItemOptionsDialog';
 
 interface Props {
@@ -58,10 +58,15 @@ export default function MenuItemCard({ item }: Props) {
           <span itemProp="offers" itemScope itemType="https://schema.org/Offer" className="text-base font-semibold tabular-nums text-fg">
             <span itemProp="priceCurrency" content={CURRENCY} />
             <span itemProp="price" content={String(item.sellingPrice)}>{formatCurrency(item.sellingPrice)}</span>
+            {item.soldOut && <link itemProp="availability" href="https://schema.org/SoldOut" />}
           </span>
-          <Button size="sm" variant="secondary" icon={Plus} onClick={handleAdd} aria-label={t('addLabel', { name })}>
-            {t('add')}
-          </Button>
+          {item.soldOut ? (
+            <Badge tone="neutral">{t('soldOut')}</Badge>
+          ) : (
+            <Button size="sm" variant="secondary" icon={Plus} onClick={handleAdd} aria-label={t('addLabel', { name })}>
+              {t('add')}
+            </Button>
+          )}
         </div>
       </div>
       {choosing && (

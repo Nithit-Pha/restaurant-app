@@ -10,7 +10,8 @@ import { EventEmitter } from 'events';
 export type LiveEvent =
   | { type: 'order'; orderId: string; tableId?: string | null }
   | { type: 'table'; tableId: string | null }
-  | { type: 'floor' };
+  | { type: 'floor' }
+  | { type: 'stock' }; // quantities changed: stock page, low-stock count, sold-out dishes
 
 const bus = new EventEmitter();
 bus.setMaxListeners(0); // one listener per connected staff screen

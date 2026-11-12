@@ -108,6 +108,8 @@ test('owner adds an ingredient; stock in, count and waste update stock and histo
 test.describe('recipes and orders', () => {
   const EGG = `E2E Egg ${Date.now()}`;
   const DISH = `E2E Omelette ${Date.now()}`;
+  const CATEGORY = `e2e-stock-${Date.now()}`;
+  const WEB = process.env.E2E_BASE_URL || 'http://localhost:5173';
   let eggId = '';
   let dishId = '';
   let hoursWereEnforced = true;
@@ -125,7 +127,7 @@ test.describe('recipes and orders', () => {
     const egg = await api.post('/api/stock/ingredients', { data: { name: EGG, unit: 'pcs', reorderLevel: 0, openingStock: 10 }, headers: auth });
     expect(egg.ok(), 'create ingredient').toBeTruthy();
     eggId = (await egg.json()).id;
-    const dish = await api.post('/api/menu', { data: { name: DISH, category: `e2e-stock-${Date.now()}`, sellingPrice: 60 }, headers: auth });
+    const dish = await api.post('/api/menu', { data: { name: DISH, category: CATEGORY, sellingPrice: 60 }, headers: auth });
     expect(dish.ok(), 'create menu item').toBeTruthy();
     dishId = (await dish.json()).id;
   });
@@ -134,7 +136,7 @@ test.describe('recipes and orders', () => {
     await api.put('/api/settings/ordering', { data: { hoursEnforced: hoursWereEnforced }, headers: auth });
     if (dishId) await api.delete(`/api/menu/${dishId}`, { headers: auth }); // hidden, since it has orders
     if (eggId) await api.patch(`/api/stock/ingredients/${eggId}`, { data: { isActive: false }, headers: auth });
-    await api.post('/revalidate', { failOnStatusCode: false }).catch(() => undefined);
+    await api.post(`${WEB}/revalidate`).catch(() => undefined); // the website's hook, not the API
   });
 
   test('accepting takes the recipe out of stock, cancelling puts it back', async ({ page }) => {
@@ -176,5 +178,52 @@ test.describe('recipes and orders', () => {
 
     const moves = await (await api.get(`/api/stock/movements?ingredientId=${eggId}`, { headers: auth })).json();
     expect(moves.slice(0, 2).map((m: { type: string; change: string }) => `${m.type} ${Number(m.change)}`)).toEqual(['SALE_RETURN 6', 'SALE -6']);
+  });
+
+  // Step 2c: less than one portion left -> sold out everywhere; low stock is counted.
+  test('a dish is sold out when an ingredient runs short, and back after stock in', async ({ page }) => {
+    const menuItem = async () => (await (await api.get(`/api/menu?category=${CATEGORY}`)).json())
+      .find((m: { id: string }) => m.id === dishId);
+
+    // 10 eggs, 2 per omelette: throw 9 away -> 1 left, low at 2.
+    await api.patch(`/api/stock/ingredients/${eggId}`, { data: { reorderLevel: 2 }, headers: auth });
+    const waste = await api.post(`/api/stock/ingredients/${eggId}/waste`, { data: { amount: 9, reason: 'E2E dropped' }, headers: auth });
+    expect(waste.ok(), 'waste').toBeTruthy();
+    expect((await menuItem()).soldOut).toBe(true);
+
+    // Ordering it is refused, by the quote and by checkout.
+    const order = { items: [{ menuItemId: dishId, quantity: 1 }], type: 'PICKUP' };
+    const quote = await api.post('/api/orders/quote', { headers: auth, data: order });
+    expect(quote.status()).toBe(409);
+    expect((await quote.json()).message).toContain('sold out');
+    const placed = await api.post('/api/orders', { headers: auth, data: { ...order, customerPhone: '0811111111' } });
+    expect(placed.status()).toBe(409);
+
+    // The public menu page (cached) shows it as sold out right away.
+    await page.goto(`/en/menu?category=${CATEGORY}`);
+    const card = page.getByRole('article').filter({ has: page.getByRole('heading', { name: DISH }) });
+    await expect(card.getByText('Sold out')).toBeVisible();
+    await expect(card.getByRole('button', { name: `Add ${DISH}` })).toHaveCount(0);
+
+    // Staff see the low-stock counter next to "Stock" and the badge on the menu screen.
+    await page.goto('/en/login');
+    await page.locator('input[autocomplete="username"]').fill(ADMIN.username);
+    await page.locator('input[autocomplete="current-password"]').fill(ADMIN.password);
+    await page.locator('button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/(en|th)$/);
+    const stockLink = page.getByRole('link', { name: /Stock/ }).first();
+    await expect(stockLink).toContainText(/\d+\s*low on stock/);
+    await page.goto('/en/admin/menu');
+    await page.getByLabel('Search dishes').fill(DISH);
+    await expect(page.getByRole('row', { name: new RegExp(DISH) }).getByText('Sold out')).toBeVisible();
+
+    // Stock in -> available again, on the menu page too.
+    const stockIn = await api.post(`/api/stock/ingredients/${eggId}/in`, { data: { amount: 5 }, headers: auth });
+    expect(stockIn.ok(), 'stock in').toBeTruthy();
+    expect((await menuItem()).soldOut).toBe(false);
+    await expect.poll(async () => {
+      await page.goto(`/en/menu?category=${CATEGORY}`);
+      return page.getByRole('button', { name: `Add ${DISH}` }).count();
+    }, { timeout: 15_000 }).toBe(1);
   });
 });

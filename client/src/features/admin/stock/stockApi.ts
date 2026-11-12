@@ -48,7 +48,7 @@ export type IngredientPatch = Partial<Omit<IngredientInput, 'openingStock' | 'st
   isActive?: boolean;
 };
 
-const stockApi = apiSlice.enhanceEndpoints({ addTagTypes: ['Stock', 'Finance', 'MenuItem'] }).injectEndpoints({
+const stockApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getIngredients: builder.query<Ingredient[], { all?: boolean } | void>({
       query: (arg) => `/stock/ingredients${arg?.all ? '?all=true' : ''}`,

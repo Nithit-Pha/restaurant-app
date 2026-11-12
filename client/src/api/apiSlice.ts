@@ -80,7 +80,7 @@ const baseQueryWithReauth: BaseQueryFn<
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus', 'Address', 'Floor', 'Visit'],
+  tagTypes: ['MenuItem', 'Order', 'User', 'Settings', 'Staff', 'Finance', 'AuditLog', 'Restaurant', 'OpenStatus', 'Address', 'Floor', 'Visit', 'Stock'],
   endpoints: (builder) => ({
     // Auth
     login: builder.mutation<AuthResponse, LoginInput>({
@@ -548,6 +548,8 @@ export interface MenuItem {
   sellingPrice: number;
   imageUrl?: string;
   isAvailable: boolean;
+  // Stock does not cover one portion (recipe ingredient ran out); ordering is refused.
+  soldOut?: boolean;
   createdAt: string;
   modifierGroups?: ModifierGroup[]; // in display order
 }
