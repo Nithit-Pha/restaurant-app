@@ -19,6 +19,7 @@ import dineInRoutes from './modules/dineIn/dineIn.routes';
 import eventsRoutes from './modules/events/events.routes';
 import stockRoutes from './modules/stock/stock.routes';
 import suppliersRoutes from './modules/suppliers/suppliers.routes';
+import purchasingRoutes from './modules/purchasing/purchasing.routes';
 import { authenticate } from './middleware/auth';
 import { requireRole } from './middleware/requireRole';
 import { profitReportHandler } from './modules/orders/orders.controller';
@@ -87,6 +88,7 @@ app.use('/api/dine-in', dineInRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/suppliers', suppliersRoutes);
+app.use('/api/purchase-orders', purchasingRoutes);
 app.get('/api/admin/reports/profit', authenticate, requireRole('SUPER_ADMIN'), profitReportHandler);
 
 // Error handler (must be last)

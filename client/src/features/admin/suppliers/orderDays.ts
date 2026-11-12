@@ -9,10 +9,12 @@ export function weekdayName(day: number, locale: string, width: 'short' | 'long'
   return new Intl.DateTimeFormat(intl(locale), { weekday: width, timeZone: 'UTC' }).format(Date.UTC(2024, 0, day));
 }
 
-/** "Mon 16 Nov" for a YYYY-MM-DD order day. */
-export function orderDayLabel(ymd: string, locale: string): string {
+/** "Mon 16 Nov" (or "Mon 16 Nov 2026" with the year) for a YYYY-MM-DD day. */
+export function orderDayLabel(ymd: string, locale: string, withYear = false): string {
   const [y, m, d] = ymd.split('-').map(Number);
-  return new Intl.DateTimeFormat(intl(locale), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(Date.UTC(y, m - 1, d));
+  return new Intl.DateTimeFormat(intl(locale), {
+    weekday: 'short', day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' as const } : {}), timeZone: 'UTC',
+  }).format(Date.UTC(y, m - 1, d));
 }
 
 type T = (key: string, values?: Record<string, string | number>) => string;

@@ -66,6 +66,8 @@ model User {
   addresses  Address[]
   confirmedVisits TableSession[] @relation("VisitConfirmedBy")
   stockMovements StockMovement[]
+  purchaseOrdersCreated PurchaseOrder[] @relation("PoCreatedBy")
+  purchaseOrdersSent    PurchaseOrder[] @relation("PoSentBy")
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 }
@@ -437,6 +439,7 @@ model Ingredient {
   lastPackPrice  Decimal? @db.Decimal(12, 2) // THB per pack, from the last delivery
   movements    StockMovement[]
   recipeItems  RecipeItem[]
+  purchaseItems PurchaseOrderItem[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -474,6 +477,7 @@ model Supplier {
   leadTimeDays Int            @default(1) // days from ordering to delivery
   minOrder     Decimal?       @db.Decimal(12, 2) // THB
   ingredients  Ingredient[]
+  purchaseOrders PurchaseOrder[]
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 }
@@ -511,5 +515,66 @@ model RecipeItem {
   amount       Decimal    @db.Decimal(12, 3)
 
   @@id([menuItemId, ingredientId])
+  @@index([ingredientId])
+}
+
+// ---- Step 3b: purchase orders --------------------------------------------
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  PARTLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum PurchaseOrderSource {
+  MANUAL
+  SCHEDULED
+  EMERGENCY
+}
+
+// An order to a supplier. Shown as PO-0001 from `number`.
+model PurchaseOrder {
+  id           String              @id @default(uuid())
+  number       Int                 @unique @default(autoincrement())
+  supplier     Supplier            @relation(fields: [supplierId], references: [id])
+  supplierId   String
+  status       PurchaseOrderStatus @default(DRAFT)
+  source       PurchaseOrderSource @default(MANUAL)
+  // Order day (YYYY-MM-DD, Bangkok) of a scheduled draft: one per supplier and day.
+  orderDay     String?
+  // Expected delivery (YYYY-MM-DD).
+  expectedDate String?
+  note         String?
+  createdBy    User?               @relation("PoCreatedBy", fields: [createdById], references: [id])
+  createdById  String?
+  sentBy       User?               @relation("PoSentBy", fields: [sentById], references: [id])
+  sentById     String?
+  sentAt       DateTime?
+  cancelledAt  DateTime?
+  items        PurchaseOrderItem[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@unique([supplierId, orderDay])
+  @@index([status])
+}
+
+// One ingredient on an order. Name, unit and pack are copied, so later edits
+// of the ingredient do not change a sent order.
+model PurchaseOrderItem {
+  id              String        @id @default(uuid())
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrderId String
+  ingredient      Ingredient    @relation(fields: [ingredientId], references: [id])
+  ingredientId    String
+  packs           Int
+  ingredientName  String
+  unit            String
+  packName        String?
+  packSize        Decimal       @db.Decimal(12, 3)
+
+  @@unique([purchaseOrderId, ingredientId])
   @@index([ingredientId])
 }

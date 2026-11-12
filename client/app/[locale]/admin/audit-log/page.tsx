@@ -11,7 +11,7 @@ import {
   type Tone,
 } from '../../../../src/components/ui';
 
-const ENTITY_TYPES = ['USER', 'MENU_ITEM', 'ORDER', 'EXPENSE', 'SETTING', 'TABLE_LAYOUT', 'INGREDIENT', 'SUPPLIER'] as const;
+const ENTITY_TYPES = ['USER', 'MENU_ITEM', 'ORDER', 'EXPENSE', 'SETTING', 'TABLE_LAYOUT', 'INGREDIENT', 'SUPPLIER', 'PURCHASE_ORDER'] as const;
 type EntityType = (typeof ENTITY_TYPES)[number];
 const ACTIONS = ['CREATE', 'UPDATE', 'DELETE', 'STATUS_CHANGE', 'PAYMENT', 'LOGIN'] as const;
 type Action = (typeof ACTIONS)[number];

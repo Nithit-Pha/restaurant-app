@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import {
-  Armchair, Boxes, ChefHat, ClipboardList, History, House, LayoutGrid, LogIn, LogOut, Menu as MenuIcon, NotebookPen, Receipt, Settings, ShoppingBag, Truck,
+  Armchair, Boxes, ChefHat, ClipboardList, History, House, LayoutGrid, LogIn, LogOut, Menu as MenuIcon, NotebookPen, Receipt, Settings, ShoppingBag, Truck, FileText,
   UserPlus, UtensilsCrossed, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
@@ -235,6 +235,7 @@ export default function AppShell({ restaurantName, children }: { restaurantName:
       items: [
         { href: '/admin/tables', label: t('floorPlan'), icon: LayoutGrid, prefix: true },
         { href: '/admin/suppliers', label: t('suppliers'), icon: Truck, prefix: true },
+        { href: '/admin/purchase-orders', label: t('purchaseOrders'), icon: FileText, prefix: true },
         { href: '/admin/finance', label: t('finance'), icon: Wallet, prefix: true },
         { href: '/admin/audit-log', label: t('auditLog'), icon: History, prefix: true },
         { href: '/admin/settings', label: t('settings'), icon: Settings, prefix: true },

@@ -118,7 +118,8 @@
       "STAFF": "Staff",
       "SUPER_ADMIN": "Super admin"
     },
-    "suppliers": "Suppliers"
+    "suppliers": "Suppliers",
+    "purchaseOrders": "Purchase orders"
   },
   "menu": {
     "categories": "Menu categories",
@@ -770,7 +771,8 @@
       "SETTING": "Setting",
       "TABLE_LAYOUT": "Floor plan",
       "INGREDIENT": "Ingredient",
-      "SUPPLIER": "Supplier"
+      "SUPPLIER": "Supplier",
+      "PURCHASE_ORDER": "Purchase order"
     },
     "entityPlural": {
       "USER": "Users",
@@ -780,7 +782,8 @@
       "SETTING": "Settings",
       "TABLE_LAYOUT": "Floor plan",
       "INGREDIENT": "Ingredients",
-      "SUPPLIER": "Suppliers"
+      "SUPPLIER": "Suppliers",
+      "PURCHASE_ORDER": "Purchase orders"
     },
     "action": {
       "CREATE": "Create",
@@ -1329,6 +1332,118 @@
       "minOrder": "Minimum order (฿)",
       "minOrderHint": "Optional.",
       "active": "Supplier is on"
+    }
+  },
+  "purchasing": {
+    "eyebrow": "Business",
+    "title": "Purchase orders",
+    "description": "Orders to your suppliers: check the draft, send it, forward the PDF.",
+    "newOrder": "New order",
+    "filter": "Show",
+    "filters": {
+      "open": "Open",
+      "draft": "Drafts",
+      "sent": "Sent",
+      "done": "Received",
+      "cancelled": "Cancelled",
+      "all": "All"
+    },
+    "loading": "Loading orders…",
+    "emptyTitle": "No orders here",
+    "emptyDescription": "Start an order for a supplier: its low ingredients are ticked for you.",
+    "col": {
+      "number": "Order",
+      "supplier": "Supplier",
+      "status": "Status",
+      "lines": "Lines",
+      "delivery": "Delivery",
+      "created": "Created",
+      "tick": "On the order",
+      "ingredient": "Ingredient",
+      "inStock": "In stock",
+      "packs": "Packs",
+      "amount": "Amount"
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "SENT": "Sent",
+      "PARTLY_RECEIVED": "Partly received",
+      "RECEIVED": "Received",
+      "CANCELLED": "Cancelled"
+    },
+    "source": {
+      "MANUAL": "Made by hand",
+      "SCHEDULED": "Order day",
+      "EMERGENCY": "Urgent"
+    },
+    "newTitle": "New purchase order",
+    "newDescription": "Choose the supplier. Ingredients at or below their low-stock level start ticked, filled up to their target.",
+    "supplier": "Supplier",
+    "lowCount": "{count} low",
+    "create": "Start order",
+    "createFailed": "Could not start the order.",
+    "noSuppliers": "Add a supplier on the Suppliers page first.",
+    "notFound": "This order does not exist.",
+    "backToList": "All purchase orders",
+    "createdLine": "Started {when}",
+    "sentLine": "Sent {when} by {name}",
+    "downloadPdf": "Download PDF",
+    "save": "Save draft",
+    "send": "Send",
+    "saved": "{number} saved",
+    "saveFailed": "Could not save the order.",
+    "sendFailed": "Could not send the order.",
+    "cancelFailed": "Could not cancel the order.",
+    "pdfFailed": "Could not make the PDF. Try again.",
+    "packsInvalid": "Packs must be whole numbers from 1 to 9999.",
+    "supplierOff": "This supplier is switched off.",
+    "linesTitle": "{count, plural, =0 {Nothing ticked} one {# ingredient on the order} other {# ingredients on the order}}",
+    "linesHintDraft": "All ingredients of this supplier. Tick what to order and set the packs.",
+    "useSuggestion": "Use suggestion",
+    "noLines": "No ingredients",
+    "noLinesHint": "Tick ingredients for this supplier on the Suppliers page, or choose the supplier on an ingredient.",
+    "tickFor": "Order {name}",
+    "packsFor": "Packs of {name}",
+    "perPack": "Pack: {pack}",
+    "suggested": "suggested {count}",
+    "summary": {
+      "lines": "Ingredients",
+      "packs": "Packs in total",
+      "cutOff": "Send by"
+    },
+    "field": {
+      "expectedDate": "Delivery date",
+      "expectedDateHint": "Delivery usually takes {count, plural, =0 {the same day} one {# day} other {# days}}.",
+      "note": "Note to the supplier",
+      "noteHint": "Printed on the PDF."
+    },
+    "cancelOrder": "Cancel order",
+    "confirmSendTitle": "Send {number}?",
+    "confirmSendText": "It is marked as sent and the PDF downloads ({count, plural, one {# ingredient} other {# ingredients}}). Forward it to {supplier} by LINE or email.",
+    "confirmSend": "Send and download PDF",
+    "sentToast": "{number} sent",
+    "sentToastHint": "Forward the PDF to {supplier}.",
+    "confirmCancelTitle": "Cancel {number}?",
+    "confirmCancelText": "The order stays in the list as cancelled. Tell the supplier if you already sent it.",
+    "confirmCancel": "Cancel order",
+    "cancelledToast": "{number} cancelled",
+    "pdf": {
+      "title": "Purchase order",
+      "draft": "DRAFT — not sent yet",
+      "number": "No.",
+      "date": "Date",
+      "delivery": "Delivery",
+      "to": "Supplier",
+      "from": "From",
+      "no": "#",
+      "item": "Item",
+      "packs": "Qty",
+      "pack": "Pack",
+      "amount": "Amount",
+      "note": "Note",
+      "orderedBy": "Ordered by",
+      "page": "Page",
+      "phone": "Tel."
     }
   }
 }

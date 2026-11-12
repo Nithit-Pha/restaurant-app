@@ -118,7 +118,8 @@
       "STAFF": "พนักงาน",
       "SUPER_ADMIN": "เจ้าของร้าน"
     },
-    "suppliers": "ซัพพลายเออร์"
+    "suppliers": "ซัพพลายเออร์",
+    "purchaseOrders": "ใบสั่งซื้อ"
   },
   "menu": {
     "categories": "หมวดหมู่เมนู",
@@ -770,7 +771,8 @@
       "SETTING": "การตั้งค่า",
       "TABLE_LAYOUT": "ผังร้าน",
       "INGREDIENT": "วัตถุดิบ",
-      "SUPPLIER": "ซัพพลายเออร์"
+      "SUPPLIER": "ซัพพลายเออร์",
+      "PURCHASE_ORDER": "ใบสั่งซื้อ"
     },
     "entityPlural": {
       "USER": "ผู้ใช้",
@@ -780,7 +782,8 @@
       "SETTING": "การตั้งค่า",
       "TABLE_LAYOUT": "ผังร้าน",
       "INGREDIENT": "วัตถุดิบ",
-      "SUPPLIER": "ซัพพลายเออร์"
+      "SUPPLIER": "ซัพพลายเออร์",
+      "PURCHASE_ORDER": "ใบสั่งซื้อ"
     },
     "action": {
       "CREATE": "สร้าง",
@@ -1329,6 +1332,118 @@
       "minOrder": "สั่งขั้นต่ำ (฿)",
       "minOrderHint": "ไม่บังคับ",
       "active": "เปิดใช้ซัพพลายเออร์"
+    }
+  },
+  "purchasing": {
+    "eyebrow": "ธุรกิจ",
+    "title": "ใบสั่งซื้อ",
+    "description": "ใบสั่งซื้อถึงซัพพลายเออร์: ตรวจร่าง ส่ง แล้วส่งต่อ PDF",
+    "newOrder": "สร้างใบสั่งซื้อ",
+    "filter": "แสดง",
+    "filters": {
+      "open": "ยังไม่เสร็จ",
+      "draft": "ร่าง",
+      "sent": "ส่งแล้ว",
+      "done": "รับของแล้ว",
+      "cancelled": "ยกเลิก",
+      "all": "ทั้งหมด"
+    },
+    "loading": "กำลังโหลดใบสั่งซื้อ…",
+    "emptyTitle": "ไม่มีใบสั่งซื้อ",
+    "emptyDescription": "สร้างใบสั่งซื้อให้ซัพพลายเออร์ วัตถุดิบที่ใกล้หมดจะถูกติ๊กให้",
+    "col": {
+      "number": "เลขที่",
+      "supplier": "ซัพพลายเออร์",
+      "status": "สถานะ",
+      "lines": "รายการ",
+      "delivery": "วันส่งของ",
+      "created": "สร้างเมื่อ",
+      "tick": "อยู่ในใบสั่งซื้อ",
+      "ingredient": "วัตถุดิบ",
+      "inStock": "คงเหลือ",
+      "packs": "จำนวน",
+      "amount": "ปริมาณ"
+    },
+    "status": {
+      "DRAFT": "ร่าง",
+      "SENT": "ส่งแล้ว",
+      "PARTLY_RECEIVED": "รับของบางส่วน",
+      "RECEIVED": "รับของแล้ว",
+      "CANCELLED": "ยกเลิก"
+    },
+    "source": {
+      "MANUAL": "สร้างเอง",
+      "SCHEDULED": "ตามรอบสั่ง",
+      "EMERGENCY": "ด่วน"
+    },
+    "newTitle": "สร้างใบสั่งซื้อ",
+    "newDescription": "เลือกซัพพลายเออร์ วัตถุดิบที่ถึงระดับใกล้หมดจะถูกติ๊กไว้ และสั่งให้เติมถึงระดับเป้าหมาย",
+    "supplier": "ซัพพลายเออร์",
+    "lowCount": "ใกล้หมด {count}",
+    "create": "เริ่มใบสั่งซื้อ",
+    "createFailed": "สร้างใบสั่งซื้อไม่สำเร็จ",
+    "noSuppliers": "เพิ่มซัพพลายเออร์ที่หน้าซัพพลายเออร์ก่อน",
+    "notFound": "ไม่พบใบสั่งซื้อนี้",
+    "backToList": "ใบสั่งซื้อทั้งหมด",
+    "createdLine": "สร้างเมื่อ {when}",
+    "sentLine": "ส่งเมื่อ {when} โดย {name}",
+    "downloadPdf": "ดาวน์โหลด PDF",
+    "save": "บันทึกร่าง",
+    "send": "ส่ง",
+    "saved": "บันทึก {number} แล้ว",
+    "saveFailed": "บันทึกใบสั่งซื้อไม่สำเร็จ",
+    "sendFailed": "ส่งใบสั่งซื้อไม่สำเร็จ",
+    "cancelFailed": "ยกเลิกใบสั่งซื้อไม่สำเร็จ",
+    "pdfFailed": "สร้าง PDF ไม่สำเร็จ ลองอีกครั้ง",
+    "packsInvalid": "จำนวนต้องเป็นจำนวนเต็ม 1 ถึง 9999",
+    "supplierOff": "ซัพพลายเออร์นี้ปิดอยู่",
+    "linesTitle": "{count, plural, =0 {ยังไม่ได้ติ๊ก} other {วัตถุดิบในใบสั่งซื้อ # รายการ}}",
+    "linesHintDraft": "วัตถุดิบทั้งหมดของซัพพลายเออร์นี้ ติ๊กสิ่งที่จะสั่งและใส่จำนวน",
+    "useSuggestion": "ใช้ตามที่แนะนำ",
+    "noLines": "ไม่มีวัตถุดิบ",
+    "noLinesHint": "ติ๊กวัตถุดิบให้ซัพพลายเออร์นี้ที่หน้าซัพพลายเออร์ หรือเลือกซัพพลายเออร์ที่วัตถุดิบ",
+    "tickFor": "สั่ง {name}",
+    "packsFor": "จำนวน {name}",
+    "perPack": "หน่วยซื้อ: {pack}",
+    "suggested": "แนะนำ {count}",
+    "summary": {
+      "lines": "วัตถุดิบ",
+      "packs": "จำนวนรวม",
+      "cutOff": "ส่งก่อน"
+    },
+    "field": {
+      "expectedDate": "วันส่งของ",
+      "expectedDateHint": "ปกติส่งของ{count, plural, =0 {ภายในวันเดียวกัน} other {ใช้เวลา # วัน}}",
+      "note": "หมายเหตุถึงซัพพลายเออร์",
+      "noteHint": "พิมพ์ลงใน PDF"
+    },
+    "cancelOrder": "ยกเลิกใบสั่งซื้อ",
+    "confirmSendTitle": "ส่ง {number}?",
+    "confirmSendText": "จะบันทึกว่าส่งแล้วและดาวน์โหลด PDF (วัตถุดิบ {count} รายการ) แล้วส่งต่อให้ {supplier} ทาง LINE หรืออีเมล",
+    "confirmSend": "ส่งและดาวน์โหลด PDF",
+    "sentToast": "ส่ง {number} แล้ว",
+    "sentToastHint": "ส่งต่อ PDF ให้ {supplier}",
+    "confirmCancelTitle": "ยกเลิก {number}?",
+    "confirmCancelText": "ใบสั่งซื้อจะยังอยู่ในรายการในสถานะยกเลิก ถ้าส่งไปแล้วให้แจ้งซัพพลายเออร์ด้วย",
+    "confirmCancel": "ยกเลิกใบสั่งซื้อ",
+    "cancelledToast": "ยกเลิก {number} แล้ว",
+    "pdf": {
+      "title": "ใบสั่งซื้อ",
+      "draft": "ร่าง — ยังไม่ได้ส่ง",
+      "number": "เลขที่",
+      "date": "วันที่",
+      "delivery": "วันส่งของ",
+      "to": "ซัพพลายเออร์",
+      "from": "จาก",
+      "no": "#",
+      "item": "รายการ",
+      "packs": "จำนวน",
+      "pack": "หน่วย",
+      "amount": "ปริมาณ",
+      "note": "หมายเหตุ",
+      "orderedBy": "ผู้สั่ง",
+      "page": "หน้า",
+      "phone": "โทร."
     }
   }
 }
